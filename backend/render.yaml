@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: brandguard-fastapi-backend
+    env: python
+    region: frankfurt
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: brandguard-postgres
+          property: connectionString
+
+databases:
+  - name: brandguard-postgres
+    region: frankfurt
+    plan: free
+    databaseName: brandguard
+    user: brandguard_admin

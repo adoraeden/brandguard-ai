@@ -1,0 +1,6 @@
+{
+  "name": "BrandGuard AI",
+  "description": "Enterprise brand governance and content review platform. Centralizes brand guidelines, terminology, and facts with hybrid deterministic rule checks and explainable Gemini contextual analysis.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

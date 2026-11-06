@@ -1,0 +1,288 @@
+import React, { useState, useEffect } from 'react';
+import { NavigationRail, NavTab } from './components/layout/NavigationRail';
+import { TopHeader } from './components/layout/TopHeader';
+import { OverviewView } from './components/overview/OverviewView';
+import { ReviewStudio } from './components/review/ReviewStudio';
+import { BrandIntelligenceView } from './components/intelligence/BrandIntelligenceView';
+import { DecisionArchiveView } from './components/archive/DecisionArchiveView';
+import { GovernanceInsightsView } from './components/insights/GovernanceInsightsView';
+import { PendingReviewsView } from './components/pending/PendingReviewsView';
+import { SignInModal } from './components/auth/SignInModal';
+import { AuthProvider } from './context/AuthContext';
+import { api } from './services/apiClient';
+import { 
+  BrandGuideline, 
+  TerminologyEntry, 
+  ApprovedFact, 
+  KnowledgeSource, 
+  ReviewDocument, 
+  GovernanceInsights 
+} from './types';
+import { 
+  INITIAL_GUIDELINES, 
+  INITIAL_TERMINOLOGY, 
+  INITIAL_FACTS, 
+  INITIAL_SOURCES, 
+  INITIAL_REVIEWS,
+  SAMPLE_DOCUMENTS 
+} from './data/mockData';
+
+function AppContent() {
+  // Navigation & Review Persistence (Requirement 3)
+  const [currentTab, setCurrentTab] = useState<NavTab>(() => {
+    try {
+      const saved = localStorage.getItem('brandguard_current_tab');
+      if (saved && ['overview', 'pending_reviews', 'review_studio', 'brand_intelligence', 'decision_archive', 'governance_insights'].includes(saved)) {
+        return saved as NavTab;
+      }
+    } catch {
+      // Ignore
+    }
+    return 'overview';
+  });
+  
+  // Data State
+  const [overviewData, setOverviewData] = useState<any>(null);
+  const [guidelines, setGuidelines] = useState<BrandGuideline[]>(INITIAL_GUIDELINES);
+  const [terminology, setTerminology] = useState<TerminologyEntry[]>(INITIAL_TERMINOLOGY);
+  const [facts, setFacts] = useState<ApprovedFact[]>(INITIAL_FACTS);
+  const [sources, setSources] = useState<KnowledgeSource[]>(INITIAL_SOURCES);
+  const [reviews, setReviews] = useState<ReviewDocument[]>(INITIAL_REVIEWS);
+  const [insights, setInsights] = useState<GovernanceInsights | null>(null);
+
+  // Review Studio Active Document State
+  const [activeReview, setActiveReview] = useState<ReviewDocument | null>(() => {
+    try {
+      const savedId = localStorage.getItem('brandguard_active_review_id');
+      if (savedId) {
+        const found = INITIAL_REVIEWS.find(r => r.id === savedId);
+        if (found) return found;
+      }
+    } catch {
+      // Ignore
+    }
+    return INITIAL_REVIEWS[0] || null;
+  });
+  const [draftToLoad, setDraftToLoad] = useState<typeof SAMPLE_DOCUMENTS[0] | null>(null);
+
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Sync tab changes to localStorage
+  const handleSelectTab = (tab: NavTab) => {
+    setCurrentTab(tab);
+    try {
+      localStorage.setItem('brandguard_current_tab', tab);
+    } catch {
+      // Ignore
+    }
+  };
+
+  // Sync activeReview changes to localStorage
+  const handleSetActiveReview = (review: ReviewDocument | null) => {
+    setActiveReview(review);
+    try {
+      if (review?.id) {
+        localStorage.setItem('brandguard_active_review_id', review.id);
+      }
+    } catch {
+      // Ignore
+    }
+  };
+
+  // Load all data from API endpoints
+  const loadAllData = async () => {
+    try {
+      setIsLoading(true);
+      const [ov, gl, tm, ft, src, rev, ins] = await Promise.allSettled([
+        api.getOverview(),
+        api.getGuidelines(),
+        api.getTerminology(),
+        api.getFacts(),
+        api.getSources(),
+        api.getReviews(),
+        api.getInsights(),
+      ]);
+
+      if (ov.status === 'fulfilled') setOverviewData(ov.value);
+      if (gl.status === 'fulfilled') setGuidelines(gl.value);
+      if (tm.status === 'fulfilled') setTerminology(tm.value);
+      if (ft.status === 'fulfilled') setFacts(ft.value);
+      if (src.status === 'fulfilled') setSources(src.value);
+      if (rev.status === 'fulfilled') {
+        const fetchedReviews = rev.value as ReviewDocument[];
+        setReviews(fetchedReviews);
+        
+        // Restore active review from localStorage or previous state
+        const savedReviewId = localStorage.getItem('brandguard_active_review_id');
+        if (savedReviewId) {
+          const match = fetchedReviews.find(r => r.id === savedReviewId);
+          if (match) {
+            setActiveReview(match);
+            return;
+          }
+        }
+        
+        setActiveReview(prev => {
+          if (!prev) return fetchedReviews[0] || null;
+          return fetchedReviews.find((r: ReviewDocument) => r.id === prev.id) || prev;
+        });
+      }
+      if (ins.status === 'fulfilled') setInsights(ins.value);
+    } catch (err) {
+      console.warn('API error, relying on local state:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAllData();
+  }, []);
+
+  // Handlers
+  const handleStartNewReview = () => {
+    handleSetActiveReview(null);
+    setDraftToLoad(null);
+    handleSelectTab('review_studio');
+  };
+
+  const handleOpenSampleDraft = (sample: typeof SAMPLE_DOCUMENTS[0]) => {
+    handleSetActiveReview(null);
+    setDraftToLoad(sample);
+    handleSelectTab('review_studio');
+  };
+
+  const handleSelectReview = async (reviewId: string) => {
+    try {
+      const doc = await api.getReview(reviewId);
+      handleSetActiveReview(doc);
+      setDraftToLoad(null);
+      handleSelectTab('review_studio');
+    } catch {
+      const localDoc = reviews.find(r => r.id === reviewId);
+      if (localDoc) {
+        handleSetActiveReview(localDoc);
+        setDraftToLoad(null);
+        handleSelectTab('review_studio');
+      }
+    }
+  };
+
+  const handleReviewCreated = (doc: ReviewDocument) => {
+    handleSetActiveReview(doc);
+    loadAllData();
+  };
+
+  const handleDecisionUpdated = (doc: ReviewDocument) => {
+    handleSetActiveReview(doc);
+    // Update reviews array locally
+    setReviews(prev => prev.map(r => r.id === doc.id ? doc : r));
+    loadAllData();
+  };
+
+  const pendingReviewsList = reviews.filter(r => r.decisionStatus === 'pending');
+  const pendingReviewsCount = pendingReviewsList.length;
+
+  const unresolvedCount = overviewData?.counts?.unresolvedFindings ?? 
+    reviews.reduce((sum, r) => sum + (r.summary?.unresolvedFindings || 0), 0);
+
+  return (
+    <div className="flex h-screen w-screen overflow-hidden bg-[#F8FAFC] text-slate-900 font-sans antialiased">
+      {/* Left Spatial Navigation Rail */}
+      <NavigationRail
+        currentTab={currentTab}
+        onSelectTab={handleSelectTab}
+        unresolvedCount={unresolvedCount}
+        pendingReviewsCount={pendingReviewsCount}
+      />
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col h-screen min-w-0 overflow-hidden">
+        {/* Top Header */}
+        <TopHeader
+          currentTab={currentTab}
+          onNewReviewClick={handleStartNewReview}
+          documentTitle={activeReview?.title}
+          activeFindingsCount={activeReview?.summary?.unresolvedFindings}
+        />
+
+        {/* Viewport View Switcher */}
+        <main className={`flex-1 bg-[#F8FAFC] ${
+          currentTab === 'review_studio' || currentTab === 'brand_intelligence' 
+            ? 'overflow-hidden flex flex-col' 
+            : 'overflow-y-auto'
+        }`}>
+          {currentTab === 'overview' && (
+            <OverviewView
+              overviewData={overviewData}
+              onStartReview={handleStartNewReview}
+              onOpenSampleDraft={handleOpenSampleDraft}
+              onSelectReview={handleSelectReview}
+              onNavigateToPending={() => handleSelectTab('pending_reviews')}
+            />
+          )}
+
+          {currentTab === 'pending_reviews' && (
+            <PendingReviewsView
+              reviews={reviews}
+              onOpenReview={(r) => {
+                handleSetActiveReview(r);
+                handleSelectTab('review_studio');
+              }}
+              onStartNewReview={handleStartNewReview}
+            />
+          )}
+
+          {currentTab === 'review_studio' && (
+            <ReviewStudio
+              activeReview={activeReview}
+              onReviewCreated={handleReviewCreated}
+              onDecisionUpdated={handleDecisionUpdated}
+              initialDraftToLoad={draftToLoad}
+              onNavigateToLedger={() => handleSelectTab('decision_archive')}
+              onNavigateToPending={() => handleSelectTab('pending_reviews')}
+            />
+          )}
+
+          {currentTab === 'brand_intelligence' && (
+            <BrandIntelligenceView
+              guidelines={guidelines}
+              terminology={terminology}
+              facts={facts}
+              sources={sources}
+              onDataChanged={loadAllData}
+            />
+          )}
+
+          {currentTab === 'decision_archive' && (
+            <DecisionArchiveView
+              reviews={reviews}
+              onOpenReview={(r) => {
+                handleSetActiveReview(r);
+                handleSelectTab('review_studio');
+              }}
+            />
+          )}
+
+          {currentTab === 'governance_insights' && (
+            <GovernanceInsightsView
+              insights={insights}
+              onNavigateToIntelligence={() => handleSelectTab('brand_intelligence')}
+            />
+          )}
+        </main>
+      </div>
+
+      {/* Authentication & Role Switcher Modal */}
+      <SignInModal />
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
+}
