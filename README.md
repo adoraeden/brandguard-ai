@@ -1,92 +1,286 @@
-# BrandGuard AI — Brand Governance & Content Review Platform
+# BrandGuard AI
+### Evidence-Grounded Brand Governance & Content Review Platform
 
-BrandGuard AI helps enterprise organizations ensure that their public marketing, product communications, and external copy stay strictly consistent with approved brand guidelines, terminology standards, audited technical facts, and messaging policies before publication.
+BrandGuard AI is an AI-powered platform that helps teams maintain brand consistency and review marketing content before publication. It combines deterministic rule-based checks with Gemini-powered contextual analysis to identify unsupported claims, inconsistent messaging, and violations of brand guidelines.
 
 ---
 
-## 1. System Architecture
+## 1. Problem Statement
 
+Organizations often maintain brand guidelines, approved terminology, product facts, and communication rules across multiple documents and platforms.
+
+As a result:
+- Marketing content may contain unsupported or inaccurate claims.
+- Brand terminology and tone may be applied inconsistently.
+- Reviewers may struggle to trace findings back to approved information.
+- Manual reviews can be time-consuming and difficult to track.
+
+BrandGuard AI addresses these challenges through a centralized, evidence-grounded content review workflow.
+
+## 2. Proposed Solution
+
+BrandGuard AI brings brand knowledge, content analysis, and human review into one platform.
+
+Users can store approved brand information, submit content for analysis, inspect evidence-backed findings, and decide whether to accept, edit, or reject suggested corrections.
+
+The platform combines two analysis approaches:
+
+- **Deterministic analysis:** Checks content against configured rules and brand requirements.
+- **AI-powered analysis:** Uses Google Gemini to identify contextual issues and suggest improvements.
+
+AI findings are advisory. Final decisions remain with the human reviewer.
+
+## 3. Key Features
+
+### Brand Intelligence
+A centralized knowledge base for managing:
+- Brand guidelines and communication rules.
+- Approved terminology and preferred wording.
+- Product facts and approved claims.
+- Knowledge sources used during content verification.
+
+### Content Analysis
+- Rule-based checks for configured brand requirements.
+- Gemini-powered contextual analysis.
+- Detection of inconsistent messaging and potentially unsupported claims.
+- Findings with severity, explanations, and suggested corrections.
+
+### Evidence Validation
+- Checks whether findings reference approved knowledge-base records.
+- Validates quoted evidence against stored information.
+- Withholds mismatched or unapproved citations.
+- Identifies claims that lack sufficient supporting evidence.
+
+### Review Studio
+- Review individual findings and their supporting information.
+- Accept, edit, or reject suggested corrections.
+- Preserve the revised content.
+- Re-run analysis after making changes.
+
+### Re-analysis and Audit History
+- Re-analyse updated content using the same review.
+- Avoid duplicate findings where possible.
+- Preserve existing reviewer decisions and audit history.
+- Record analysis status, reviewer information, and outcomes.
+
+### Governance Insights
+Provides insights derived from stored review data, helping users understand recurring issues and areas that may need improvements to brand guidelines.
+
+## 4. System Workflow
+
+The main workflow takes content from submission through analysis and human approval.
+
+```mermaid
+flowchart TD
+    A[Brand Knowledge Base] --> B[Content Submission]
+    B --> C[Deterministic Rule Engine]
+    B --> D[Gemini AI Analysis]
+    C --> E[Evidence Validation]
+    D --> E
+    E --> F[Analysis Findings]
+    F --> G[Review Studio]
+    G --> H{Reviewer Decision}
+    H -->|Accept| I[Approved Suggestion]
+    H -->|Edit| J[Revised Content]
+    H -->|Reject| K[Rejected Suggestion]
+    I --> L[Decision Archive]
+    J --> L
+    K --> L
+    J --> M[Re-run Analysis]
+    M --> C
+    M --> D
+    L --> N[Governance Insights]
 ```
-[ Marketing Draft Submission ]
-              │
-              ▼
-┌────────────────────────────────────────────────────────┐
-│             HYBRID REVIEW WORKSPACE ENGINE             │
-│                                                        │
-│  1. Deterministic Rule Engine (Exact Matching)         │
-│     - Restricted terminology catalogue                 │
-│     - Prohibited phrase checks                         │
-│     - Known contradictory claims vs factsheets         │
-│                                                        │
-│  2. Gemini 3.8 Flash Engine (Contextual Reasoning)     │
-│     - Tone of voice and hyperbolic rhetoric audit      │
-│     - Ethical AI & worker augmentation boundaries      │
-│     - Intent-preserving suggestion generation          │
-│     - Traceable evidence & source grounding            │
-└───────────────────────────────────┬────────────────────┘
-                                    │
-                                    ▼
-┌────────────────────────────────────────────────────────┐
-│             HUMAN GOVERNANCE WORKSPACE                 │
-│  - Inspect matched exact text and policy citation      │
-│  - Accept, edit custom, or reject suggestions          │
-│  - Reviewer decision sign-off and audit ledger         │
-└────────────────────────────────────────────────────────┘
+
+## 5. System Architecture
+
+The application uses a React frontend, FastAPI backend, PostgreSQL database, and Gemini API integration.
+
+```mermaid
+flowchart TB
+    U[User] --> FE[React + TypeScript Frontend]
+    FE --> API[FastAPI Backend]
+    API --> RULES[Deterministic Rule Engine]
+    API --> AI[Google Gemini API]
+    API --> DB[(PostgreSQL Database)]
+    RULES --> API
+    AI --> API
+    DB --> API
+    API --> FE
 ```
 
----
+**Architecture responsibilities:**
 
-## 2. Technology Stack
+| Component | Responsibility |
+|---|---|
+| React frontend | User interface, content submission, review and insights |
+| FastAPI backend | API endpoints and application logic |
+| Rule engine | Deterministic brand compliance checks |
+| Gemini API | Contextual content analysis and suggestions |
+| PostgreSQL | Brand knowledge, reviews, findings and audit records |
+| SQLAlchemy | Database interaction and models |
 
-- **Frontend**: React 19, TypeScript, Tailwind CSS v4, Lucide Icons.
-- **Visual Design**: **Spatial Intelligence — Light-Mode Intelligence Workspace**
-  - Sophisticated light palette: Cool white (`#F8FAFC`, `#F9FBFE`), soft grey (`#F1F5F9`), Cobalt & Electric Blue primary identity (`#1D4ED8`, `#2563EB`), Teal secondary data accent (`#0D9488`), and restrained Coral/Amber warnings.
-  - Spatial Information Architecture: Radial Governance Integrity gauge, interactive inline pins (`[P-1]`, `[P-2]`) linking text to evidence cards, category domain filters, and chronological audit ledger.
-  - Layered surfaces, ambient micro-grid background, frosted glass headers, and zero repetitive generic metric cards.
+## 6. Technology Stack
 
----
+| Layer | Technology |
+|---|---|
+| Frontend | React 19, TypeScript |
+| Styling | Tailwind CSS |
+| Icons | Lucide |
+| Backend | Python, FastAPI |
+| Database | PostgreSQL |
+| ORM | SQLAlchemy |
+| AI integration | Google Gemini API |
+| Build tool | Vite |
 
-## 3. Four Core Experience Modules
+## 7. Analysis Reliability and Failure Handling
 
-1. **Overview (Governance Command Centre)**: Real-time governance health, stored rules & terminology counts, active review pipeline, recurring violation trends, and 1-click test scenarios for AuraCloud Technologies.
-2. **Review Studio**: Split-view interactive review workspace. Flagged text spans, detailed category classification, source citations, intent-preserving suggestions, inline editing, and human sign-off.
-3. **Brand Intelligence**: CRUD central management for Brand Guidelines, Terminology Catalogue, Audited Technical Factsheets, and Primary Knowledge Sources.
-4. **Decision Archive**: Filterable historical ledger of all reviews with full audit trail of human reviewer decisions and notes.
-5. **Governance Insights**: Data-driven recommendations to clarify and update brand guidelines based on recurring author mistakes.
+BrandGuard AI distinguishes between different analysis outcomes instead of treating every empty result as a successful review.
 
----
+It handles:
+- Analysis completed with findings.
+- Analysis completed with no new findings.
+- Deterministic analysis completed while Gemini failed.
+- Both analysis methods failing.
+- Analysis services being unavailable or unconfigured.
 
-## 4. Local Run Instructions
+Failures are reported honestly, and users can retry analysis. Re-analysis also preserves existing decisions, including rejected review decisions and their audit history.
 
-### FastAPI + React Development
+An analysis with no findings is not a guarantee that content is completely safe or compliant.
 
-Configure `backend/.env` with `DATABASE_URL` using the `postgresql+psycopg2://` scheme and, optionally, `GEMINI_API_KEY`. The API loads this file before building the SQLAlchemy engine. The FastAPI backend must be running for the React UI to load or save data.
+## 8. Changes from the Round 1 Proposal
 
-PowerShell (from the repository root):
+The Round 1 proposal described the planned architecture and intended features. During Round 2, the project developed into a working application with an integrated frontend, backend, database, rule engine, Gemini analysis, evidence validation, review workflow, and governance insights.
+
+The implementation also introduced more detailed analysis-status handling and safeguards for evidence references and review decisions.
+
+Some proposed capabilities, including visual content analysis and accessibility checks, remain future improvements rather than completed features.
+
+## 9. Testing and Validation
+
+The project has been tested across backend logic, database operations, API behaviour, and frontend builds.
+
+Testing includes:
+- Evidence validation unit tests.
+- Backend API and database checks.
+- Re-analysis scenarios and finding deduplication.
+- Gemini failure and recovery handling.
+- Preservation of reviewer decisions.
+- Frontend linting and production build.
+
+**Latest reported backend test result:** 11 tests passed.
+
+## 10. Screenshots
+
+### 1. Dashboard
+![BrandGuard AI Dashboard](docs/screenshots/dashboard.png)
+
+The main Command Centre providing an overview of brand governance activities and review operations.
+
+### 2. Review Studio
+![BrandGuard AI Review Studio](docs/screenshots/review-studio.png)
+
+The central workspace for analyzing submitted brand content, identifying potential compliance issues, linking findings to supporting evidence, and reviewing suggested corrections.
+
+### 3. Pending Reviews
+![Pending Reviews](docs/screenshots/pending-reviews.png)
+
+Displays submitted content reviews awaiting evaluation and human governance decisions.
+
+### 4. Decision Archive
+![Decision Archive](docs/screenshots/decision-archive.png)
+
+Maintains a historical record of completed reviews, governance decisions, and review outcomes.
+
+### 5. Brand Knowledge
+![Brand Knowledge](docs/screenshots/brand-knowledge.png)
+
+Contains brand guidelines, approved facts, terminology, and knowledge sources used to support consistent content evaluation.
+
+### 6. Governance Insights
+![Governance Insights](docs/screenshots/governance-insights.png)
+
+Provides an overview of governance activity, review trends, decisions, and identified content risks.
+## 11. Setup and Installation
+
+### Prerequisites
+
+- Node.js and npm
+- Python
+- PostgreSQL
+- Google Gemini API key
+
+### Clone the Repository
+
+```bash
+git clone https://github.com/adoraeden/brandguard-ai.git
+cd brandguard-ai
+```
+
+### Backend Setup
+
 ```bash
 cd backend
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-uvicorn main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-In a second terminal, from the repository root:
+Activate the virtual environment, then install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Create a `.env` file in the backend directory containing:
+
+```env
+DATABASE_URL=your_postgresql_connection_string
+GEMINI_API_KEY=your_gemini_api_key
+```
+
+Configure your PostgreSQL database and start the FastAPI backend using the project's run configuration.
+
+### Frontend Setup
+
+Install dependencies in the frontend project directory:
 
 ```bash
 npm install
-npm run dev
-# Opens http://localhost:3000. API requests go to http://127.0.0.1:8000.
 ```
 
-For a direct Vite development server, run `npm run dev:frontend` and use `http://localhost:5173`; configure `VITE_API_BASE_URL` at build time when the FastAPI origin is remote. The `server.ts` Express server remains in the repository for existing workflows, but the React API client now targets FastAPI.
+Start the Vite development server using the development script defined in `package.json`.
+
+**Security note:** Do not commit `.env` files, API keys, database credentials, or other secrets to GitHub.
+
+## 12. Limitations
+
+The current implementation is a functional hackathon prototype. Some areas require further development before production use:
+
+- Authentication is intended for demonstration and is not production-grade.
+- Evidence validation checks approved records and textual matches but does not guarantee complete semantic entailment.
+- AI analysis depends on external API availability.
+- The platform does not automatically publish reviewed content.
+- Organization-level role-based access control is not fully implemented.
+- Visual and accessibility analysis is not yet available.
+
+## 13. Future Scope — Round 3
+
+The next development phase will focus on strengthening the existing platform.
+
+### 1. Stronger Evidence Reasoning
+Improve semantic verification, confidence indicators, uncertainty handling, and false-positive reduction.
+
+### 2. Improved Review Workflow
+Introduce clearer original-versus-revised comparisons, version tracking, and better reviewer collaboration.
+
+### 3. Advanced Governance Intelligence
+Identify recurring brand violations, detect gaps in existing guidelines, and provide actionable recommendations.
+
+## 14. Project Links
+
+- **GitHub Repository:** https://github.com/adoraeden/brandguard-ai
+- **Live Demo:** To be added after deployment.
+- **Project Documentation PDF:** Add the final submission PDF link.
 
 ---
 
-## 5. Demonstration Workspace
-
-The platform is pre-loaded with realistic, coherent demonstration data for **AuraCloud Technologies** (an enterprise intelligent workflow and cloud governance provider).
-- Official Product Name: `AuraCloud Workspace` (Restricted: `Aura Cloud App`)
-- Ethical AI: Positioned as an intelligent workflow platform augmenting human teams, not "fully autonomous employee replacement".
-- Uptime SLA: Contractually audited `99.95%` (Prohibited: `100% zero downtime`).
-- Security: `SOC-2 Type II certified and AES-256 encrypted` (Prohibited: `military-grade unhackable shield`).
+*BrandGuard AI — Making brand content reviews more consistent, evidence-based, and transparent.*
