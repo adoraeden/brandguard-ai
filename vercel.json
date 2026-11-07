@@ -3,6 +3,10 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/health",
+      "destination": "https://brandguard-fastapi-backend.onrender.com/health"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "https://brandguard-fastapi-backend.onrender.com/api/$1"
     },

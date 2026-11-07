@@ -29,7 +29,7 @@ def run_python_deterministic_checks(
             start_idx = match.start()
             end_idx = match.end()
 
-            severity = 'critical' if term.category in ['product_naming', 'capability_claim'] else 'high'
+            severity = getattr(term, 'priority', None) or ('critical' if term.category in ['product_naming', 'capability_claim'] else 'high')
 
             finding = ReviewFindingModel(
                 id=f"det-{review_id}-{finding_counter}",
@@ -46,7 +46,7 @@ def run_python_deterministic_checks(
                 detectionMethod='deterministic_rule',
                 confidence='high',
                 suggestion=SuggestionModel(
-                    id=f"sug-det-{finding_counter}",
+                    id=f"sug-det-{review_id}-{finding_counter}",
                     suggestedText=term.approvedAlternative,
                     rationale=f'Replace restricted term with approved standard: "{term.approvedAlternative}".',
                     authorIntentPreserved="Preserves original message while complying with naming standards.",
@@ -80,7 +80,7 @@ def run_python_deterministic_checks(
             suggestion = None
             if approved_ex:
                 suggestion = SuggestionModel(
-                    id=f"sug-det-{finding_counter}",
+                    id=f"sug-det-{review_id}-{finding_counter}",
                     suggestedText=approved_ex,
                     rationale=f"Guideline mandate: {g.title}",
                     authorIntentPreserved="Maintains compliant corporate wording.",
@@ -170,7 +170,7 @@ def run_python_deterministic_checks(
                 detectionMethod='fact_check',
                 confidence='high',
                 suggestion=SuggestionModel(
-                    id=f"sug-det-{finding_counter}",
+                    id=f"sug-det-{review_id}-{finding_counter}",
                     suggestedText=f_rule['suggested'],
                     rationale=f"Align with verified facts: {f_rule['explanation']}",
                     authorIntentPreserved="Preserves value proposition grounded in audited facts.",

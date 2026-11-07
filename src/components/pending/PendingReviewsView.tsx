@@ -25,6 +25,7 @@ export const PendingReviewsView: React.FC<PendingReviewsViewProps> = ({
   onStartNewReview,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [contentFilter, setContentFilter] = useState('all');
 
   // Pending reviews: reviews where decisionStatus is 'pending'
   const pendingReviews = reviews.filter(r => r.decisionStatus === 'pending');
@@ -36,7 +37,7 @@ export const PendingReviewsView: React.FC<PendingReviewsViewProps> = ({
       r.id.toLowerCase().includes(q) ||
       r.reviewer.toLowerCase().includes(q) ||
       r.contentType.toLowerCase().includes(q)
-    );
+    ) && (contentFilter === 'all' || r.contentType === contentFilter);
   });
 
   const totalUnresolvedAcrossPending = pendingReviews.reduce(
@@ -45,7 +46,7 @@ export const PendingReviewsView: React.FC<PendingReviewsViewProps> = ({
   );
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-6">
+    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-5 md:space-y-6">
       {/* Header */}
       <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -94,6 +95,11 @@ export const PendingReviewsView: React.FC<PendingReviewsViewProps> = ({
           </span>
         </div>
 
+        <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+        <select aria-label="Filter pending reviews by content type" value={contentFilter} onChange={event => setContentFilter(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
+          <option value="all">All content types</option>
+          {Array.from(new Set(pendingReviews.map(review => review.contentType))).map(type => <option key={type} value={type}>{type.replace(/_/g, ' ')}</option>)}
+        </select>
         <div className="relative w-full md:w-80">
           <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-slate-400" />
           <input
@@ -104,12 +110,13 @@ export const PendingReviewsView: React.FC<PendingReviewsViewProps> = ({
             className="w-full text-xs pl-8 pr-3 py-2 rounded-lg border border-slate-200 focus:border-[#2457D6] focus:ring-1 focus:ring-[#2457D6] focus:outline-none bg-slate-50/50"
           />
         </div>
+        </div>
       </div>
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="app-table min-w-[960px] w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/75 text-[11px] font-semibold text-slate-600 uppercase tracking-wider">
                 <th className="py-3 px-4">Document Title</th>

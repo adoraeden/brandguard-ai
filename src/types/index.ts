@@ -1,5 +1,6 @@
 export type FindingCategory = 
   | 'exact_violation' 
+  | 'direct_contradiction'
   | 'contextual_inconsistency' 
   | 'unsupported_claim' 
   | 'potential_issue';
@@ -61,6 +62,10 @@ export interface ReviewFinding {
   detectionMethod: 'deterministic_rule' | 'gemini_contextual' | 'fact_check';
   confidence: 'high' | 'medium' | 'low';
   suggestion?: Suggestion;
+  evidenceRecordType?: 'guideline' | 'terminology' | 'fact' | 'knowledge_source';
+  evidenceRecordId?: string;
+  evidenceQuote?: string;
+  analysisRunId?: string;
 }
 
 export interface ReviewDocument {
@@ -80,6 +85,7 @@ export interface ReviewDocument {
   summary: {
     totalFindings: number;
     exactViolations: number;
+    directContradictions?: number;
     contextualInconsistencies: number;
     unsupportedClaims: number;
     potentialIssues: number;
@@ -88,6 +94,9 @@ export interface ReviewDocument {
     editedSuggestions: number;
     unresolvedFindings: number;
   };
+  aiAnalysisStatus?: 'completed' | 'not_configured' | 'failed' | 'legacy_unknown';
+  aiAnalysisMessage?: string | null;
+  lastAnalysisRunId?: string | null;
 }
 
 export interface BrandGuideline {
@@ -112,6 +121,7 @@ export interface TerminologyEntry {
   explanation: string;
   approvedAlternative: string;
   category: 'product_naming' | 'capability_claim' | 'architecture' | 'legal_compliance' | 'security';
+  priority?: 'critical' | 'high' | 'medium' | 'low';
   status: 'active' | 'deprecated';
   matchCaseSensitive?: boolean;
   createdAt: string;
@@ -123,7 +133,7 @@ export interface ApprovedFact {
   statement: string;
   category: 'compliance_security' | 'product_specs' | 'company_history' | 'pricing_licensing' | 'uptime_performance';
   source: string;
-  verificationStatus: 'verified' | 'provisional' | 'needs_revalidation';
+  verificationStatus: 'verified' | 'provisional' | 'needs_revalidation' | 'approved' | 'pending_review' | 'under_review' | 'rejected';
   lastUpdated: string;
 }
 
@@ -135,6 +145,8 @@ export interface KnowledgeSource {
   version: string;
   effectiveDate: string;
   ruleCount: number;
+  url?: string;
+  status?: 'active' | 'under_review' | 'archived';
 }
 
 export interface GovernanceInsights {
@@ -143,4 +155,7 @@ export interface GovernanceInsights {
   severityDistribution: { severity: FindingSeverity; count: number }[];
   unresolvedTrends: { month: string; rate: number }[];
   clarificationRecommendations: string[];
+  reviewStatistics?: { total: number; completed: number; pending: number; completionRate: number; totalFindings: number; unresolvedFindings: number };
+  repeatedTerminology?: { term: string; count: number; category: string }[];
+  referenceMismatches?: { type: 'guideline' | 'factsheet'; source: string; count: number }[];
 }

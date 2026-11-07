@@ -1,37 +1,24 @@
-from fastapi import APIRouter, Query
-from typing import List, Optional
+from typing import Optional
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy.orm import Session
+from database import DBReviewDocument, get_db
 from models import ReviewDocumentModel
+from storage import review_model
 
 router = APIRouter(prefix="/api/archive", tags=["archive"])
 
-_reviews_ref: List[ReviewDocumentModel] = []
-
-def set_archive_reviews_store(store: List[ReviewDocumentModel]):
-    global _reviews_ref
-    _reviews_ref = store
-
-@router.get("", response_model=List[ReviewDocumentModel])
-def query_archive(
-    q: Optional[str] = Query(None),
-    status: Optional[str] = Query(None),
-    decision: Optional[str] = Query(None)
-):
-    results = list(_reviews_ref)
-
+@router.get("", response_model=list[ReviewDocumentModel])
+def query_archive(q: Optional[str] = Query(None), status: Optional[str] = Query(None),
+                  decision: Optional[str] = Query(None), db: Session = Depends(get_db)):
+    query = db.query(DBReviewDocument)
     if q:
-        query_lower = q.lower()
-        results = [
-            r for r in results
-            if query_lower in r.title.lower()
-            or query_lower in r.reviewer.lower()
-            or query_lower in r.originalContent.lower()
-            or query_lower in r.id.lower()
-        ]
-
-    if status and status != 'all':
-        results = [r for r in results if r.status == status]
-
-    if decision and decision != 'all':
-        results = [r for r in results if r.decisionStatus == decision]
-
-    return results
+        pattern = f"%{q}%"
+        query = query.filter((DBReviewDocument.title.ilike(pattern)) |
+            (DBReviewDocument.reviewer.ilike(pattern)) |
+            (DBReviewDocument.original_content.ilike(pattern)) |
+            (DBReviewDocument.id.ilike(pattern)))
+    if status and status != "all":
+        query = query.filter(DBReviewDocument.status == status)
+    if decision and decision != "all":
+        query = query.filter(DBReviewDocument.decision_status == decision)
+    return [review_model(r) for r in query.order_by(DBReviewDocument.created_at.desc()).all()]

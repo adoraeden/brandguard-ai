@@ -160,7 +160,7 @@ export const DecisionArchiveView: React.FC<DecisionArchiveViewProps> = ({
       {/* Clean Audit Table with Exact Columns */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="app-table min-w-[960px] w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/75 text-[11px] font-semibold text-slate-600 uppercase tracking-wider">
                 <th className="py-3 px-4">Document / Review Title</th>
@@ -263,7 +263,7 @@ export const DecisionArchiveView: React.FC<DecisionArchiveViewProps> = ({
       {/* Detail Inspection Modal */}
       {inspectReview && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
-          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-xl overflow-hidden">
+          <div className="modal-content bg-white border border-slate-200 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-xl overflow-hidden">
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
               <div>
@@ -291,7 +291,7 @@ export const DecisionArchiveView: React.FC<DecisionArchiveViewProps> = ({
             {/* Modal Scrollable Body */}
             <div className="p-6 overflow-y-auto space-y-6 text-xs flex-1">
               {/* Decision Verdict Bar */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200">
                 <div>
                   <div className="text-[10px] font-semibold uppercase text-slate-400">Decision Verdict</div>
                   <div className="mt-1">{getStatusBadge(inspectReview.decisionStatus)}</div>
@@ -307,6 +307,10 @@ export const DecisionArchiveView: React.FC<DecisionArchiveViewProps> = ({
                 <div>
                   <div className="text-[10px] font-semibold uppercase text-slate-400">Accepted Revisions</div>
                   <div className="font-mono font-bold text-emerald-700 mt-1">{inspectReview.summary?.acceptedSuggestions || 0}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-semibold uppercase text-slate-400">Gemini Context</div>
+                  <div className="font-semibold text-slate-800 mt-1 capitalize">{inspectReview.aiAnalysisStatus?.replace(/_/g, ' ') || 'status unavailable'}</div>
                 </div>
               </div>
 

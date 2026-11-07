@@ -80,11 +80,11 @@ export const NavigationRail: React.FC<NavigationRailProps> = ({
   ];
 
   return (
-    <aside className="w-56 bg-white border-r border-slate-200 flex flex-col justify-between h-screen shrink-0 select-none">
+    <aside className="w-full h-14 md:w-56 md:h-screen bg-white border-t md:border-t-0 md:border-r border-slate-200 flex flex-row md:flex-col justify-between shrink-0 select-none z-20">
       {/* Top Brand & Workspace Block */}
-      <div>
+      <div className="min-w-0 flex-1 md:flex-none">
         {/* Brand Header */}
-        <div className="px-4 py-4 border-b border-slate-100">
+        <div className="hidden md:block px-4 py-4 border-b border-slate-100">
           <div className="flex items-center gap-2.5">
             <div className="w-7 h-7 rounded-md bg-[#2457D6] text-white flex items-center justify-center font-bold text-xs shadow-xs">
               <ShieldCheck className="w-4 h-4 stroke-[2.2]" />
@@ -112,13 +112,13 @@ export const NavigationRail: React.FC<NavigationRailProps> = ({
         </div>
 
         {/* Navigation Sections */}
-        <div className="p-2.5 space-y-4">
+        <div className="h-full md:h-auto px-1 py-1 md:p-2.5 flex md:block gap-1 md:space-y-4 overflow-x-auto">
           {/* Workspace Group */}
           <div>
-            <div className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+            <div className="hidden md:block px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
               Workspace
             </div>
-            <div className="space-y-0.5">
+            <div className="flex md:block gap-1 md:space-y-0.5">
               {primaryNav.map((item) => {
                 const Icon = item.icon;
                 const isActive = currentTab === item.id;
@@ -126,7 +126,9 @@ export const NavigationRail: React.FC<NavigationRailProps> = ({
                   <button
                     key={item.id}
                     onClick={() => onSelectTab(item.id)}
-                    className={`w-full text-left flex items-center justify-between px-2.5 py-1.5 rounded text-xs transition-colors cursor-pointer ${
+                    aria-label={item.label}
+                    title={item.label}
+                    className={`w-11 h-11 md:w-full md:h-auto shrink-0 justify-center md:justify-between text-left flex items-center px-2.5 py-1.5 rounded text-xs transition-colors cursor-pointer ${
                       isActive
                         ? 'bg-blue-50 text-[#2457D6] font-semibold border-l-2 border-[#2457D6]'
                         : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium'
@@ -134,10 +136,10 @@ export const NavigationRail: React.FC<NavigationRailProps> = ({
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-[#2457D6]' : 'text-slate-400'}`} />
-                      <span className="truncate">{item.label}</span>
+                      <span className="hidden md:block truncate">{item.label}</span>
                     </div>
                     {item.badge !== undefined && (
-                      <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold border ${item.badgeColor || 'bg-slate-100 text-slate-700'}`}>
+                      <span className={`hidden md:inline text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold border ${item.badgeColor || 'bg-slate-100 text-slate-700'}`}>
                         {item.badge}
                       </span>
                     )}
@@ -149,10 +151,10 @@ export const NavigationRail: React.FC<NavigationRailProps> = ({
 
           {/* Governance & Knowledge Group */}
           <div>
-            <div className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+            <div className="hidden md:block px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
               Governance
             </div>
-            <div className="space-y-0.5">
+            <div className="flex md:block gap-1 md:space-y-0.5">
               {secondaryNav.map((item) => {
                 const Icon = item.icon;
                 const isActive = currentTab === item.id;
@@ -160,7 +162,9 @@ export const NavigationRail: React.FC<NavigationRailProps> = ({
                   <button
                     key={item.id}
                     onClick={() => onSelectTab(item.id)}
-                    className={`w-full text-left flex items-center justify-between px-2.5 py-1.5 rounded text-xs transition-colors cursor-pointer ${
+                    aria-label={item.label}
+                    title={item.label}
+                    className={`w-11 h-11 md:w-full md:h-auto shrink-0 justify-center md:justify-between text-left flex items-center px-2.5 py-1.5 rounded text-xs transition-colors cursor-pointer ${
                       isActive
                         ? 'bg-blue-50 text-[#2457D6] font-semibold border-l-2 border-[#2457D6]'
                         : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium'
@@ -168,7 +172,7 @@ export const NavigationRail: React.FC<NavigationRailProps> = ({
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-[#2457D6]' : 'text-slate-400'}`} />
-                      <span className="truncate">{item.label}</span>
+                      <span className="hidden md:block truncate">{item.label}</span>
                     </div>
                   </button>
                 );
@@ -178,8 +182,12 @@ export const NavigationRail: React.FC<NavigationRailProps> = ({
         </div>
       </div>
 
+      <button onClick={() => setShowAuthModal(true)} className="md:hidden mx-1 h-11 w-10 shrink-0 rounded-lg text-slate-500 hover:bg-slate-100" aria-label="Switch demo role" title="Switch demo role">
+        <Key className="mx-auto h-4 w-4" />
+      </button>
+
       {/* Bottom Profile Area with Authenticated Role Switcher (Requirement 8) */}
-      <div className="p-3 border-t border-slate-100 bg-slate-50/50 space-y-2">
+      <div className="hidden md:block p-3 border-t border-slate-100 bg-slate-50/50 space-y-2">
         <div className="flex items-center justify-between px-1 text-[10px] text-slate-400 font-mono">
           <span>AUTHENTICATED USER</span>
           <span className="capitalize font-semibold text-[#2457D6]">{currentUser.role}</span>

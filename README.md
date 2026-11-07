@@ -58,21 +58,28 @@ BrandGuard AI helps enterprise organizations ensure that their public marketing,
 
 ## 4. Local Run Instructions
 
-### Node.js / Full-Stack Development
+### FastAPI + React Development
+
+Configure `backend/.env` with `DATABASE_URL` using the `postgresql+psycopg2://` scheme and, optionally, `GEMINI_API_KEY`. The API loads this file before building the SQLAlchemy engine. The FastAPI backend must be running for the React UI to load or save data.
+
+PowerShell (from the repository root):
+```bash
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+uvicorn main:app --reload --host 127.0.0.1 --port 8000
+```
+
+In a second terminal, from the repository root:
+
 ```bash
 npm install
 npm run dev
-# Opens http://localhost:3000
+# Opens http://localhost:3000. API requests go to http://127.0.0.1:8000.
 ```
 
-### Python FastAPI Backend (`/backend`)
-```bash
-cd backend
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
-```
+For a direct Vite development server, run `npm run dev:frontend` and use `http://localhost:5173`; configure `VITE_API_BASE_URL` at build time when the FastAPI origin is remote. The `server.ts` Express server remains in the repository for existing workflows, but the React API client now targets FastAPI.
 
 ---
 

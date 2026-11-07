@@ -33,14 +33,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   onSelectReview,
   onNavigateToPending,
 }) => {
-  const counts = overviewData?.counts || {
-    rules: 6,
-    terminology: 6,
-    facts: 4,
-    reviewedDocuments: 2,
-    unresolvedFindings: 0,
-    totalFindings: 5,
-  };
+  const counts = overviewData?.counts || { rules: 0, terminology: 0, facts: 0, reviewedDocuments: 0, unresolvedFindings: 0, totalFindings: 0 };
 
   const recentReviews = overviewData?.recentReviews || [];
 
@@ -50,16 +43,18 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   const resolvedFindings = Math.max(0, totalFindings - unresolvedFindings);
   const integrityScore = totalFindings > 0 
     ? Math.round((resolvedFindings / totalFindings) * 100) 
-    : 100;
+    : null;
 
   // Calculate review decision breakdown from actual reviews
-  const approvedCount = recentReviews.filter((r: any) => 
+  const reviewStats = overviewData?.reviewStatistics;
+  const totalReviews = reviewStats?.total ?? recentReviews.length;
+  const approvedCount = reviewStats?.approved ?? recentReviews.filter((r: any) => 
     r.decisionStatus === 'approved_with_changes' || r.decisionStatus === 'approved_as_is'
   ).length;
-  const pendingCount = recentReviews.filter((r: any) => 
+  const pendingCount = reviewStats?.pending ?? recentReviews.filter((r: any) => 
     !r.decisionStatus || r.decisionStatus === 'pending'
   ).length;
-  const rejectedCount = recentReviews.filter((r: any) => 
+  const rejectedCount = reviewStats?.rejected ?? recentReviews.filter((r: any) => 
     r.decisionStatus === 'rejected'
   ).length;
 
@@ -96,8 +91,8 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             </div>
             <div className="h-6 w-px bg-slate-200" />
             <div className="text-center px-2">
-              <div className="font-mono font-bold text-[#2457D6]">{integrityScore}%</div>
-              <div className="text-[10px] text-slate-400 uppercase">Integrity</div>
+              <div className="font-mono font-bold text-[#2457D6]">{integrityScore === null ? '—' : `${integrityScore}%`}</div>
+              <div className="text-[10px] text-slate-400 uppercase">Findings resolved</div>
             </div>
             <div className="h-6 w-px bg-slate-200" />
             <div 
@@ -206,7 +201,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                 </h2>
               </div>
               <span className="text-[11px] font-mono text-slate-400">
-                {recentReviews.length} total review sessions
+                {reviewStats?.total ?? recentReviews.length} total review sessions
               </span>
             </div>
 
@@ -215,17 +210,17 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden flex">
                 <div 
                   className="bg-emerald-600 h-full transition-all duration-500" 
-                  style={{ width: `${recentReviews.length > 0 ? (approvedCount / recentReviews.length) * 100 : 0}%` }}
+                  style={{ width: `${totalReviews > 0 ? (approvedCount / totalReviews) * 100 : 0}%` }}
                   title={`Approved: ${approvedCount}`}
                 />
                 <div 
                   className="bg-amber-500 h-full transition-all duration-500" 
-                  style={{ width: `${recentReviews.length > 0 ? (pendingCount / recentReviews.length) * 100 : 0}%` }}
+                  style={{ width: `${totalReviews > 0 ? (pendingCount / totalReviews) * 100 : 0}%` }}
                   title={`Pending: ${pendingCount}`}
                 />
                 <div 
                   className="bg-rose-500 h-full transition-all duration-500" 
-                  style={{ width: `${recentReviews.length > 0 ? (rejectedCount / recentReviews.length) * 100 : 0}%` }}
+                  style={{ width: `${totalReviews > 0 ? (rejectedCount / totalReviews) * 100 : 0}%` }}
                   title={`Rejected: ${rejectedCount}`}
                 />
               </div>
@@ -325,35 +320,12 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             </div>
 
             <div className="space-y-2.5 text-xs">
-              <div className="space-y-1">
-                <div className="flex justify-between text-[11px]">
-                  <span className="font-medium text-rose-700">Critical (Exact Rule Violations)</span>
-                  <span className="font-mono font-semibold text-slate-800">2</span>
-                </div>
-                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                  <div className="bg-rose-500 h-full rounded-full" style={{ width: '40%' }} />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <div className="flex justify-between text-[11px]">
-                  <span className="font-medium text-amber-700">High (Contextual Inconsistencies)</span>
-                  <span className="font-mono font-semibold text-slate-800">2</span>
-                </div>
-                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                  <div className="bg-amber-500 h-full rounded-full" style={{ width: '40%' }} />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <div className="flex justify-between text-[11px]">
-                  <span className="font-medium text-blue-700">Medium (Factsheet Mismatches)</span>
-                  <span className="font-mono font-semibold text-slate-800">1</span>
-                </div>
-                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                  <div className="bg-blue-600 h-full rounded-full" style={{ width: '20%' }} />
-                </div>
-              </div>
+              {(['critical', 'high', 'medium', 'low', 'informational'] as const).map((severity) => {
+                const count = overviewData?.severityDistribution?.[severity] ?? 0;
+                const styles = { critical: 'text-rose-700 bg-rose-500', high: 'text-orange-700 bg-orange-500', medium: 'text-amber-700 bg-amber-500', low: 'text-emerald-700 bg-emerald-500', informational: 'text-slate-600 bg-slate-400' };
+                return <div className="space-y-1" key={severity}><div className="flex justify-between text-[11px]"><span className={`font-medium capitalize ${styles[severity].split(' ')[0]}`}>{severity} severity</span><span className="font-mono font-semibold text-slate-800">{count}</span></div><div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden"><div className={`h-full rounded-full ${styles[severity].split(' ')[1]}`} style={{ width: `${totalFindings ? (count / totalFindings) * 100 : 0}%` }} /></div></div>;
+              })}
+              {totalFindings === 0 && <p className="text-slate-500">No findings have been recorded yet.</p>}
             </div>
           </div>
 
@@ -365,17 +337,17 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                 <span>Outstanding Reviewer Action Required</span>
               </div>
               <p className="text-[11px] text-amber-800 leading-relaxed">
-                {unresolvedFindings} findings require human verification and sign-off before content can be published.
+                {unresolvedFindings} findings await human decisions. AI analysis suggests corrections; it does not publish content.
               </p>
             </div>
           ) : (
             <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl text-xs space-y-1 text-emerald-900">
               <div className="font-semibold flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>All Governance Findings Resolved</span>
+                <span>Finding decisions recorded</span>
               </div>
               <p className="text-[11px] text-emerald-800 leading-relaxed">
-                Every audited finding in active documents has been reviewed and signed off by authorized personnel.
+                There are no unresolved individual findings in the saved review records.
               </p>
             </div>
           )}

@@ -18,14 +18,7 @@ import {
   ReviewDocument, 
   GovernanceInsights 
 } from './types';
-import { 
-  INITIAL_GUIDELINES, 
-  INITIAL_TERMINOLOGY, 
-  INITIAL_FACTS, 
-  INITIAL_SOURCES, 
-  INITIAL_REVIEWS,
-  SAMPLE_DOCUMENTS 
-} from './data/mockData';
+import { SAMPLE_DOCUMENTS } from './data/mockData';
 
 function AppContent() {
   // Navigation & Review Persistence (Requirement 3)
@@ -43,26 +36,17 @@ function AppContent() {
   
   // Data State
   const [overviewData, setOverviewData] = useState<any>(null);
-  const [guidelines, setGuidelines] = useState<BrandGuideline[]>(INITIAL_GUIDELINES);
-  const [terminology, setTerminology] = useState<TerminologyEntry[]>(INITIAL_TERMINOLOGY);
-  const [facts, setFacts] = useState<ApprovedFact[]>(INITIAL_FACTS);
-  const [sources, setSources] = useState<KnowledgeSource[]>(INITIAL_SOURCES);
-  const [reviews, setReviews] = useState<ReviewDocument[]>(INITIAL_REVIEWS);
+  const [guidelines, setGuidelines] = useState<BrandGuideline[]>([]);
+  const [terminology, setTerminology] = useState<TerminologyEntry[]>([]);
+  const [facts, setFacts] = useState<ApprovedFact[]>([]);
+  const [sources, setSources] = useState<KnowledgeSource[]>([]);
+  const [reviews, setReviews] = useState<ReviewDocument[]>([]);
   const [insights, setInsights] = useState<GovernanceInsights | null>(null);
+  const [insightsLoading, setInsightsLoading] = useState(true);
+  const [insightsError, setInsightsError] = useState<string | null>(null);
 
   // Review Studio Active Document State
-  const [activeReview, setActiveReview] = useState<ReviewDocument | null>(() => {
-    try {
-      const savedId = localStorage.getItem('brandguard_active_review_id');
-      if (savedId) {
-        const found = INITIAL_REVIEWS.find(r => r.id === savedId);
-        if (found) return found;
-      }
-    } catch {
-      // Ignore
-    }
-    return INITIAL_REVIEWS[0] || null;
-  });
+  const [activeReview, setActiveReview] = useState<ReviewDocument | null>(null);
   const [draftToLoad, setDraftToLoad] = useState<typeof SAMPLE_DOCUMENTS[0] | null>(null);
 
   const [isLoading, setIsLoading] = useState(false);
@@ -102,6 +86,12 @@ function AppContent() {
         api.getReviews(),
         api.getInsights(),
       ]);
+      if (ins.status === 'fulfilled') {
+        setInsights(ins.value);
+        setInsightsError(null);
+      } else {
+        setInsightsError('Governance analytics could not be loaded. Check the FastAPI connection and try again.');
+      }
 
       if (ov.status === 'fulfilled') setOverviewData(ov.value);
       if (gl.status === 'fulfilled') setGuidelines(gl.value);
@@ -118,20 +108,24 @@ function AppContent() {
           const match = fetchedReviews.find(r => r.id === savedReviewId);
           if (match) {
             setActiveReview(match);
-            return;
+          } else {
+            setActiveReview(prev => {
+              if (!prev) return fetchedReviews[0] || null;
+              return fetchedReviews.find((r: ReviewDocument) => r.id === prev.id) || prev;
+            });
           }
+        } else {
+          setActiveReview(prev => {
+            if (!prev) return fetchedReviews[0] || null;
+            return fetchedReviews.find((r: ReviewDocument) => r.id === prev.id) || prev;
+          });
         }
-        
-        setActiveReview(prev => {
-          if (!prev) return fetchedReviews[0] || null;
-          return fetchedReviews.find((r: ReviewDocument) => r.id === prev.id) || prev;
-        });
       }
-      if (ins.status === 'fulfilled') setInsights(ins.value);
     } catch (err) {
       console.warn('API error, relying on local state:', err);
     } finally {
       setIsLoading(false);
+      setInsightsLoading(false);
     }
   };
 
@@ -187,7 +181,7 @@ function AppContent() {
     reviews.reduce((sum, r) => sum + (r.summary?.unresolvedFindings || 0), 0);
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#F8FAFC] text-slate-900 font-sans antialiased">
+    <div className="flex flex-col-reverse md:flex-row h-[100dvh] w-screen overflow-hidden bg-[#F8FAFC] text-slate-900 font-sans antialiased">
       {/* Left Spatial Navigation Rail */}
       <NavigationRail
         currentTab={currentTab}
@@ -197,7 +191,7 @@ function AppContent() {
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col h-screen min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col h-[calc(100dvh-3.5rem)] md:h-screen min-w-0 overflow-hidden">
         {/* Top Header */}
         <TopHeader
           currentTab={currentTab}
@@ -267,6 +261,14 @@ function AppContent() {
           {currentTab === 'governance_insights' && (
             <GovernanceInsightsView
               insights={insights}
+              isLoading={insightsLoading}
+              error={insightsError}
+              onRetry={() => {
+                setInsightsLoading(true);
+                api.getInsights().then(value => { setInsights(value); setInsightsError(null); })
+                  .catch(() => setInsightsError('Governance analytics could not be loaded. Check the FastAPI connection and try again.'))
+                  .finally(() => setInsightsLoading(false));
+              }}
               onNavigateToIntelligence={() => handleSelectTab('brand_intelligence')}
             />
           )}

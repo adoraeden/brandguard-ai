@@ -36,6 +36,7 @@ interface BrandIntelligenceViewProps {
 }
 
 type KnowledgeCategory = 'all' | 'guidelines' | 'terminology' | 'facts' | 'sources';
+type EntryType = 'guideline' | 'term' | 'fact' | 'source';
 
 export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
   guidelines,
@@ -55,6 +56,11 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
   // Modals for CRUD
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState<{ type: string; data: any } | null>(null);
+  const [entryType, setEntryType] = useState<EntryType>('guideline');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [toast, setToast] = useState('');
+  const [toastIsError, setToastIsError] = useState(false);
 
   // New Guideline Form State
   const [newTitle, setNewTitle] = useState('');
@@ -64,18 +70,30 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
   const [newSourceRef, setNewSourceRef] = useState('');
   const [newProhibitedExample, setNewProhibitedExample] = useState('');
   const [newApprovedExample, setNewApprovedExample] = useState('');
+  const [newGuidelineStatus, setNewGuidelineStatus] = useState<BrandGuideline['status']>('active');
 
   // New Terminology Form State
   const [newPreferredTerm, setNewPreferredTerm] = useState('');
   const [newRestrictedTerm, setNewRestrictedTerm] = useState('');
   const [newTermExplanation, setNewTermExplanation] = useState('');
   const [newTermCategory, setNewTermCategory] = useState<any>('product_naming');
+  const [newTermPriority, setNewTermPriority] = useState<NonNullable<TerminologyEntry['priority']>>('medium');
+  const [newApprovedAlternative, setNewApprovedAlternative] = useState('');
+  const [newTermStatus, setNewTermStatus] = useState<TerminologyEntry['status']>('active');
 
   // New Fact Form State
   const [newFactTitle, setNewFactTitle] = useState('');
   const [newFactStatement, setNewFactStatement] = useState('');
   const [newFactCategory, setNewFactCategory] = useState<any>('compliance_security');
   const [newFactSource, setNewFactSource] = useState('');
+  const [newFactStatus, setNewFactStatus] = useState<ApprovedFact['verificationStatus']>('approved');
+
+  // New Knowledge Source Form State
+  const [newSourceTitle, setNewSourceTitle] = useState('');
+  const [newSourceType, setNewSourceType] = useState<KnowledgeSource['type']>('document');
+  const [newSourceUrl, setNewSourceUrl] = useState('');
+  const [newSourceDescription, setNewSourceDescription] = useState('');
+  const [newSourceStatus, setNewSourceStatus] = useState<NonNullable<KnowledgeSource['status']>>('active');
 
   // Priority styling helper (Requirement 6 & 12)
   const getPriorityStyle = (severity: string) => {
@@ -102,14 +120,15 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
           rowBorder: 'border-l-amber-500',
         };
       case 'low':
+        return {
+          dot: 'bg-emerald-500',
+          badge: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+          label: 'Low',
+          rowBorder: 'border-l-emerald-500',
+        };
       case 'informational':
       default:
-        return {
-          dot: 'bg-slate-400',
-          badge: 'bg-slate-100 text-slate-700 border-slate-200',
-          label: 'Low',
-          rowBorder: 'border-l-slate-300',
-        };
+        return { dot: 'bg-slate-400', badge: 'bg-slate-100 text-slate-700 border-slate-200', label: 'Informational', rowBorder: 'border-l-slate-300' };
     }
   };
 
@@ -118,138 +137,137 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
     switch (status?.toLowerCase()) {
       case 'active':
       case 'verified':
+      case 'approved':
         return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-      case 'draft':
-      case 'provisional':
+      case 'under_review':
         return 'bg-blue-50 text-blue-700 border-blue-200';
+      case 'pending_review':
+      case 'provisional':
+        return 'bg-amber-50 text-amber-700 border-amber-200';
+      case 'needs_revalidation':
+      case 'draft':
+        return 'bg-blue-50 text-blue-700 border-blue-200';
+      case 'rejected':
+        return 'bg-rose-50 text-rose-700 border-rose-200';
       case 'archived':
       case 'deprecated':
         return 'bg-slate-100 text-slate-600 border-slate-200';
       case 'needs_review':
-      case 'under_review':
-      case 'needs_revalidation':
         return 'bg-amber-50 text-amber-700 border-amber-200';
       default:
         return 'bg-slate-100 text-slate-600 border-slate-200';
     }
   };
+  const getSourceStatusStyle = (status: string) => status === 'under_review'
+    ? 'bg-amber-50 text-amber-700 border-amber-200'
+    : getResourceStatusStyle(status);
+  const getStatusLabel = (status: string) => ({ verified: 'Approved', approved: 'Approved', provisional: 'Pending Review', pending_review: 'Pending Review', needs_revalidation: 'Under Review', under_review: 'Under Review', rejected: 'Rejected' } as Record<string, string>)[status] || status.replace(/_/g, ' ');
 
-  // Prepare edit
   const handleStartEdit = (type: string, data: any) => {
     if (!isAdmin) {
       alert('Administrator permissions required to edit brand knowledge.');
       return;
     }
+    resetForm();
     setEditingItem({ type, data });
+    setEntryType(type as EntryType);
     if (type === 'guideline') {
       setNewTitle(data.title);
       setNewCategory(data.category);
       setNewDescription(data.description);
       setNewSeverity(data.severity);
       setNewSourceRef(data.sourceReference);
+      setNewGuidelineStatus(data.status);
       setNewProhibitedExample(data.examples?.prohibited || '');
       setNewApprovedExample(data.examples?.approved || '');
     } else if (type === 'term') {
       setNewPreferredTerm(data.preferredTerm);
       setNewRestrictedTerm(data.restrictedTerm);
+      setNewApprovedAlternative(data.approvedAlternative);
       setNewTermExplanation(data.explanation);
       setNewTermCategory(data.category);
+      setNewTermPriority(data.priority || ((data.category === 'product_naming' || data.category === 'capability_claim') ? 'critical' : 'high'));
+      setNewTermStatus(data.status);
     } else if (type === 'fact') {
       setNewFactTitle(data.title);
       setNewFactStatement(data.statement);
       setNewFactCategory(data.category);
       setNewFactSource(data.source);
+      setNewFactStatus(data.verificationStatus);
+    } else if (type === 'source') {
+      setNewSourceTitle(data.title);
+      setNewSourceType(data.type);
+      setNewSourceUrl(data.url || '');
+      setNewSourceDescription(data.description);
+      setNewSourceStatus(data.status || 'active');
     }
     setShowAddModal(true);
   };
 
-  const handleSaveGuideline = async (e: React.FormEvent) => {
+  const handleSaveEntry = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isAdmin) return;
-    try {
-      if (editingItem && editingItem.type === 'guideline') {
-        const updated = await api.updateGuideline(editingItem.data.id, {
-          title: newTitle,
-          category: newCategory,
-          description: newDescription,
-          severity: newSeverity,
-          sourceReference: newSourceRef,
-          examples: {
-            prohibited: newProhibitedExample,
-            approved: newApprovedExample,
-          },
-        });
-        if (selectedRecord?.data?.id === updated.id) {
-          setSelectedRecord({ type: 'guideline', data: updated });
-        }
-      } else {
-        await api.createGuideline({
-          title: newTitle,
-          category: newCategory,
-          description: newDescription,
-          severity: newSeverity,
-          sourceReference: newSourceRef,
-          status: 'active',
-          examples: {
-            prohibited: newProhibitedExample,
-            approved: newApprovedExample,
-          },
-        });
-      }
-      resetForm();
-      onDataChanged();
-    } catch (err) {
-      console.error('Error saving guideline:', err);
+    if (!isAdmin || isSaving) return;
+    setSaveError('');
+    const type = (editingItem?.type || entryType) as EntryType;
+    const requiredValues: Record<EntryType, string[]> = {
+      guideline: [newTitle, newDescription, newSourceRef],
+      term: [newPreferredTerm, newApprovedAlternative, newRestrictedTerm, newTermExplanation],
+      fact: [newFactTitle, newFactStatement, newFactSource],
+      source: [newSourceTitle, newSourceUrl, newSourceDescription],
+    };
+    if (requiredValues[type].some(value => !value.trim())) {
+      setSaveError('Complete all required fields before saving.');
+      return;
     }
-  };
 
-  const handleSaveTerminology = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!isAdmin) return;
+    setIsSaving(true);
     try {
-      if (editingItem && editingItem.type === 'term') {
-        const updated = await api.updateTerminology(editingItem.data.id, {
-          preferredTerm: newPreferredTerm,
-          restrictedTerm: newRestrictedTerm,
-          explanation: newTermExplanation,
-          approvedAlternative: newPreferredTerm,
-          category: newTermCategory,
-        });
-        if (selectedRecord?.data?.id === updated.id) {
-          setSelectedRecord({ type: 'term', data: updated });
-        }
+      let saved: any;
+      if (type === 'guideline') {
+        const payload = {
+          title: newTitle.trim(), category: newCategory, description: newDescription.trim(),
+          severity: newSeverity, sourceReference: newSourceRef.trim(), status: newGuidelineStatus,
+          lastUpdated: new Date().toISOString().slice(0, 10),
+          examples: { prohibited: newProhibitedExample.trim(), approved: newApprovedExample.trim() },
+        };
+        saved = editingItem ? await api.updateGuideline(editingItem.data.id, payload) : await api.createGuideline(payload);
+      } else if (type === 'term') {
+        const payload = {
+          preferredTerm: newPreferredTerm.trim(), approvedAlternative: newApprovedAlternative.trim(),
+          restrictedTerm: newRestrictedTerm.trim(), explanation: newTermExplanation.trim(),
+          category: newTermCategory, priority: newTermPriority, status: newTermStatus,
+          createdAt: editingItem?.data.createdAt || new Date().toISOString().slice(0, 10),
+        };
+        saved = editingItem ? await api.updateTerminology(editingItem.data.id, payload) : await api.createTerminology(payload);
+      } else if (type === 'fact') {
+        const payload = {
+          title: newFactTitle.trim(), statement: newFactStatement.trim(), category: newFactCategory,
+          source: newFactSource.trim(), verificationStatus: newFactStatus,
+          lastUpdated: new Date().toISOString().slice(0, 10),
+        };
+        saved = editingItem ? await api.updateFact(editingItem.data.id, payload) : await api.createFact(payload);
       } else {
-        await api.createTerminology({
-          preferredTerm: newPreferredTerm,
-          restrictedTerm: newRestrictedTerm,
-          explanation: newTermExplanation,
-          approvedAlternative: newPreferredTerm,
-          category: newTermCategory,
-          status: 'active',
-        });
+        const payload = {
+          title: newSourceTitle.trim(), type: newSourceType, url: newSourceUrl.trim(),
+          description: newSourceDescription.trim(), status: newSourceStatus,
+          version: editingItem?.data.version || '1.0',
+          effectiveDate: editingItem?.data.effectiveDate || new Date().toISOString().slice(0, 10),
+          ruleCount: editingItem?.data.ruleCount || 0,
+        };
+        saved = editingItem ? await api.updateSource(editingItem.data.id, payload) : await api.createSource(payload);
       }
-      resetForm();
-      onDataChanged();
-    } catch (err) {
-      console.error('Error saving terminology:', err);
-    }
-  };
 
-  const handleSaveFact = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!isAdmin) return;
-    try {
-      await api.createFact({
-        title: newFactTitle,
-        statement: newFactStatement,
-        category: newFactCategory,
-        source: newFactSource,
-        verificationStatus: 'verified',
-      });
+      if (selectedRecord?.data?.id === saved.id) setSelectedRecord({ type, data: saved });
+      setSelectedCategory(type === 'term' ? 'terminology' : type === 'fact' ? 'facts' : type === 'source' ? 'sources' : 'guidelines');
+      await onDataChanged();
       resetForm();
-      onDataChanged();
-    } catch (err) {
-      console.error('Error saving fact:', err);
+      setToastIsError(false);
+      setToast(`${editingItem ? 'Entry updated' : 'Entry created'} successfully.`);
+      window.setTimeout(() => setToast(''), 3500);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Unable to save this entry. Please try again.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -263,27 +281,49 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
       if (type === 'guideline') await api.deleteGuideline(id);
       if (type === 'term') await api.deleteTerminology(id);
       if (type === 'fact') await api.deleteFact(id);
+      if (type === 'source') await api.deleteSource(id);
       if (selectedRecord?.data?.id === id) setSelectedRecord(null);
-      onDataChanged();
-    } catch (err) {
-      console.error('Error deleting record:', err);
+      await onDataChanged();
+      setToastIsError(false);
+      setToast('Entry deleted successfully.');
+      window.setTimeout(() => setToast(''), 3500);
+    } catch (error) {
+      setToastIsError(true);
+      setToast(error instanceof Error ? error.message : 'Unable to delete this entry.');
+      window.setTimeout(() => setToast(''), 5000);
     }
   };
 
   const resetForm = () => {
     setShowAddModal(false);
     setEditingItem(null);
+    setSaveError('');
+    setIsSaving(false);
     setNewTitle('');
+    setNewCategory('tone_of_voice');
     setNewDescription('');
+    setNewSeverity('high');
     setNewSourceRef('');
     setNewProhibitedExample('');
     setNewApprovedExample('');
+    setNewGuidelineStatus('active');
     setNewPreferredTerm('');
     setNewRestrictedTerm('');
     setNewTermExplanation('');
+    setNewTermCategory('product_naming');
+    setNewTermPriority('medium');
+    setNewApprovedAlternative('');
+    setNewTermStatus('active');
     setNewFactTitle('');
     setNewFactStatement('');
+    setNewFactCategory('compliance_security');
     setNewFactSource('');
+    setNewFactStatus('approved');
+    setNewSourceTitle('');
+    setNewSourceType('document');
+    setNewSourceUrl('');
+    setNewSourceDescription('');
+    setNewSourceStatus('active');
   };
 
   const q = searchQuery.toLowerCase();
@@ -311,7 +351,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
       t.restrictedTerm.toLowerCase().includes(q) ||
       t.explanation.toLowerCase().includes(q);
     // Terminology has severity derived from category
-    const derivedSev = (t.category === 'product_naming' || t.category === 'capability_claim') ? 'critical' : 'high';
+    const derivedSev = t.priority || ((t.category === 'product_naming' || t.category === 'capability_claim') ? 'critical' : 'high');
     return matchesSearch && filterByPriority(derivedSev) && filterByStatus(t.status);
   });
 
@@ -323,8 +363,8 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
   });
 
   const filteredSources = sources.filter(s =>
-    s.title.toLowerCase().includes(q) ||
-    s.description.toLowerCase().includes(q)
+    (s.title.toLowerCase().includes(q) || s.description.toLowerCase().includes(q) || (s.url || '').toLowerCase().includes(q)) &&
+    filterByStatus(s.status || 'active')
   );
 
   const totalAllKnowledgeCount = guidelines.length + terminology.length + facts.length + sources.length;
@@ -388,7 +428,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
       title: `${t.preferredTerm} (vs. ${t.restrictedTerm})`,
       category: t.category.replace(/_/g, ' '),
       summary: t.explanation,
-      severity: (t.category === 'product_naming' || t.category === 'capability_claim') ? 'critical' : 'high',
+      severity: t.priority || ((t.category === 'product_naming' || t.category === 'capability_claim') ? 'critical' : 'high'),
       status: t.status,
       sourceRef: 'AuraCloud Nomenclature Guide',
       raw: t
@@ -400,7 +440,6 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
       title: f.title,
       category: f.category.replace(/_/g, ' '),
       summary: f.statement,
-      severity: 'high',
       status: f.verificationStatus,
       sourceRef: f.source,
       raw: f
@@ -412,8 +451,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
       title: s.title,
       category: s.type.replace(/_/g, ' '),
       summary: s.description,
-      severity: 'low',
-      status: 'active',
+      status: s.status || 'active',
       sourceRef: s.version,
       raw: s
     }))
@@ -422,7 +460,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
   const currentCategoryInfo = categories.find(c => c.id === selectedCategory) || categories[0];
 
   return (
-    <div className="flex flex-col h-[calc(100vh-3rem)] overflow-hidden bg-[#F8FAFC]">
+    <div className="page-content flex flex-col h-[calc(100vh-3rem)] min-h-0 overflow-hidden bg-[#F8FAFC]">
       {/* Purpose Banner & Knowledge Toolbar (Requirement 5) */}
       <div className="bg-white border-b border-slate-200 px-6 py-2.5 flex flex-wrap items-center justify-between gap-4 shrink-0 shadow-2xs">
         <div>
@@ -452,7 +490,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
             <option value="critical">Critical (Red)</option>
             <option value="high">High (Orange)</option>
             <option value="medium">Medium (Amber)</option>
-            <option value="low">Low (Grey)</option>
+            <option value="low">Low (Green)</option>
           </select>
 
           {/* Status filter */}
@@ -484,6 +522,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
             <button
               onClick={() => {
                 resetForm();
+                setEntryType(selectedCategory === 'terminology' ? 'term' : selectedCategory === 'facts' ? 'fact' : selectedCategory === 'sources' ? 'source' : 'guideline');
                 setShowAddModal(true);
               }}
               className="px-3 py-1.5 bg-[#2457D6] hover:bg-[#1D4ED8] text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
@@ -552,7 +591,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
           <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-[10px] space-y-1.5">
             <div className="font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-1 text-[9px]">
               <Info className="w-3 h-3 text-[#2457D6]" />
-              <span>Priority Legend (Visible in rows)</span>
+              <span>Severity and Priority</span>
             </div>
             <div className="grid grid-cols-2 gap-1 text-slate-600">
               <span className="flex items-center gap-1.5">
@@ -587,15 +626,15 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
             </span>
           </div>
 
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 min-w-0 overflow-auto">
             {/* ALL KNOWLEDGE CONSOLIDATED TABLE */}
             {selectedCategory === 'all' && (
-              <table className="w-full text-left text-xs border-collapse">
+              <table className="app-table min-w-[1000px] w-full text-left text-xs border-collapse">
                 <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-500 uppercase font-semibold text-[10px] tracking-wider sticky top-0 z-10">
                   <tr>
                     <th className="p-3 pl-5">Knowledge Asset</th>
                     <th className="p-3">Type</th>
-                    <th className="p-3">Priority</th>
+                    <th className="p-3">Severity / Priority</th>
                     <th className="p-3">Classification</th>
                     <th className="p-3">Rule / Fact Statement</th>
                     <th className="p-3">Authority Reference</th>
@@ -612,8 +651,8 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
                   ) : (
                     allKnowledgeRows.map((row) => {
                       const isSelected = selectedRecord?.data?.id === row.id;
-                      const priorityStyle = getPriorityStyle(row.severity);
-                      const statusStyle = getResourceStatusStyle(row.status);
+                      const priorityStyle = getPriorityStyle(('severity' in row ? row.severity : undefined) || 'medium');
+                      const statusStyle = row.type === 'source' ? getSourceStatusStyle(row.status) : getResourceStatusStyle(row.status);
 
                       return (
                         <tr
@@ -626,10 +665,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
                           {/* Row-Level Priority Dot before Name (Requirement 12) */}
                           <td className="p-3 pl-5 max-w-xs truncate">
                             <div className="flex items-center gap-2">
-                              <span 
-                                className={`w-2 h-2 rounded-full shrink-0 ${priorityStyle.dot}`} 
-                                title={`Priority: ${priorityStyle.label}`} 
-                              />
+                              {('severity' in row) && <span className={`w-2 h-2 rounded-full shrink-0 ${priorityStyle.dot}`} title={`Severity or priority: ${priorityStyle.label}`} />}
                               <span className="font-semibold text-slate-900 truncate">{row.title}</span>
                             </div>
                           </td>
@@ -642,9 +678,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
 
                           {/* Priority Column Badge */}
                           <td className="p-3">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase font-bold border ${priorityStyle.badge}`}>
-                              {priorityStyle.label}
-                            </span>
+                            {('severity' in row) ? <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase font-bold border ${priorityStyle.badge}`}>{priorityStyle.label}</span> : <span className="text-slate-300">—</span>}
                           </td>
 
                           <td className="p-3 text-slate-600 capitalize truncate max-w-[120px]">
@@ -662,7 +696,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
                           {/* Distinct Resource Status Badge */}
                           <td className="p-3 text-right pr-5">
                             <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase font-medium border ${statusStyle}`}>
-                              {row.status}
+                              {row.type === 'fact' ? getStatusLabel(row.status) : row.status.replace(/_/g, ' ')}
                             </span>
                           </td>
                         </tr>
@@ -675,11 +709,11 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
 
             {/* BRAND GUIDELINES TABLE */}
             {selectedCategory === 'guidelines' && (
-              <table className="w-full text-left text-xs border-collapse">
+              <table className="app-table min-w-[1000px] w-full text-left text-xs border-collapse">
                 <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-500 uppercase font-semibold text-[10px] tracking-wider sticky top-0 z-10">
                   <tr>
                     <th className="p-3 pl-5">Guideline Title</th>
-                    <th className="p-3">Priority</th>
+                          <th className="p-3">Severity</th>
                     <th className="p-3">Category</th>
                     <th className="p-3">Description & Rationale</th>
                     <th className="p-3">Source Reference</th>
@@ -711,7 +745,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
                             <div className="flex items-center gap-2">
                               <span 
                                 className={`w-2 h-2 rounded-full shrink-0 ${priorityStyle.dot}`} 
-                                title={`Priority: ${priorityStyle.label}`} 
+                                title={`Severity: ${priorityStyle.label}`} 
                               />
                               <span className="font-semibold text-slate-900 truncate">{g.title}</span>
                             </div>
@@ -737,7 +771,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
 
                           <td className="p-3 text-right pr-5">
                             <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase font-medium border ${statusStyle}`}>
-                              {g.status}
+                              {g.status.replace(/_/g, ' ')}
                             </span>
                           </td>
                         </tr>
@@ -750,7 +784,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
 
             {/* APPROVED TERMINOLOGY TABLE */}
             {selectedCategory === 'terminology' && (
-              <table className="w-full text-left text-xs border-collapse">
+              <table className="app-table min-w-[1000px] w-full text-left text-xs border-collapse">
                 <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-500 uppercase font-semibold text-[10px] tracking-wider sticky top-0 z-10">
                   <tr>
                     <th className="p-3 pl-5">Preferred Term</th>
@@ -771,7 +805,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
                   ) : (
                     filteredTerminology.map((t) => {
                       const isSelected = selectedRecord?.data?.id === t.id;
-                      const derivedSev = (t.category === 'product_naming' || t.category === 'capability_claim') ? 'critical' : 'high';
+                      const derivedSev = t.priority || ((t.category === 'product_naming' || t.category === 'capability_claim') ? 'critical' : 'high');
                       const priorityStyle = getPriorityStyle(derivedSev);
                       const statusStyle = getResourceStatusStyle(t.status);
 
@@ -826,7 +860,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
 
             {/* AUDITED FACTSHEETS TABLE */}
             {selectedCategory === 'facts' && (
-              <table className="w-full text-left text-xs border-collapse">
+              <table className="app-table min-w-[820px] w-full text-left text-xs border-collapse">
                 <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-500 uppercase font-semibold text-[10px] tracking-wider sticky top-0 z-10">
                   <tr>
                     <th className="p-3 pl-5">Factsheet Title</th>
@@ -846,7 +880,6 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
                   ) : (
                     filteredFacts.map((f) => {
                       const isSelected = selectedRecord?.data?.id === f.id;
-                      const priorityStyle = getPriorityStyle('high');
                       const statusStyle = getResourceStatusStyle(f.verificationStatus);
 
                       return (
@@ -859,10 +892,6 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
                         >
                           <td className="p-3 pl-5 max-w-xs truncate">
                             <div className="flex items-center gap-2">
-                              <span 
-                                className={`w-2 h-2 rounded-full shrink-0 ${priorityStyle.dot}`} 
-                                title="Priority: High (Audited Commitment)" 
-                              />
                               <span className="font-semibold text-slate-900 truncate">{f.title}</span>
                             </div>
                           </td>
@@ -881,7 +910,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
 
                           <td className="p-3 text-right pr-5">
                             <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase font-medium border ${statusStyle}`}>
-                              {f.verificationStatus}
+                              {getStatusLabel(f.verificationStatus)}
                             </span>
                           </td>
                         </tr>
@@ -894,20 +923,22 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
 
             {/* KNOWLEDGE SOURCES TABLE */}
             {selectedCategory === 'sources' && (
-              <table className="w-full text-left text-xs border-collapse">
+              <table className="app-table min-w-[1000px] w-full text-left text-xs border-collapse">
                 <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-500 uppercase font-semibold text-[10px] tracking-wider sticky top-0 z-10">
                   <tr>
                     <th className="p-3 pl-5">Source Name</th>
                     <th className="p-3">Source Type</th>
+                    <th className="p-3">URL / Reference</th>
                     <th className="p-3">Description</th>
                     <th className="p-3">Rules Derived</th>
+                    <th className="p-3">Status</th>
                     <th className="p-3 text-right pr-5">Effective Date</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredSources.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="p-8 text-center text-slate-400">
+                      <td colSpan={7} className="p-8 text-center text-slate-400">
                         No knowledge sources match your search.
                       </td>
                     </tr>
@@ -930,12 +961,22 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
                             {s.type}
                           </td>
 
+                          <td className="p-3 text-slate-500 truncate max-w-xs">
+                            {s.url || '—'}
+                          </td>
+
                           <td className="p-3 text-slate-500 truncate max-w-sm">
                             {s.description}
                           </td>
 
                           <td className="p-3 font-mono text-[#2457D6] font-semibold">
                             {s.ruleCount} rules
+                          </td>
+
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase font-medium border ${getSourceStatusStyle(s.status || 'active')}`}>
+                              {(s.status || 'active').replace(/_/g, ' ')}
+                            </span>
                           </td>
 
                           <td className="p-3 text-right pr-5 font-mono text-slate-400 text-[11px]">
@@ -977,7 +1018,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
 
                 <div className="grid grid-cols-2 gap-2 text-[11px]">
                   <div>
-                    <div className="text-[10px] text-slate-400 uppercase">Priority</div>
+                    <div className="text-[10px] text-slate-400 uppercase">Severity</div>
                     <div className="mt-1">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase font-bold border ${getPriorityStyle(selectedRecord.data.severity).badge}`}>
                         {getPriorityStyle(selectedRecord.data.severity).label}
@@ -988,7 +1029,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
                     <div className="text-[10px] text-slate-400 uppercase">Status</div>
                     <div className="mt-1">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase font-medium border ${getResourceStatusStyle(selectedRecord.data.status)}`}>
-                        {selectedRecord.data.status}
+                        {selectedRecord.data.status.replace(/_/g, ' ')}
                       </span>
                     </div>
                   </div>
@@ -1048,12 +1089,18 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
 
                 <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
                   <div>
-                    <div className="text-[10px] text-slate-400 uppercase">Status</div>
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase font-medium border ${getResourceStatusStyle(selectedRecord.data.status)}`}>
-                      {selectedRecord.data.status}
+                    <div className="text-[10px] text-slate-400 uppercase">Priority</div>
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase font-bold border ${getPriorityStyle(selectedRecord.data.priority || ((selectedRecord.data.category === 'product_naming' || selectedRecord.data.category === 'capability_claim') ? 'critical' : 'high')).badge}`}>
+                      {getPriorityStyle(selectedRecord.data.priority || ((selectedRecord.data.category === 'product_naming' || selectedRecord.data.category === 'capability_claim') ? 'critical' : 'high')).label}
                     </span>
                   </div>
                   <div>
+                    <div className="text-[10px] text-slate-400 uppercase">Status</div>
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase font-medium border ${getResourceStatusStyle(selectedRecord.data.status)}`}>
+                      {selectedRecord.data.status.replace(/_/g, ' ')}
+                    </span>
+                  </div>
+                  <div className="col-span-2">
                     <div className="text-[10px] text-slate-400 uppercase">Category</div>
                     <span className="capitalize text-slate-700">{selectedRecord.data.category.replace(/_/g, ' ')}</span>
                   </div>
@@ -1110,8 +1157,20 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
                 </div>
 
                 <div>
+                  <div className="text-[10px] font-semibold text-slate-400 uppercase">URL / Reference</div>
+                  <div className="text-slate-700 font-mono text-[11px] mt-0.5 break-all">{selectedRecord.data.url || 'Not provided'}</div>
+                </div>
+
+                <div>
                   <div className="text-[10px] font-semibold text-slate-400 uppercase">Description</div>
                   <p className="text-slate-600 leading-relaxed mt-1 text-[11px]">{selectedRecord.data.description}</p>
+                </div>
+
+                <div>
+                  <div className="text-[10px] text-slate-400 uppercase">Status</div>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase font-medium border ${getSourceStatusStyle(selectedRecord.data.status || 'active')}`}>
+                    {selectedRecord.data.status || 'active'}
+                  </span>
                 </div>
 
                 <div>
@@ -1122,8 +1181,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
             )}
 
             {/* Action Buttons: Protected by Administrator role (Requirement 8) */}
-            {selectedRecord.type !== 'source' && (
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
                 {isAdmin ? (
                   <>
                     <button
@@ -1146,153 +1204,118 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
                     <span className="font-semibold text-slate-700">Administrator role required</span> to modify brand rules. (Current role: Reviewer)
                   </div>
                 )}
-              </div>
-            )}
+            </div>
           </div>
         )}
       </div>
 
       {/* Add / Edit Modal */}
-      {showAddModal && isAdmin && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
-          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-lg shadow-xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <h2 className="text-sm font-bold text-slate-900">
-                {editingItem ? `Edit ${editingItem.type.toUpperCase()}` : 'Add New Governance Entry'}
-              </h2>
-              <button onClick={resetForm} className="text-slate-400 hover:text-slate-700 cursor-pointer">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+      {showAddModal && isAdmin && (() => {
+        const formType = (editingItem?.type || entryType) as EntryType;
+        const entryLabels: Record<EntryType, string> = {
+          guideline: 'Brand Guideline', term: 'Approved Terminology',
+          fact: 'Audited Factsheet', source: 'Knowledge Source',
+        };
+        const textField = (label: string, value: string, onChange: (value: string) => void, placeholder: string, required = true) => (
+          <label className="block">
+            <span className="block text-[10px] font-semibold uppercase text-slate-700 mb-1">{label}{required ? ' *' : ''}</span>
+            <input value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} required={required}
+              className="w-full p-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-[#2457D6]" />
+          </label>
+        );
+        const selectField = (label: string, value: string, onChange: (value: string) => void, options: Array<[string, string]>) => (
+          <label className="block">
+            <span className="block text-[10px] font-semibold uppercase text-slate-700 mb-1">{label}</span>
+            <select value={value} onChange={event => onChange(event.target.value)} className="w-full p-2 border border-slate-200 rounded-lg text-xs bg-white">
+              {options.map(([optionValue, optionLabel]) => <option key={optionValue} value={optionValue}>{optionLabel}</option>)}
+            </select>
+          </label>
+        );
+        return (
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+              <div className="modal-content bg-white border border-slate-200 rounded-2xl w-full max-w-lg shadow-xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <h2 className="text-sm font-bold text-slate-900">{editingItem ? `Edit ${entryLabels[formType]}` : `Create ${entryLabels[formType]}`}</h2>
+                <button type="button" onClick={resetForm} className="text-slate-400 hover:text-slate-700 cursor-pointer" aria-label="Close form">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <form onSubmit={handleSaveEntry} className="p-5 text-xs space-y-3 max-h-[75vh] overflow-y-auto">
+                {!editingItem && (
+                  <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1 border border-slate-200 sm:grid-cols-4">
+                    {([
+                      ['guideline', 'Guideline'], ['term', 'Terminology'], ['fact', 'Factsheet'], ['source', 'Source'],
+                    ] as Array<[EntryType, string]>).map(([type, label]) => (
+                      <button key={type} type="button" onClick={() => { setEntryType(type); setSaveError(''); }}
+                        className={`py-1.5 text-[10px] font-semibold rounded-md transition-colors cursor-pointer ${formType === type ? 'bg-white text-[#2457D6] shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
-            <div className="p-5 text-xs space-y-4">
-              {/* Type Switcher when adding new */}
-              {!editingItem && (
-                <div className="flex rounded-lg bg-slate-100 p-1 border border-slate-200">
-                  <button
-                    type="button"
-                    onClick={() => setNewCategory('tone_of_voice')}
-                    className="flex-1 py-1 text-xs font-medium text-slate-700 hover:text-slate-900 rounded cursor-pointer"
-                  >
-                    Guideline
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setNewTermCategory('product_naming')}
-                    className="flex-1 py-1 text-xs font-medium text-slate-700 hover:text-slate-900 rounded cursor-pointer"
-                  >
-                    Terminology
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setNewFactCategory('compliance_security')}
-                    className="flex-1 py-1 text-xs font-medium text-slate-700 hover:text-slate-900 rounded cursor-pointer"
-                  >
-                    Fact
-                  </button>
-                </div>
-              )}
-
-              {/* Guideline Fields */}
-              {(!editingItem || editingItem.type === 'guideline') && (
-                <form onSubmit={handleSaveGuideline} className="space-y-3">
-                  <div>
-                    <label className="block text-[10px] font-semibold uppercase text-slate-700 mb-1">Title *</label>
-                    <input
-                      type="text"
-                      value={newTitle}
-                      onChange={(e) => setNewTitle(e.target.value)}
-                      placeholder="e.g. Tone of Voice: Professional Confidence"
-                      className="w-full p-2 border border-slate-200 rounded-lg text-xs"
-                      required
-                    />
+                {formType === 'guideline' && <>
+                  {textField('Title', newTitle, setNewTitle, 'e.g. Professional brand voice')}
+                  <label className="block"><span className="block text-[10px] font-semibold uppercase text-slate-700 mb-1">Guideline Content *</span>
+                    <textarea rows={3} value={newDescription} onChange={event => setNewDescription(event.target.value)} required placeholder="Describe the rule and when it applies..." className="w-full p-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-[#2457D6]" /></label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {selectField('Category', newCategory, setNewCategory, [['tone_of_voice','Tone of Voice'],['messaging_principles','Messaging Principles'],['product_positioning','Product Positioning'],['restricted_language','Restricted Language'],['writing_standards','Writing Standards']])}
+                    {selectField('Severity', newSeverity, value => setNewSeverity(value as FindingSeverity), [['critical','Critical'],['high','High'],['medium','Medium'],['low','Low']])}
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-[10px] font-semibold uppercase text-slate-700 mb-1">Category</label>
-                      <select
-                        value={newCategory}
-                        onChange={(e) => setNewCategory(e.target.value)}
-                        className="w-full p-2 border border-slate-200 rounded-lg text-xs"
-                      >
-                        <option value="tone_of_voice">Tone of Voice</option>
-                        <option value="messaging_principles">Messaging Principles</option>
-                        <option value="product_positioning">Product Positioning</option>
-                        <option value="restricted_language">Restricted Language</option>
-                        <option value="writing_standards">Writing Standards</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-semibold uppercase text-slate-700 mb-1">Severity</label>
-                      <select
-                        value={newSeverity}
-                        onChange={(e) => setNewSeverity(e.target.value as FindingSeverity)}
-                        className="w-full p-2 border border-slate-200 rounded-lg text-xs"
-                      >
-                        <option value="critical">Critical</option>
-                        <option value="high">High</option>
-                        <option value="medium">Medium</option>
-                        <option value="low">Low</option>
-                      </select>
-                    </div>
+                    {selectField('Status', newGuidelineStatus, value => setNewGuidelineStatus(value as BrandGuideline['status']), [['active','Active'],['under_review','Under Review'],['archived','Archived']])}
+                    {textField('Source Reference', newSourceRef, setNewSourceRef, 'Policy, section, or reference')}
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-semibold uppercase text-slate-700 mb-1">Description *</label>
-                    <textarea
-                      rows={2}
-                      value={newDescription}
-                      onChange={(e) => setNewDescription(e.target.value)}
-                      placeholder="Guideline rule description..."
-                      className="w-full p-2 border border-slate-200 rounded-lg text-xs"
-                      required
-                    />
+                  {textField('Prohibited Example', newProhibitedExample, setNewProhibitedExample, 'Optional example of disallowed wording', false)}
+                  {textField('Approved Example', newApprovedExample, setNewApprovedExample, 'Optional compliant wording', false)}
+                </>}
+
+                {formType === 'term' && <>
+                  {textField('Term', newPreferredTerm, setNewPreferredTerm, 'Approved term')}
+                  {textField('Approved Alternative', newApprovedAlternative, setNewApprovedAlternative, 'Preferred replacement wording')}
+                  {textField('Prohibited Alternative', newRestrictedTerm, setNewRestrictedTerm, 'Restricted or prohibited term')}
+                  <label className="block"><span className="block text-[10px] font-semibold uppercase text-slate-700 mb-1">Explanation *</span>
+                    <textarea rows={3} value={newTermExplanation} onChange={event => setNewTermExplanation(event.target.value)} required placeholder="Explain the terminology rule..." className="w-full p-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-[#2457D6]" /></label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {selectField('Category', newTermCategory, setNewTermCategory, [['product_naming','Product Naming'],['capability_claim','Capability Claim'],['architecture','Architecture'],['legal_compliance','Legal Compliance'],['security','Security']])}
+                    {selectField('Priority', newTermPriority, value => setNewTermPriority(value as NonNullable<TerminologyEntry['priority']>), [['critical','Critical'],['high','High'],['medium','Medium'],['low','Low']])}
+                    {selectField('Status', newTermStatus, value => setNewTermStatus(value as TerminologyEntry['status']), [['active','Active'],['deprecated','Deprecated']])}
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-semibold uppercase text-slate-700 mb-1">Source Reference</label>
-                    <input
-                      type="text"
-                      value={newSourceRef}
-                      onChange={(e) => setNewSourceRef(e.target.value)}
-                      placeholder="e.g. AuraCloud Brand Playbook v2.4, Sec 3.1"
-                      className="w-full p-2 border border-slate-200 rounded-lg text-xs"
-                    />
+                </>}
+
+                {formType === 'fact' && <>
+                  {textField('Title', newFactTitle, setNewFactTitle, 'Fact or claim title')}
+                  <label className="block"><span className="block text-[10px] font-semibold uppercase text-slate-700 mb-1">Verified Fact / Claim *</span>
+                    <textarea rows={3} value={newFactStatement} onChange={event => setNewFactStatement(event.target.value)} required placeholder="Enter the verified statement..." className="w-full p-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-[#2457D6]" /></label>
+                  {textField('Supporting Evidence / Source', newFactSource, setNewFactSource, 'Audit, report, or source reference')}
+                  <div className="grid grid-cols-2 gap-2">
+                    {selectField('Category', newFactCategory, setNewFactCategory, [['compliance_security','Compliance & Security'],['product_specs','Product Specs'],['company_history','Company History'],['pricing_licensing','Pricing & Licensing'],['uptime_performance','Uptime & Performance']])}
+                    {selectField('Review Status', newFactStatus, value => setNewFactStatus(value as ApprovedFact['verificationStatus']), [['approved','Approved'],['pending_review','Pending Review'],['under_review','Under Review'],['rejected','Rejected']])}
                   </div>
-                  <div className="grid grid-cols-2 gap-2 pt-1">
-                    <div>
-                      <label className="block text-[10px] font-semibold uppercase text-rose-700 mb-1">Prohibited Example</label>
-                      <input
-                        type="text"
-                        value={newProhibitedExample}
-                        onChange={(e) => setNewProhibitedExample(e.target.value)}
-                        placeholder="e.g. Unstoppable cloud power"
-                        className="w-full p-2 border border-rose-200 rounded-lg text-xs bg-rose-50/30"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-semibold uppercase text-emerald-700 mb-1">Approved Example</label>
-                      <input
-                        type="text"
-                        value={newApprovedExample}
-                        onChange={(e) => setNewApprovedExample(e.target.value)}
-                        placeholder="e.g. Enterprise-grade cloud resilience"
-                        className="w-full p-2 border border-emerald-200 rounded-lg text-xs bg-emerald-50/30"
-                      />
-                    </div>
-                  </div>
-                  <div className="pt-3 flex justify-end gap-2 border-t border-slate-100">
-                    <button type="button" onClick={resetForm} className="px-3 py-1.5 border border-slate-200 rounded-lg text-slate-700 cursor-pointer">
-                      Cancel
-                    </button>
-                    <button type="submit" className="px-4 py-1.5 bg-[#2457D6] hover:bg-[#1D4ED8] text-white rounded-lg font-medium cursor-pointer">
-                      Save Guideline
-                    </button>
-                  </div>
-                </form>
-              )}
+                </>}
+
+                {formType === 'source' && <>
+                  {textField('Source Name', newSourceTitle, setNewSourceTitle, 'Document or reference name')}
+                  {selectField('Source Type', newSourceType, value => setNewSourceType(value as KnowledgeSource['type']), [['document','Document'],['manual_entry','Manual Entry'],['factsheet','Factsheet']])}
+                  {textField('URL / Reference', newSourceUrl, setNewSourceUrl, 'https://… or internal document reference')}
+                  <label className="block"><span className="block text-[10px] font-semibold uppercase text-slate-700 mb-1">Description *</span>
+                    <textarea rows={3} value={newSourceDescription} onChange={event => setNewSourceDescription(event.target.value)} required placeholder="What does this source cover?" className="w-full p-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-[#2457D6]" /></label>
+                  {selectField('Status', newSourceStatus, value => setNewSourceStatus(value as NonNullable<KnowledgeSource['status']>), [['active','Active'],['under_review','Under Review'],['archived','Archived']])}
+                </>}
+
+                {saveError && <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] text-rose-800">{saveError}</div>}
+                <div className="pt-3 flex justify-end gap-2 border-t border-slate-100">
+                  <button type="button" onClick={resetForm} className="px-3 py-1.5 border border-slate-200 rounded-lg text-slate-700 cursor-pointer">Cancel</button>
+                  <button type="submit" disabled={isSaving} className="px-4 py-1.5 bg-[#2457D6] hover:bg-[#1D4ED8] disabled:opacity-60 text-white rounded-lg font-medium cursor-pointer">
+                    {isSaving ? 'Saving…' : editingItem ? 'Save Changes' : 'Save Entry'}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
+      {toast && <div role={toastIsError ? 'alert' : 'status'} className={`fixed bottom-5 right-5 z-[60] rounded-lg px-4 py-3 text-xs font-medium text-white shadow-lg ${toastIsError ? 'bg-rose-700' : 'bg-emerald-700'}`}>{toast}</div>}
     </div>
   );
 };

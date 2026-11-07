@@ -21,6 +21,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         return 'Command Centre';
       case 'review_studio':
         return documentTitle ? `Review Studio · ${documentTitle}` : 'Review Studio';
+      case 'pending_reviews':
+        return 'Pending Communication Reviews';
       case 'brand_intelligence':
         return 'Brand Intelligence';
       case 'decision_archive':
@@ -57,7 +59,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           className="px-3 py-1.5 text-xs font-semibold text-white bg-[#2457D6] hover:bg-[#1E40AF] transition-colors rounded flex items-center gap-1.5 whitespace-nowrap shadow-xs cursor-pointer"
         >
           <Plus className="w-3.5 h-3.5" />
-          <span>New Content Review</span>
+          <span className="hidden sm:inline">New Content Review</span>
+          <span className="sm:hidden">New Review</span>
         </button>
       </div>
     </header>

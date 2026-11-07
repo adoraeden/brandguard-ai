@@ -26,7 +26,8 @@ import {
   Calendar,
   Lock,
   Eye,
-  FileCheck2
+  FileCheck2,
+  Loader2
 } from 'lucide-react';
 import { 
   ReviewDocument, 
@@ -75,6 +76,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   const [content, setContent] = useState('');
   const [reviewer, setReviewer] = useState(currentUser.name);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submissionInFlight = useRef(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Review Results State (State B)
@@ -90,6 +92,10 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   const [decisionNotes, setDecisionNotes] = useState('');
   const [isCompleting, setIsCompleting] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [isRerunningAnalysis, setIsRerunningAnalysis] = useState(false);
+  const [rerunError, setRerunError] = useState<string | null>(null);
+  const [rerunMessage, setRerunMessage] = useState<string | null>(null);
+  const rerunInFlight = useRef(false);
 
   // DOM Refs for bidirectional synchronisation
   const findingCardRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
@@ -133,11 +139,13 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
 
   const handleSubmitDraft = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submissionInFlight.current) return;
     if (!title.trim() || !content.trim()) {
       setSubmitError('Please provide both a document title and the draft text.');
       return;
     }
 
+    submissionInFlight.current = true;
     setIsSubmitting(true);
     setSubmitError(null);
     setCompletionRecord(null);
@@ -155,6 +163,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
       console.error('Error submitting review:', err);
       setSubmitError(err.message || 'Error executing review analysis. Please try again.');
     } finally {
+      submissionInFlight.current = false;
       setIsSubmitting(false);
     }
   };
@@ -217,6 +226,33 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
     }
   };
 
+  const handleRerunAnalysis = async () => {
+    if (!activeReview || rerunInFlight.current) return;
+    rerunInFlight.current = true;
+    setIsRerunningAnalysis(true);
+    setRerunError(null);
+    setRerunMessage(null);
+    try {
+      const updated = await api.rerunReviewAnalysis(
+        activeReview.id,
+        reviewer || currentUser.name,
+      );
+      const newFindings = updated.findings.filter(
+        finding => finding.analysisRunId === updated.lastAnalysisRunId,
+      );
+      onDecisionUpdated(updated);
+      if (newFindings.length) setSelectedFindingId(newFindings[0].id);
+      setRerunMessage(newFindings.length
+        ? `Analysis rerun complete. ${newFindings.length} new finding(s) added for human review.`
+        : 'Analysis rerun complete. No new findings were added; this is not a safety approval.');
+    } catch (error) {
+      setRerunError(error instanceof Error ? error.message : 'Could not rerun analysis. Please try again.');
+    } finally {
+      rerunInFlight.current = false;
+      setIsRerunningAnalysis(false);
+    }
+  };
+
   // Jump to first unresolved finding
   const handleJumpToFirstUnresolved = () => {
     if (!activeReview) return;
@@ -252,6 +288,14 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
           icon: AlertTriangle,
           pinColor: 'bg-amber-500 text-white',
         };
+      case 'direct_contradiction':
+        return {
+          label: 'Direct Evidence Contradiction',
+          color: 'text-rose-800 bg-rose-50 border-rose-300',
+          badge: 'VERIFIED EVIDENCE CONTRADICTION',
+          icon: ShieldAlert,
+          pinColor: 'bg-rose-700 text-white',
+        };
       case 'unsupported_claim':
         return {
           label: 'Unsupported Claim',
@@ -284,10 +328,11 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
       case 'critical':
         return 'text-rose-700 bg-rose-50 border-rose-200 font-semibold';
       case 'high':
-        return 'text-amber-700 bg-amber-50 border-amber-200 font-semibold';
+        return 'text-orange-800 bg-orange-50 border-orange-200 font-semibold';
       case 'medium':
-        return 'text-blue-700 bg-blue-50 border-blue-200 font-medium';
+        return 'text-amber-800 bg-amber-50 border-amber-200 font-medium';
       case 'low':
+        return 'text-emerald-800 bg-emerald-50 border-emerald-200';
       case 'informational':
       default:
         return 'text-slate-600 bg-slate-50 border-slate-200';
@@ -699,7 +744,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
             />
             <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
               <ShieldCheck className="w-3.5 h-3.5 text-[#2457D6]" />
-              <span>Content will be scanned with deterministic boundary regex and contextual Gemini 3.8 Flash model.</span>
+              <span>Deterministic rules flag exact requirements; Gemini adds contextual analysis and suggestions. A human reviewer makes every final decision. Nothing is published automatically.</span>
             </div>
           </div>
 
@@ -778,7 +823,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   const isCompleted = activeReview.decisionStatus !== 'pending';
 
   return (
-    <div className="flex flex-col h-[calc(100vh-3rem)] overflow-hidden">
+    <div className="flex flex-col min-h-[calc(100vh-3rem)] h-auto overflow-y-auto md:h-[calc(100vh-3rem)] md:min-h-0 md:overflow-hidden">
       {/* 1. Subheader Strip with Prominent Finding Counts (Requirement 11) */}
       <div className="bg-white border-b border-slate-200 px-6 py-2.5 flex flex-wrap items-center justify-between gap-4 shrink-0 z-10 shadow-2xs">
         <div className="flex items-center gap-3 min-w-0">
@@ -797,7 +842,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
         </div>
 
         {/* Status Counters & Prominent Unresolved Display */}
-        <div className="flex items-center gap-3 text-xs">
+        <div className="flex flex-wrap items-center justify-end gap-2 text-xs">
           <div className="flex items-center gap-1.5 font-mono text-slate-600">
             <span>Total:</span>
             <span className="font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded">
@@ -872,10 +917,42 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
         </div>
       )}
 
+      <div className={`mx-4 mt-3 rounded-lg border px-3 py-2 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${
+        activeReview.aiAnalysisStatus === 'failed'
+          ? 'border-rose-200 bg-rose-50 text-rose-900'
+          : activeReview.aiAnalysisStatus === 'not_configured'
+          ? 'border-amber-200 bg-amber-50 text-amber-900'
+          : activeReview.aiAnalysisStatus === 'completed'
+          ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+          : 'border-slate-200 bg-slate-50 text-slate-700'
+      }`}>
+        <div role="status" className="flex items-start gap-2">
+          <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span><strong>Gemini contextual analysis: </strong>{activeReview.aiAnalysisStatus === 'completed'
+            ? 'Completed. Deterministic findings are included in this review.'
+            : activeReview.aiAnalysisStatus === 'failed'
+            ? activeReview.aiAnalysisMessage || 'Unavailable. Deterministic checks still ran; rerun analysis when Gemini recovers.'
+            : activeReview.aiAnalysisStatus === 'not_configured'
+            ? activeReview.aiAnalysisMessage || 'Not configured. Deterministic checks still ran.'
+            : 'Status unavailable for this earlier review. Finding and decision records remain available.'}</span>
+        </div>
+        <button
+          type="button"
+          onClick={handleRerunAnalysis}
+          disabled={isRerunningAnalysis}
+          className="inline-flex shrink-0 items-center justify-center gap-1.5 self-start rounded-lg border border-[#2457D6]/30 bg-white px-3 py-1.5 text-xs font-semibold text-[#2457D6] shadow-xs transition-colors hover:bg-blue-50 disabled:cursor-wait disabled:opacity-60 sm:self-auto"
+        >
+          {isRerunningAnalysis ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+          {isRerunningAnalysis ? 'Re-running…' : 'Re-run Analysis'}
+        </button>
+      </div>
+      {rerunError && <div role="alert" className="mx-4 mt-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">{rerunError}</div>}
+      {rerunMessage && <div role="status" className="mx-4 mt-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">{rerunMessage}</div>}
+
       {/* 2. Side-by-Side Review Panels: Left Document vs Right Findings */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex flex-col md:flex-row overflow-visible md:overflow-hidden">
         {/* LEFT PANEL: Document Workspace (56% width) */}
-        <div className="w-[56%] border-r border-slate-200 flex flex-col bg-white overflow-hidden">
+        <div className="w-full md:w-[56%] min-h-[55vh] md:min-h-0 border-b md:border-b-0 md:border-r border-slate-200 flex flex-col bg-white overflow-hidden">
           {/* Document Top Bar */}
           <div className="px-6 py-2 bg-slate-50/75 border-b border-slate-200 flex items-center justify-between text-xs">
             <div className="flex items-center gap-2 text-slate-600">
@@ -963,13 +1040,13 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
                 </span>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                 <input
                   type="text"
                   placeholder="Reviewer rationale or audit sign-off note (e.g. Approved with corrections for Q4 publish)..."
                   value={decisionNotes}
                   onChange={(e) => setDecisionNotes(e.target.value)}
-                  className="flex-1 text-xs p-2 rounded-lg border border-slate-200 focus:border-[#2457D6] focus:ring-1 focus:ring-[#2457D6] focus:outline-none bg-white"
+                  className="w-full sm:flex-1 text-xs p-2 rounded-lg border border-slate-200 focus:border-[#2457D6] focus:ring-1 focus:ring-[#2457D6] focus:outline-none bg-white"
                 />
 
                 <button
@@ -1018,7 +1095,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
         </div>
 
         {/* RIGHT PANEL: Findings List & Evidence Actions (44% width) */}
-        <div className="w-[44%] flex flex-col bg-slate-50/50 overflow-hidden">
+        <div className="w-full md:w-[44%] min-h-[55vh] md:min-h-0 flex flex-col bg-slate-50/50 overflow-hidden">
           {/* Findings Filter Bar */}
           <div className="px-4 py-2 bg-white border-b border-slate-200 flex items-center justify-between text-xs">
             <div className="flex items-center gap-1.5 font-semibold text-slate-800">
@@ -1029,6 +1106,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
               {[
                 { id: 'all', label: 'All' },
                 { id: 'exact_violation', label: 'Exact Rules' },
+                { id: 'direct_contradiction', label: 'Contradictions' },
                 { id: 'contextual_inconsistency', label: 'Context' },
                 { id: 'unsupported_claim', label: 'Claims' },
               ].map(f => (
@@ -1053,7 +1131,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
               <div className="p-8 text-center bg-white border border-slate-200 rounded-xl text-xs text-slate-500">
                 <CheckCircle2 className="w-6 h-6 text-emerald-600 mx-auto mb-2" />
                 <div className="font-bold text-slate-800">No Findings in this Category</div>
-                <div className="mt-1">Content meets approved brand standards for this filter.</div>
+                <div className="mt-1">No additional issue was identified in this analysis. This is not a safety approval.</div>
               </div>
             ) : (
               filteredFindings.map((finding, idx) => {
@@ -1098,6 +1176,9 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
                         <span className="text-[10px] font-mono px-2 py-0.5 bg-slate-100 text-slate-600 rounded">
                           {finding.detectionMethod === 'deterministic_rule' ? 'RULE' : 'GEMINI'}
                         </span>
+                        {finding.analysisRunId && finding.analysisRunId === activeReview.lastAnalysisRunId && (
+                          <span className="text-[10px] rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-800">NEW THIS RERUN</span>
+                        )}
                       </div>
                     </div>
 
@@ -1130,6 +1211,11 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
                       <div className="text-slate-400 text-[10px] font-mono">
                         Ref: {finding.sourceReference}
                       </div>
+                      {finding.evidenceQuote && (
+                        <blockquote className="mt-2 border-l-2 border-[#2457D6]/40 pl-2 text-slate-700">
+                          Approved evidence: “{finding.evidenceQuote}”
+                        </blockquote>
+                      )}
                     </div>
 
                     {/* Intent-Preserving Suggestion & Decision Controls */}

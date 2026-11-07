@@ -4,6 +4,7 @@ from datetime import datetime
 
 FindingCategory = Literal[
     'exact_violation',
+    'direct_contradiction',
     'contextual_inconsistency',
     'unsupported_claim',
     'potential_issue'
@@ -29,6 +30,7 @@ ContentType = Literal[
 SuggestionStatus = Literal['pending', 'accepted', 'edited', 'rejected']
 ReviewStatus = Literal['pending_review', 'in_review', 'completed', 'archived']
 DecisionStatus = Literal['pending', 'approved_with_changes', 'approved_as_is', 'rejected']
+AIAnalysisStatus = Literal['completed', 'not_configured', 'failed', 'legacy_unknown']
 
 class SuggestionModel(BaseModel):
     id: str
@@ -53,10 +55,15 @@ class ReviewFindingModel(BaseModel):
     detectionMethod: Literal['deterministic_rule', 'gemini_contextual', 'fact_check']
     confidence: Literal['high', 'medium', 'low']
     suggestion: Optional[SuggestionModel] = None
+    evidenceRecordType: Optional[Literal['guideline', 'terminology', 'fact', 'knowledge_source']] = None
+    evidenceRecordId: Optional[str] = None
+    evidenceQuote: Optional[str] = None
+    analysisRunId: Optional[str] = None
 
 class ReviewSummaryModel(BaseModel):
     totalFindings: int = 0
     exactViolations: int = 0
+    directContradictions: int = 0
     contextualInconsistencies: int = 0
     unsupportedClaims: int = 0
     potentialIssues: int = 0
@@ -81,11 +88,18 @@ class ReviewDocumentModel(BaseModel):
     reviewer: str
     createdAt: str
     updatedAt: str
-    findings: List[ReviewFindingModel] = []
+    findings: List[ReviewFindingModel] = Field(default_factory=list)
     decisionStatus: DecisionStatus = 'pending'
     decisionNotes: Optional[str] = None
     decidedAt: Optional[str] = None
     summary: ReviewSummaryModel = Field(default_factory=ReviewSummaryModel)
+    aiAnalysisStatus: AIAnalysisStatus = 'legacy_unknown'
+    aiAnalysisMessage: Optional[str] = None
+    lastAnalysisRunId: Optional[str] = None
+
+
+class AnalysisRerunRequest(BaseModel):
+    reviewer: Optional[str] = None
 
 class BrandGuidelineModel(BaseModel):
     id: str
@@ -105,6 +119,7 @@ class TerminologyEntryModel(BaseModel):
     explanation: str
     approvedAlternative: str
     category: str
+    priority: Literal['critical', 'high', 'medium', 'low'] = 'medium'
     status: Literal['active', 'deprecated'] = 'active'
     createdAt: str
 
@@ -114,8 +129,19 @@ class ApprovedFactModel(BaseModel):
     statement: str
     category: str
     source: str
-    verificationStatus: Literal['verified', 'provisional', 'needs_revalidation'] = 'verified'
+    verificationStatus: Literal['verified', 'provisional', 'needs_revalidation', 'approved', 'pending_review', 'under_review', 'rejected'] = 'verified'
     lastUpdated: str
+
+class KnowledgeSourceModel(BaseModel):
+    id: str
+    title: str
+    type: Literal['document', 'manual_entry', 'factsheet']
+    description: str
+    version: str = '1.0'
+    effectiveDate: str = Field(default_factory=lambda: datetime.utcnow().date().isoformat())
+    ruleCount: int = 0
+    url: Optional[str] = None
+    status: Literal['active', 'under_review', 'archived'] = 'active'
 
 class DecisionUpdateRequest(BaseModel):
     findingId: Optional[str] = None
