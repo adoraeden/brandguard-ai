@@ -47,12 +47,12 @@ def finding(*, category, evidence_id, evidence_type, quote, exact_text):
 
 
 class GeminiEvidenceTests(unittest.TestCase):
-    def analyze(self, draft, payload, facts=None):
+    def analyze(self, draft, payload, facts=None, title="Evidence test"): 
         FakeClient.payload = payload
         with patch.dict(os.environ, {'GEMINI_API_KEY': 'test-key'}), \
              patch.object(genai, 'Client', FakeClient):
             return run_gemini_contextual_analysis(
-                draft, 'Evidence test', 'general_communication', [], facts or [],
+                draft, title, 'general_communication', [], facts or [],
                 'review-evidence-test', [])
 
     def test_rejects_mismatched_evidence(self):
@@ -67,9 +67,44 @@ class GeminiEvidenceTests(unittest.TestCase):
 
         result = self.analyze(item['exactText'], [item], [fact])
 
-        self.assertEqual(result.status, 'failed')
+        self.assertEqual(result.status, 'evidence_validation_failure')
         self.assertEqual(result.findings, [])
-        self.assertIn('unapproved evidence', result.message)
+        self.assertIn('evidence validation', result.message)
+
+    def test_glowpure_product_name_and_heading_are_excluded_but_claims_need_evidence(self):
+        product = 'GlowPure Vitamin C Brightening Serum'
+        claims = [
+            '15% Vitamin C concentration',
+            'Visibly brighter-looking skin in 7 days',
+            'Dermatologically tested',
+            'Suitable for all skin types',
+        ]
+        draft = '\n'.join([
+            product,
+            'Campaign: Radiance Reset',
+            'Key Benefits',
+            *claims,
+        ])
+        model_findings = [
+            finding(category='unsupported_claim', evidence_id=None, evidence_type=None,
+                    quote='', exact_text=product),
+            finding(category='unsupported_claim', evidence_id=None, evidence_type=None,
+                    quote='', exact_text='Key Benefits'),
+            finding(category='unsupported_claim', evidence_id=None, evidence_type=None,
+                    quote='', exact_text='Radiance Reset'),
+            *[finding(category='unsupported_claim', evidence_id=None, evidence_type=None,
+                      quote='', exact_text=claim) for claim in claims],
+        ]
+
+        result = self.analyze(draft, model_findings, title='GlowPure product launch copy')
+
+        self.assertEqual(result.status, 'completed')
+        self.assertEqual([item.exactText for item in result.findings], claims)
+        self.assertTrue(all(item.title == 'Insufficient Evidence' for item in result.findings))
+        self.assertTrue(all(item.evidenceRecordId is None for item in result.findings))
+        self.assertTrue(all(item.evidenceRecordType is None for item in result.findings))
+        self.assertTrue(all('no direct supporting approved source' in item.explanation.lower()
+                            for item in result.findings))
 
     def test_labels_claim_without_evidence_as_insufficient(self):
         item = finding(category='unsupported_claim', evidence_id=None,
@@ -102,6 +137,27 @@ class GeminiEvidenceTests(unittest.TestCase):
         self.assertEqual(result.findings[0].evidenceRecordId, fact.id)
         self.assertEqual(result.findings[0].evidenceQuote, item['evidenceQuote'])
         self.assertIn(fact.id, result.findings[0].sourceReference)
+
+    def test_valid_finding_survives_while_mismatched_finding_is_reported_as_partial(self):
+        fact = ApprovedFactModel(
+            id='fact-uptime', title='Availability SLA',
+            statement='The service provides a 99.95% verified uptime SLA each month.',
+            category='availability', source='Operational SLA factsheet',
+            verificationStatus='verified', lastUpdated='2026-11-07')
+        valid = finding(category='direct_contradiction', evidence_id=fact.id,
+                        evidence_type='fact', quote='99.95% verified uptime SLA',
+                        exact_text='Our service provides a 99.95% verified uptime SLA.')
+        invalid = finding(category='direct_contradiction', evidence_id=fact.id,
+                          evidence_type='fact', quote='SOC-2 certification',
+                          exact_text='Our service is SOC-2 certified.')
+
+        result = self.analyze(' '.join([valid['exactText'], invalid['exactText']]),
+                              [valid, invalid], [fact])
+
+        self.assertEqual(result.status, 'partial')
+        self.assertEqual(len(result.findings), 1)
+        self.assertEqual(result.findings[0].exactText, valid['exactText'])
+        self.assertIn('1 finding(s)', result.message)
 
     def test_drops_suggestion_with_unapproved_numbers_or_certifications(self):
         fact = ApprovedFactModel(

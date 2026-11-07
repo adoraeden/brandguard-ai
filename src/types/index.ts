@@ -66,6 +66,10 @@ export interface ReviewFinding {
   evidenceRecordId?: string;
   evidenceQuote?: string;
   analysisRunId?: string;
+  findingDecision?: 'accepted' | 'dismissed' | 'verification_required';
+  findingDecisionReviewer?: string;
+  findingDecisionAt?: string;
+  findingDecisionNote?: string;
 }
 
 export interface ReviewDocument {
@@ -94,8 +98,10 @@ export interface ReviewDocument {
     editedSuggestions: number;
     unresolvedFindings: number;
   };
-  aiAnalysisStatus?: 'completed' | 'not_configured' | 'failed' | 'legacy_unknown';
+  aiAnalysisStatus?: 'completed' | 'partial' | 'not_configured' | 'failed' | 'timeout' | 'service_failure' | 'evidence_validation_failure' | 'legacy_unknown';
   aiAnalysisMessage?: string | null;
+  deterministicAnalysisStatus?: 'completed' | 'failed' | 'legacy_unknown';
+  deterministicAnalysisMessage?: string | null;
   lastAnalysisRunId?: string | null;
 }
 

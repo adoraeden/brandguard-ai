@@ -236,20 +236,12 @@ export const api = {
     return res.json();
   },
 
-  // Auth
-  async getUsers(): Promise<any[]> {
-    const res = await apiFetch('/api/auth/users');
-    if (!res.ok) throw new Error('Failed to fetch workspace users');
-    return res.json();
-  },
-
-  async login(payload: { email?: string; role?: string; userId?: string }): Promise<any> {
-    const res = await apiFetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+  async decideFinding(reviewId: string, findingId: string, decision: 'accepted' | 'dismissed' | 'verification_required', note?: string, reviewer?: string): Promise<ReviewDocument> {
+    const res = await apiFetch(`/api/reviews/${reviewId}/findings/${findingId}/decision`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ decision, note, reviewer }),
     });
-    if (!res.ok) throw new Error('Login failed');
+    if (!res.ok) throw new Error(await apiError(res, 'Failed to record finding decision'));
     return res.json();
   },
 

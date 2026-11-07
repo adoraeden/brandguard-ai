@@ -10,8 +10,7 @@ import {
   KnowledgeSource, 
   ReviewDocument, 
   ReviewFinding,
-  GovernanceInsights,
-  UserProfile
+  GovernanceInsights
 } from './src/types/index.ts';
 import { 
   INITIAL_GUIDELINES, 
@@ -38,36 +37,6 @@ let terminology: TerminologyEntry[] = [...INITIAL_TERMINOLOGY];
 let facts: ApprovedFact[] = [...INITIAL_FACTS];
 let sources: KnowledgeSource[] = [...INITIAL_SOURCES];
 let reviews: ReviewDocument[] = [...INITIAL_REVIEWS];
-
-const WORKSPACE_USERS: UserProfile[] = [
-  {
-    id: 'usr-admin-1',
-    name: 'Evelyn Voss',
-    email: 'evelyn.voss@auracloud.tech',
-    role: 'admin',
-    title: 'VP Brand Governance & Compliance',
-    avatarInitials: 'EV',
-    department: 'Executive Governance',
-  },
-  {
-    id: 'usr-rev-1',
-    name: 'Marcus Chen',
-    email: 'marcus.chen@auracloud.tech',
-    role: 'reviewer',
-    title: 'Director of Marketing Communications',
-    avatarInitials: 'MC',
-    department: 'Brand Communications',
-  },
-  {
-    id: 'usr-rev-2',
-    name: 'Devon Price',
-    email: 'devon.price@auracloud.tech',
-    role: 'reviewer',
-    title: 'Lead Content Policy Reviewer',
-    avatarInitials: 'DP',
-    department: 'Editorial & Compliance',
-  },
-];
 
 // Initialize Gemini client on server-side
 const apiKey = process.env.GEMINI_API_KEY;
@@ -99,30 +68,6 @@ app.get('/health', (_req, res) => {
     geminiConfigured: !!aiClient,
     timestamp: new Date().toISOString(),
   });
-});
-
-// Auth routes (Hackathon-ready session handling)
-app.get('/api/auth/users', (_req, res) => {
-  res.json(WORKSPACE_USERS);
-});
-
-app.post('/api/auth/login', (req, res) => {
-  const { email, role, userId } = req.body;
-  const user = WORKSPACE_USERS.find(u => u.id === userId || u.email === email || u.role === role) || WORKSPACE_USERS[0];
-  res.json({
-    token: `demo-token-${user.id}-${Date.now()}`,
-    user,
-  });
-});
-
-app.get('/api/auth/me', (req, res) => {
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.includes('usr-rev')) {
-    const user = WORKSPACE_USERS.find(u => u.role === 'reviewer') || WORKSPACE_USERS[1];
-    return res.json(user);
-  }
-  // Default to Evelyn Voss (Administrator)
-  res.json(WORKSPACE_USERS[0]);
 });
 
 // Overview stats

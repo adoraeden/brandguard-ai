@@ -18,6 +18,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { ReviewDocument, DecisionStatus } from '../../types';
+import { useDemoProfile } from '../../context/DemoProfileContext';
 
 interface DecisionArchiveViewProps {
   reviews: ReviewDocument[];
@@ -28,10 +29,12 @@ export const DecisionArchiveView: React.FC<DecisionArchiveViewProps> = ({
   reviews,
   onOpenReview,
 }) => {
+  const { isAdmin } = useDemoProfile();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterDecision, setFilterDecision] = useState<string>('all');
   const [inspectReview, setInspectReview] = useState<ReviewDocument | null>(null);
   const [modalDiffMode, setModalDiffMode] = useState<'current' | 'original'>('current');
+  const [notice, setNotice] = useState<string | null>(null);
 
   const pendingCount = reviews.filter(r => r.decisionStatus === 'pending').length;
   const approvedWithChangesCount = reviews.filter(r => r.decisionStatus === 'approved_with_changes').length;
@@ -110,6 +113,7 @@ export const DecisionArchiveView: React.FC<DecisionArchiveViewProps> = ({
           )}
         </div>
       </div>
+      {notice && <div role="status" className="px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800 flex justify-between">{notice}<button onClick={() => setNotice(null)} aria-label="Dismiss notification">×</button></div>}
 
       {/* Top Toolbar: Search & Clean Status Filter Tabs with Counts (Requirement 13) */}
       <div className="bg-white rounded-xl border border-slate-200 p-3 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs">
@@ -249,6 +253,7 @@ export const DecisionArchiveView: React.FC<DecisionArchiveViewProps> = ({
                               <ChevronRight className="w-3 h-3" />
                             </button>
                           )}
+                          {isAdmin && <button type="button" disabled title="Permanent deletion is disabled in public demo mode" aria-label="Permanent deletion disabled in demo mode" className="px-2.5 py-1 text-xs border border-slate-200 bg-slate-50 text-slate-400 rounded font-medium cursor-not-allowed">Delete disabled in demo</button>}
                         </div>
                       </td>
                     </tr>
@@ -297,7 +302,7 @@ export const DecisionArchiveView: React.FC<DecisionArchiveViewProps> = ({
                   <div className="mt-1">{getStatusBadge(inspectReview.decisionStatus)}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] font-semibold uppercase text-slate-400">Authenticated Reviewer</div>
+                  <div className="text-[10px] font-semibold uppercase text-slate-400">Selected Demo Reviewer</div>
                   <div className="font-medium text-slate-900 mt-1 truncate">{inspectReview.reviewer}</div>
                 </div>
                 <div>
@@ -415,6 +420,7 @@ export const DecisionArchiveView: React.FC<DecisionArchiveViewProps> = ({
           </div>
         </div>
       )}
+
     </div>
   );
 };

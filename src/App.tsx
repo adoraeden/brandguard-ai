@@ -7,8 +7,7 @@ import { BrandIntelligenceView } from './components/intelligence/BrandIntelligen
 import { DecisionArchiveView } from './components/archive/DecisionArchiveView';
 import { GovernanceInsightsView } from './components/insights/GovernanceInsightsView';
 import { PendingReviewsView } from './components/pending/PendingReviewsView';
-import { SignInModal } from './components/auth/SignInModal';
-import { AuthProvider } from './context/AuthContext';
+import { DemoProfileProvider } from './context/DemoProfileContext';
 import { api } from './services/apiClient';
 import { 
   BrandGuideline, 
@@ -22,17 +21,7 @@ import { SAMPLE_DOCUMENTS } from './data/mockData';
 
 function AppContent() {
   // Navigation & Review Persistence (Requirement 3)
-  const [currentTab, setCurrentTab] = useState<NavTab>(() => {
-    try {
-      const saved = localStorage.getItem('brandguard_current_tab');
-      if (saved && ['overview', 'pending_reviews', 'review_studio', 'brand_intelligence', 'decision_archive', 'governance_insights'].includes(saved)) {
-        return saved as NavTab;
-      }
-    } catch {
-      // Ignore
-    }
-    return 'overview';
-  });
+  const [currentTab, setCurrentTab] = useState<NavTab>('overview');
   
   // Data State
   const [overviewData, setOverviewData] = useState<any>(null);
@@ -275,16 +264,14 @@ function AppContent() {
         </main>
       </div>
 
-      {/* Authentication & Role Switcher Modal */}
-      <SignInModal />
     </div>
   );
 }
 
 export default function App() {
   return (
-    <AuthProvider>
+    <DemoProfileProvider>
       <AppContent />
-    </AuthProvider>
+    </DemoProfileProvider>
   );
 }

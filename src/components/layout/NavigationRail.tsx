@@ -10,11 +10,9 @@ import {
   Cpu,
   ChevronRight,
   ShieldCheck,
-  UserCheck,
-  LogOut,
-  Key
+  UserCheck
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { DEMO_USERS, useDemoProfile } from '../../context/DemoProfileContext';
 
 export type NavTab = 
   | 'overview' 
@@ -37,7 +35,7 @@ export const NavigationRail: React.FC<NavigationRailProps> = ({
   unresolvedCount = 0,
   pendingReviewsCount = 0,
 }) => {
-  const { currentUser, setShowAuthModal } = useAuth();
+  const { currentUser, selectDemoProfile } = useDemoProfile();
 
   const primaryNav = [
     {
@@ -182,14 +180,17 @@ export const NavigationRail: React.FC<NavigationRailProps> = ({
         </div>
       </div>
 
-      <button onClick={() => setShowAuthModal(true)} className="md:hidden mx-1 h-11 w-10 shrink-0 rounded-lg text-slate-500 hover:bg-slate-100" aria-label="Switch demo role" title="Switch demo role">
-        <Key className="mx-auto h-4 w-4" />
-      </button>
+      <label className="md:hidden mx-1 h-11 w-12 shrink-0 rounded-lg border border-slate-200 bg-white flex items-center justify-center" title="Switch demo profile">
+        <span className="sr-only">Select demo profile</span>
+        <select aria-label="Select demo profile" value={currentUser.id} onChange={event => selectDemoProfile(event.target.value)} className="w-full h-full bg-transparent text-center text-[10px] font-semibold text-[#2457D6] focus:outline-none">
+          {DEMO_USERS.map(user => <option key={user.id} value={user.id}>{user.avatarInitials}</option>)}
+        </select>
+      </label>
 
-      {/* Bottom Profile Area with Authenticated Role Switcher (Requirement 8) */}
+      {/* Bottom Profile Area with Optional Demo Profile Selector (Requirement 8) */}
       <div className="hidden md:block p-3 border-t border-slate-100 bg-slate-50/50 space-y-2">
         <div className="flex items-center justify-between px-1 text-[10px] text-slate-400 font-mono">
-          <span>AUTHENTICATED USER</span>
+          <span>DEMO PROFILE</span>
           <span className="capitalize font-semibold text-[#2457D6]">{currentUser.role}</span>
         </div>
 
@@ -208,13 +209,12 @@ export const NavigationRail: React.FC<NavigationRailProps> = ({
             </div>
           </div>
 
-          <button
-            onClick={() => setShowAuthModal(true)}
-            className="p-1 text-slate-400 hover:text-[#2457D6] hover:bg-slate-100 rounded cursor-pointer"
-            title="Switch User Role / Demo Account"
-          >
-            <Key className="w-3.5 h-3.5" />
-          </button>
+          <label className="inline-flex items-center">
+            <span className="sr-only">Select demo profile</span>
+            <select aria-label="Select demo profile" value={currentUser.id} onChange={event => selectDemoProfile(event.target.value)} className="max-w-28 rounded-md border border-slate-200 bg-white px-1.5 py-1 text-[10px] font-medium text-slate-600 focus:outline-none focus:ring-2 focus:ring-[#2457D6]/30">
+              {DEMO_USERS.map(user => <option key={user.id} value={user.id}>{user.name} · {user.role === 'admin' ? 'Admin' : 'Reviewer'}</option>)}
+            </select>
+          </label>
         </div>
       </div>
     </aside>

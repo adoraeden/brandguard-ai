@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { BrandGuideline, TerminologyEntry, ApprovedFact, KnowledgeSource, FindingSeverity } from '../../types';
 import { api } from '../../services/apiClient';
-import { useAuth } from '../../context/AuthContext';
+import { useDemoProfile } from '../../context/DemoProfileContext';
 
 interface BrandIntelligenceViewProps {
   guidelines: BrandGuideline[];
@@ -45,7 +45,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
   sources,
   onDataChanged,
 }) => {
-  const { currentUser, isAdmin, setShowAuthModal } = useAuth();
+  const { currentUser, isAdmin } = useDemoProfile();
 
   const [selectedCategory, setSelectedCategory] = useState<KnowledgeCategory>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -531,14 +531,10 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
               <span>Add Entry</span>
             </button>
           ) : (
-            <button
-              onClick={() => setShowAuthModal(true)}
-              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-medium rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
-              title="Administrator permission required to add knowledge entries"
-            >
+            <div className="px-3 py-1.5 bg-slate-100 text-slate-600 text-xs font-medium rounded-lg flex items-center gap-1.5" title="Select Evelyn Voss in the demo profile selector to manage knowledge entries">
               <Lock className="w-3.5 h-3.5 text-slate-400" />
-              <span>Admin Only</span>
-            </button>
+              <span>Admin Profile Required</span>
+            </div>
           )}
         </div>
       </div>

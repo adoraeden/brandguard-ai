@@ -24,7 +24,7 @@ def update_terminology(term_id: str, payload: TerminologyEntryModel, db: Session
     if not row:
         raise HTTPException(404, "Terminology entry not found")
     new_row = terminology_row(payload)
-    for key in ("preferred_term", "restricted_term", "explanation", "approved_alternative", "category", "status", "created_at"):
+    for key in ("preferred_term", "restricted_term", "explanation", "approved_alternative", "category", "priority", "status", "created_at"):
         setattr(row, key, getattr(new_row, key))
     db.commit()
     return payload

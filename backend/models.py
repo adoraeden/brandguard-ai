@@ -30,7 +30,8 @@ ContentType = Literal[
 SuggestionStatus = Literal['pending', 'accepted', 'edited', 'rejected']
 ReviewStatus = Literal['pending_review', 'in_review', 'completed', 'archived']
 DecisionStatus = Literal['pending', 'approved_with_changes', 'approved_as_is', 'rejected']
-AIAnalysisStatus = Literal['completed', 'not_configured', 'failed', 'legacy_unknown']
+AIAnalysisStatus = Literal['completed', 'partial', 'not_configured', 'failed', 'timeout', 'service_failure', 'evidence_validation_failure', 'legacy_unknown']
+DeterministicAnalysisStatus = Literal['completed', 'failed', 'legacy_unknown']
 
 class SuggestionModel(BaseModel):
     id: str
@@ -59,6 +60,10 @@ class ReviewFindingModel(BaseModel):
     evidenceRecordId: Optional[str] = None
     evidenceQuote: Optional[str] = None
     analysisRunId: Optional[str] = None
+    findingDecision: Optional[Literal['accepted', 'dismissed', 'verification_required']] = None
+    findingDecisionReviewer: Optional[str] = None
+    findingDecisionAt: Optional[str] = None
+    findingDecisionNote: Optional[str] = None
 
 class ReviewSummaryModel(BaseModel):
     totalFindings: int = 0
@@ -95,10 +100,18 @@ class ReviewDocumentModel(BaseModel):
     summary: ReviewSummaryModel = Field(default_factory=ReviewSummaryModel)
     aiAnalysisStatus: AIAnalysisStatus = 'legacy_unknown'
     aiAnalysisMessage: Optional[str] = None
+    deterministicAnalysisStatus: DeterministicAnalysisStatus = 'legacy_unknown'
+    deterministicAnalysisMessage: Optional[str] = None
     lastAnalysisRunId: Optional[str] = None
 
 
 class AnalysisRerunRequest(BaseModel):
+    reviewer: Optional[str] = None
+
+
+class FindingDecisionRequest(BaseModel):
+    decision: Literal['accepted', 'dismissed', 'verification_required']
+    note: Optional[str] = Field(default=None, max_length=2000)
     reviewer: Optional[str] = None
 
 class BrandGuidelineModel(BaseModel):

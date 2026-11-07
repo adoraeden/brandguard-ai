@@ -82,6 +82,10 @@ def review_model(row):
             confidence=item.confidence, evidenceRecordType=item.evidence_record_type,
             evidenceRecordId=item.evidence_record_id, evidenceQuote=item.evidence_quote,
             analysisRunId=item.analysis_run_id,
+            findingDecision=item.finding_decision,
+            findingDecisionReviewer=item.finding_decision_reviewer,
+            findingDecisionAt=item.finding_decision_at,
+            findingDecisionNote=item.finding_decision_note,
             suggestion=SuggestionModel(id=suggestion.id, suggestedText=suggestion.suggested_text,
                 rationale=suggestion.rationale, authorIntentPreserved=suggestion.author_intent_preserved,
                 status=suggestion.status, customEditedText=suggestion.custom_edited_text)
@@ -96,6 +100,8 @@ def review_model(row):
         decisionNotes=row.decision_notes, decidedAt=row.decided_at,
         aiAnalysisStatus=row.ai_analysis_status or 'legacy_unknown',
         aiAnalysisMessage=row.ai_analysis_message,
+        deterministicAnalysisStatus=row.deterministic_analysis_status or 'legacy_unknown',
+        deterministicAnalysisMessage=row.deterministic_analysis_message,
         lastAnalysisRunId=row.last_analysis_run_id,
         summary=ReviewSummaryModel(**(row.summary or {})))
 
@@ -109,6 +115,8 @@ def add_review(session, document):
         decision_status=document.decisionStatus, decision_notes=document.decisionNotes,
         ai_analysis_status=document.aiAnalysisStatus,
         ai_analysis_message=document.aiAnalysisMessage,
+        deterministic_analysis_status=document.deterministicAnalysisStatus,
+        deterministic_analysis_message=document.deterministicAnalysisMessage,
         decided_at=document.decidedAt, summary=document.summary.model_dump(),
         created_at=datetime.fromisoformat(document.createdAt.replace("Z", "+00:00")).replace(tzinfo=None),
         updated_at=datetime.fromisoformat(document.updatedAt.replace("Z", "+00:00")).replace(tzinfo=None))
@@ -121,7 +129,10 @@ def add_review(session, document):
             source_reference=finding.sourceReference, detection_method=finding.detectionMethod,
             confidence=finding.confidence, evidence_record_type=finding.evidenceRecordType,
             evidence_record_id=finding.evidenceRecordId, evidence_quote=finding.evidenceQuote,
-            analysis_run_id=finding.analysisRunId)
+            analysis_run_id=finding.analysisRunId, finding_decision=finding.findingDecision,
+            finding_decision_reviewer=finding.findingDecisionReviewer,
+            finding_decision_at=finding.findingDecisionAt,
+            finding_decision_note=finding.findingDecisionNote)
         if finding.suggestion:
             finding_row.suggestion = DBReviewSuggestion(
                 id=finding.suggestion.id, suggested_text=finding.suggestion.suggestedText,

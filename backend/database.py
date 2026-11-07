@@ -90,6 +90,8 @@ class DBReviewDocument(Base):
     summary = Column(JSONB, nullable=False, default=dict)
     ai_analysis_status = Column(String, nullable=True)
     ai_analysis_message = Column(Text, nullable=True)
+    deterministic_analysis_status = Column(String, nullable=True)
+    deterministic_analysis_message = Column(Text, nullable=True)
     last_analysis_run_id = Column(String, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
@@ -117,6 +119,10 @@ class DBReviewFinding(Base):
     evidence_record_id = Column(String, nullable=True)
     evidence_quote = Column(Text, nullable=True)
     analysis_run_id = Column(String, nullable=True, index=True)
+    finding_decision = Column(String, nullable=True)
+    finding_decision_reviewer = Column(String, nullable=True)
+    finding_decision_at = Column(String, nullable=True)
+    finding_decision_note = Column(Text, nullable=True)
     suggestion = relationship("DBReviewSuggestion", uselist=False, cascade="all, delete-orphan")
 
 
@@ -185,6 +191,12 @@ def init_db():
             "ALTER TABLE review_documents ADD COLUMN IF NOT EXISTS last_analysis_run_id VARCHAR"
         ))
         connection.execute(text(
+            "ALTER TABLE review_documents ADD COLUMN IF NOT EXISTS deterministic_analysis_status VARCHAR"
+        ))
+        connection.execute(text(
+            "ALTER TABLE review_documents ADD COLUMN IF NOT EXISTS deterministic_analysis_message TEXT"
+        ))
+        connection.execute(text(
             "ALTER TABLE review_findings ADD COLUMN IF NOT EXISTS evidence_record_type VARCHAR"
         ))
         connection.execute(text(
@@ -195,4 +207,16 @@ def init_db():
         ))
         connection.execute(text(
             "ALTER TABLE review_findings ADD COLUMN IF NOT EXISTS analysis_run_id VARCHAR"
+        ))
+        connection.execute(text(
+            "ALTER TABLE review_findings ADD COLUMN IF NOT EXISTS finding_decision VARCHAR"
+        ))
+        connection.execute(text(
+            "ALTER TABLE review_findings ADD COLUMN IF NOT EXISTS finding_decision_reviewer VARCHAR"
+        ))
+        connection.execute(text(
+            "ALTER TABLE review_findings ADD COLUMN IF NOT EXISTS finding_decision_at VARCHAR"
+        ))
+        connection.execute(text(
+            "ALTER TABLE review_findings ADD COLUMN IF NOT EXISTS finding_decision_note TEXT"
         ))

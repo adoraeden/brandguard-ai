@@ -1,4 +1,5 @@
 import os
+import sys
 from contextlib import asynccontextmanager
 from datetime import datetime
 from uuid import uuid4
@@ -11,6 +12,9 @@ from sqlalchemy.orm import Session
 
 # backend/.env must be loaded before database.py creates the engine.
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
+if BACKEND_DIR not in sys.path:
+    sys.path.insert(0, BACKEND_DIR)
 from database import (DBApprovedFact, DBBrandGuideline, DBKnowledgeSource,
                       DBReviewDocument, DBTerminology, SessionLocal, engine,
                       get_db, init_db)
@@ -25,18 +29,6 @@ from routers.terminology import router as terminology_router
 from storage import (fact_model, fact_row, guideline_model, guideline_row,
                      review_model, terminology_model, terminology_row)
 
-
-DEMO_USERS = [
-    {"id": "usr-admin-1", "name": "Evelyn Voss", "email": "evelyn.voss@auracloud.tech",
-     "role": "admin", "title": "VP Brand Governance & Compliance", "avatarInitials": "EV",
-     "department": "Executive Governance"},
-    {"id": "usr-rev-1", "name": "Marcus Chen", "email": "marcus.chen@auracloud.tech",
-     "role": "reviewer", "title": "Director of Marketing Communications", "avatarInitials": "MC",
-     "department": "Brand Communications"},
-    {"id": "usr-rev-2", "name": "Devon Price", "email": "devon.price@auracloud.tech",
-     "role": "reviewer", "title": "Lead Content Policy Reviewer", "avatarInitials": "DP",
-     "department": "Editorial & Compliance"},
-]
 
 SEED_GUIDELINES = [
     BrandGuidelineModel(id="bg-01", title="Product Naming Integrity", category="product_positioning",
@@ -125,7 +117,10 @@ allowed_origins = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "http:
 app.add_middleware(CORSMiddleware, allow_origins=allowed_origins,
     allow_origin_regex=r"https://[a-zA-Z0-9-]+\.vercel\.app",
     allow_credentials=False, allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization"])
+    allow_headers=["Content-Type"],
+    # Chromium sends this on localhost -> 127.0.0.1 preflights. It remains
+    # constrained by the explicit origin list/regex above (no wildcard).
+    allow_private_network=True)
 
 for route in (guidelines_router, terminology_router, facts_router, sources_router,
               reviews_router, archive_router, insights_router):
@@ -144,23 +139,6 @@ def health():
         "engine": "BrandGuard FastAPI + Python Deterministic + Gemini",
         "geminiConfigured": bool(os.getenv("GEMINI_API_KEY")),
         "timestamp": datetime.utcnow().isoformat()}
-
-@app.get("/api/auth/users")
-def list_demo_users():
-    return DEMO_USERS
-
-@app.post("/api/auth/login")
-def demo_login(payload: dict):
-    user = next((u for u in DEMO_USERS if u["id"] == payload.get("userId") or
-        u["email"] == payload.get("email") or u["role"] == payload.get("role")), DEMO_USERS[0])
-    return {"token": f"demo-token-{user['id']}-{uuid4().hex}", "user": user}
-
-@app.get("/api/auth/me")
-def demo_current_user(request: Request):
-    auth_header = request.headers.get("authorization", "")
-    if "usr-rev" in auth_header:
-        return next(user for user in DEMO_USERS if user["role"] == "reviewer")
-    return DEMO_USERS[0]
 
 @app.get("/api/overview")
 def get_overview(db: Session = Depends(get_db)):
