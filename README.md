@@ -217,6 +217,19 @@ Implemented behaviour:
 
 An empty result is explicitly not treated as a safety approval.
 
+#### Analysis Status and Failure Handling
+
+BrandGuard AI distinguishes between:
+- Analysis completed with findings.
+- Analysis completed with no new findings.
+- Deterministic analysis completed while Gemini contextual analysis failed.
+- Both analysis methods failed.
+- AI analysis unavailable or unconfigured.
+
+The application reports failed or unavailable analysis honestly rather than presenting an empty result as successful safety approval. Reviewers can retry analysis when appropriate.
+
+Rerunning a rejected review preserves its existing decision and read-only audit status. Analysis outcomes are recorded in the audit history.
+
 ### G. Decision Archive and Audit History
 
 - Historical review records.
