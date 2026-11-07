@@ -172,44 +172,35 @@ Testing includes:
 
 ## 10. Screenshots
 
-The screenshots below demonstrate the main application workflows. Keep the images in `docs/screenshots/` and ensure the filenames match the references.
+### 1. Dashboard
+![BrandGuard AI Dashboard](docs/screenshots/dashboard.png)
 
-### Application Overview
+The main Command Centre providing an overview of brand governance activities and review operations.
 
-![Dashboard](docs/screenshots/01-overview.png)
+### 2. Review Studio
+![BrandGuard AI Review Studio](docs/screenshots/review-studio.png)
 
-### Brand Intelligence and Content Management
+The central workspace for analyzing submitted brand content, identifying potential compliance issues, linking findings to supporting evidence, and reviewing suggested corrections.
 
-![Brand Intelligence](docs/screenshots/02-brand-intelligence.png)
+### 3. Pending Reviews
+![Pending Reviews](docs/screenshots/pending-reviews.png)
 
-### Content Submission and Analysis
+Displays submitted content reviews awaiting evaluation and human governance decisions.
 
-![Content Review](docs/screenshots/03-content-review.png)
+### 4. Decision Archive
+![Decision Archive](docs/screenshots/decision-archive.png)
 
-![Analysis Results](docs/screenshots/04-analysis-results.png)
+Maintains a historical record of completed reviews, governance decisions, and review outcomes.
 
-### Review and Decision Workflow
+### 5. Brand Knowledge
+![Brand Knowledge](docs/screenshots/brand-knowledge.png)
 
-![Review Studio](docs/screenshots/05-review-studio.png)
+Contains brand guidelines, approved facts, terminology, and knowledge sources used to support consistent content evaluation.
 
-![Suggestion Review](docs/screenshots/06-suggestion-review.png)
+### 6. Governance Insights
+![Governance Insights](docs/screenshots/governance-insights.png)
 
-![Re-analysis](docs/screenshots/07-reanalysis.png)
-
-### Decision Archive and Governance
-
-![Decision Archive](docs/screenshots/08-decision-archive.png)
-
-![Governance Insights](docs/screenshots/09-governance-insights.png)
-
-### Additional Application Screens
-
-![Guidelines](docs/screenshots/10-guidelines.png)
-
-![Knowledge Sources](docs/screenshots/11-knowledge-sources.png)
-
-![Review Completion](docs/screenshots/12-review-completion.png)
-
+Provides an overview of governance activity, review trends, decisions, and identified content risks.
 ## 11. Setup and Installation
 
 ### Prerequisites
