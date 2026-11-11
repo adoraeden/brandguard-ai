@@ -336,7 +336,13 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
 
   const filterByStatus = (itemStatus?: string) => {
     if (statusFilter === 'all') return true;
-    return itemStatus?.toLowerCase() === statusFilter.toLowerCase();
+    if (!itemStatus) return false;
+    const s = itemStatus.toLowerCase();
+    const filter = statusFilter.toLowerCase();
+    if (s === filter) return true;
+    if (filter === 'active' && (s === 'verified' || s === 'approved')) return true;
+    if (filter === 'needs_review' && (s === 'under_review' || s === 'unverified' || s === 'disputed')) return true;
+    return false;
   };
 
   const filteredGuidelines = guidelines.filter(g => {
@@ -500,10 +506,10 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
             className="text-xs p-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 focus:outline-none"
           >
             <option value="all">All Statuses</option>
-            <option value="active">Active</option>
+            <option value="active">Active / Verified</option>
             <option value="draft">Draft</option>
+            <option value="needs_review">Needs Review / Unverified</option>
             <option value="archived">Archived</option>
-            <option value="needs_review">Needs Review</option>
           </select>
 
           {/* Search Field */}

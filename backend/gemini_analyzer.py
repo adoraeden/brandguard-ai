@@ -339,10 +339,12 @@ If no supported issues or material unsupported claims are found, return an empty
                     evidence_errors += 1
                     logger.warning('Gemini finding withheld review_id=%s reason=missing_direct_evidence', review_id)
                     continue
-                title = 'Insufficient Evidence'
+                finding_title = 'Insufficient Evidence'
                 source_rule = 'Insufficient Evidence'
                 source_reference = 'No directly relevant approved source was found in the database.'
-                explanation = 'No direct supporting approved source was found for this claim. This is an evidence gap, not a verified contradiction.'
+                model_explanation = str(item.get('explanation') or '').strip()
+                base_explanation = 'No direct supporting approved source was found for this claim. This is an evidence gap, not a verified contradiction.'
+                explanation = f"{model_explanation} {base_explanation}" if model_explanation and model_explanation != base_explanation else base_explanation
                 suggestion_rationale = 'Reviewer verification is required because no directly relevant approved source was found.'
                 confidence = 'medium' if confidence == 'high' else confidence
                 evidence_id = None
@@ -355,7 +357,7 @@ If no supported issues or material unsupported claims are found, return an empty
                 logger.warning('Gemini finding withheld review_id=%s reason=unverified_or_mismatched_evidence', review_id)
                 continue
             else:
-                title = {
+                finding_title = {
                     'direct_contradiction': 'Direct Evidence Contradiction',
                     'contextual_inconsistency': 'Contextual Inconsistency',
                     'unsupported_claim': 'Unsupported Claim',
@@ -363,12 +365,14 @@ If no supported issues or material unsupported claims are found, return an empty
                 }[category]
                 source_rule = evidence.title
                 source_reference = f'{evidence.kind} [{evidence.id}]: {evidence.reference}'
-                explanation = {
+                default_explanation = {
                     'direct_contradiction': 'The draft passage conflicts with directly related approved evidence.',
                     'contextual_inconsistency': 'The draft passage is inconsistent with the cited approved guideline.',
                     'unsupported_claim': 'The cited approved record does not directly substantiate this claim.',
                     'potential_issue': 'The wording may be misleading or exaggerated relative to the cited approved guideline.',
                 }[category]
+                model_explanation = str(item.get('explanation') or '').strip()
+                explanation = f"{model_explanation} {default_explanation}" if model_explanation and model_explanation != default_explanation else (model_explanation or default_explanation)
                 suggestion_rationale = 'The proposed wording is grounded in the cited approved record.'
             index = len(additional_findings) + 1
             suggestion_text = str(item.get('suggestedText') or '').strip()
@@ -377,7 +381,7 @@ If no supported issues or material unsupported claims are found, return an empty
                 suggestion_text = ''
             additional_findings.append(ReviewFindingModel(
                 id=f"gem-{review_id}-{index}", reviewId=review_id,
-                title=title,
+                title=finding_title,
                 category=category, severity=severity, exactText=exact_text,
                 explanation=explanation,
                 sourceRuleOrTerm=source_rule,

@@ -16,9 +16,12 @@ const apiFetch = (input: RequestInfo | URL, init?: RequestInit) =>
 const newEntryId = (prefix: string) => `${prefix}-${globalThis.crypto.randomUUID()}`;
 const apiError = async (res: Response, fallback: string) => {
   const body = await res.json().catch(() => ({}));
-  if (typeof body.error === 'string') return body.error;
   if (typeof body.detail === 'string') return body.detail;
-  if (Array.isArray(body.detail)) return body.detail.map((item: any) => item.msg || 'Invalid field').join('. ');
+  if (typeof body.error === 'string') return body.error;
+  if (Array.isArray(body.detail)) return body.detail.map((item: any) => item.msg || item.message || 'Invalid field').join('. ');
+  if (body.detail && typeof body.detail === 'object') {
+    return body.detail.message || body.detail.error || JSON.stringify(body.detail);
+  }
   return fallback;
 };
 
@@ -206,10 +209,7 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Failed to submit review');
-    }
+    if (!res.ok) throw new Error(await apiError(res, 'Failed to submit review'));
     return res.json();
   },
 
@@ -219,6 +219,8 @@ export const api = {
       findingId?: string;
       suggestionAction?: 'accept' | 'reject' | 'edit' | 'reset';
       customText?: string;
+      occurrenceIndex?: number;
+      targetIndex?: number;
       completeDecision?: 'approved_with_changes' | 'approved_as_is' | 'rejected';
       decisionNotes?: string;
       reviewer?: string;
@@ -229,10 +231,7 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(decisionPayload),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Failed to record review decision');
-    }
+    if (!res.ok) throw new Error(await apiError(res, 'Failed to record review decision'));
     return res.json();
   },
 

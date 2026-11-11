@@ -135,6 +135,9 @@ class DBReviewSuggestion(Base):
     author_intent_preserved = Column(Text, nullable=False)
     status = Column(String, nullable=False, default="pending")
     custom_edited_text = Column(Text, nullable=True)
+    applied_start = Column(Integer, nullable=True)
+    applied_end = Column(Integer, nullable=True)
+    replaced_text = Column(Text, nullable=True)
 
 
 class DBDecisionAudit(Base):
@@ -219,4 +222,13 @@ def init_db():
         ))
         connection.execute(text(
             "ALTER TABLE review_findings ADD COLUMN IF NOT EXISTS finding_decision_note TEXT"
+        ))
+        connection.execute(text(
+            "ALTER TABLE review_suggestions ADD COLUMN IF NOT EXISTS applied_start INTEGER"
+        ))
+        connection.execute(text(
+            "ALTER TABLE review_suggestions ADD COLUMN IF NOT EXISTS applied_end INTEGER"
+        ))
+        connection.execute(text(
+            "ALTER TABLE review_suggestions ADD COLUMN IF NOT EXISTS replaced_text TEXT"
         ))

@@ -45,6 +45,9 @@ export interface Suggestion {
   authorIntentPreserved: string;
   status: SuggestionStatus;
   customEditedText?: string;
+  appliedStart?: number | null;
+  appliedEnd?: number | null;
+  replacedText?: string | null;
 }
 
 export interface ReviewFinding {
@@ -70,6 +73,9 @@ export interface ReviewFinding {
   findingDecisionReviewer?: string;
   findingDecisionAt?: string;
   findingDecisionNote?: string;
+  appliedStart?: number | null;
+appliedEnd?: number | null;
+replacedText?: string | null;
 }
 
 export interface ReviewDocument {

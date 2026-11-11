@@ -40,6 +40,9 @@ class SuggestionModel(BaseModel):
     authorIntentPreserved: str
     status: SuggestionStatus = 'pending'
     customEditedText: Optional[str] = None
+    appliedStart: Optional[int] = None
+    appliedEnd: Optional[int] = None
+    replacedText: Optional[str] = None
 
 class ReviewFindingModel(BaseModel):
     id: str
@@ -160,6 +163,8 @@ class DecisionUpdateRequest(BaseModel):
     findingId: Optional[str] = None
     suggestionAction: Optional[Literal['accept', 'reject', 'edit', 'reset']] = None
     customText: Optional[str] = None
+    occurrenceIndex: Optional[int] = None
+    targetIndex: Optional[int] = None
     completeDecision: Optional[DecisionStatus] = None
     decisionNotes: Optional[str] = None
     reviewer: Optional[str] = None

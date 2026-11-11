@@ -98,7 +98,7 @@ export const DecisionArchiveView: React.FC<DecisionArchiveViewProps> = ({
             Decision Ledger
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Immutable audit record of all marketing reviews and authenticated human verdicts.
+            Audit record of marketing reviews and recorded human governance decisions.
           </p>
         </div>
 

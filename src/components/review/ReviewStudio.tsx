@@ -76,7 +76,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   const [content, setContent] = useState('');
   const [reviewer, setReviewer] = useState(currentUser.name);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [findingDecisionNote, setFindingDecisionNote] = useState('');
+  const [findingDecisionNotes, setFindingDecisionNotes] = useState<Record<string, string>>({});
   const submissionInFlight = useRef(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -88,6 +88,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   // Custom edit state for finding suggestion
   const [editingFindingId, setEditingFindingId] = useState<string | null>(null);
   const [customEditText, setCustomEditText] = useState('');
+  const [selectedOccurrences, setSelectedOccurrences] = useState<Record<string, number>>({});
 
   // Human Final Decision State
   const [decisionNotes, setDecisionNotes] = useState('');
@@ -104,7 +105,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   const findingCardRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const documentPinRefs = useRef<{ [key: string]: HTMLSpanElement | null }>({});
 
-  // Sync reviewer with authenticated user
+  // Sync reviewer with active profile
   useEffect(() => {
     if (currentUser?.name) {
       setReviewer(currentUser.name);
@@ -171,10 +172,12 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
     }
   };
 
+  
   const handleSuggestionAction = async (
-    findingId: string, 
+    findingId: string,
     action: 'accept' | 'reject' | 'edit' | 'reset',
-    customText?: string
+    customText?: string,
+    occurrenceIndex?: number
   ) => {
     if (!activeReview) return;
     setValidationError(null);
@@ -184,21 +187,37 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
         findingId,
         suggestionAction: action,
         customText,
+        occurrenceIndex,
       });
+
       onDecisionUpdated(updated);
       setEditingFindingId(null);
+      setValidationError(null);
     } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to update suggestion.';
+      setValidationError(message);
       console.error('Failed to update suggestion:', err);
     }
+  };
+
+
+  const setNoteForFinding = (findingId: string, note: string) => {
+    setFindingDecisionNotes(prev => ({ ...prev, [findingId]: note }));
   };
 
   const handleFindingDecision = async (findingId: string, decision: 'accepted' | 'dismissed' | 'verification_required') => {
     if (!activeReview) return;
     setValidationError(null);
     try {
-      const updated = await api.decideFinding(activeReview.id, findingId, decision, findingDecisionNote || undefined, currentUser.name);
+      const note = findingDecisionNotes[findingId]?.trim() || undefined;
+      const updated = await api.decideFinding(activeReview.id, findingId, decision, note, currentUser.name);
       onDecisionUpdated(updated);
-      setFindingDecisionNote('');
+      setFindingDecisionNotes(prev => {
+        const next = { ...prev };
+        delete next[findingId];
+        return next;
+      });
     } catch (err: any) {
       setValidationError(err.message || 'Failed to save finding decision.');
     }
@@ -422,20 +441,60 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
     return (
       <div className="space-y-4">
         {textToRender.split('\n\n').map((paragraph, pIdx) => {
-          const matchedInParagraph: { finding: ReviewFinding; matchStart: number; matchEnd: number; pinIndex: number }[] = [];
+          const matchedInParagraph: {
+  finding: ReviewFinding;
+  matchStart: number;
+  matchEnd: number;
+  pinIndex: number;
+}[] = [];
 
-          findingsToHighlight.forEach((f, fIdx) => {
-            const searchText = f.suggestion?.status === 'accepted' ? f.suggestion.suggestedText : f.exactText;
-            const idx = paragraph.indexOf(searchText);
-            if (idx !== -1) {
-              matchedInParagraph.push({
-                finding: f,
-                matchStart: idx,
-                matchEnd: idx + searchText.length,
-                pinIndex: fIdx + 1,
-              });
-            }
-          });
+const paragraphStart =
+  textToRender.split('\n\n').slice(0, pIdx).join('\n\n').length +
+  (pIdx > 0 ? 2 : 0);
+
+findingsToHighlight.forEach((f, fIdx) => {
+  const isAccepted = f.suggestion?.status === 'accepted';
+
+  // For accepted changes, use the exact saved replacement position.
+  if (
+    isAccepted &&
+    f.appliedStart != null &&
+    f.appliedEnd != null
+  ) {
+    const localStart = f.appliedStart - paragraphStart;
+    const localEnd = f.appliedEnd - paragraphStart;
+
+    if (
+      localStart >= 0 &&
+      localEnd <= paragraph.length &&
+      localEnd > localStart
+    ) {
+      matchedInParagraph.push({
+        finding: f,
+        matchStart: localStart,
+        matchEnd: localEnd,
+        pinIndex: fIdx + 1,
+      });
+    }
+
+    return;
+  }
+
+  // For findings without an applied position, retain text matching.
+  const searchText = f.exactText;
+  if (!searchText) return;
+
+  const idx = paragraph.indexOf(searchText);
+
+  if (idx !== -1) {
+    matchedInParagraph.push({
+      finding: f,
+      matchStart: idx,
+      matchEnd: idx + searchText.length,
+      pinIndex: fIdx + 1,
+    });
+  }
+});
 
           matchedInParagraph.sort((a, b) => a.matchStart - b.matchStart);
 
@@ -545,7 +604,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
                   ? 'bg-blue-50 text-blue-800 border-blue-200'
                   : 'bg-rose-50 text-rose-800 border-rose-200'
               }`}>
-                {isApprovedWithChanges && 'Certified With Revisions'}
+                {isApprovedWithChanges && 'Approved With Revisions'}
                 {isApprovedAsIs && 'Approved Without Modification'}
                 {isRejected && 'Governance Approval Denied'}
               </span>
@@ -557,7 +616,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
               </h1>
 
               <p className="text-xs text-slate-500 max-w-md mx-auto mt-1 leading-relaxed">
-                {isApprovedWithChanges && 'The marketing communication has been reviewed, revised with brand-approved terminology, and certified for publication.'}
+                {isApprovedWithChanges && 'The marketing communication has been reviewed and revised with brand-approved terminology.'}
                 {isApprovedAsIs && 'The submitted draft satisfied all brand rules and verified factsheet claims without requiring textual modifications.'}
                 {isRejected && 'The document did not meet approved governance standards and was not approved. The original text and all recorded audit evidence have been preserved in the Decision Ledger.'}
               </p>
@@ -582,11 +641,11 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
                 </div>
               </div>
               <div>
-                <div className="text-[10px] uppercase font-bold text-slate-400">Publication Status</div>
+                <div className="text-[10px] uppercase font-bold text-slate-400">Review Outcome</div>
                 <div className={`font-bold mt-0.5 uppercase ${
                   isRejected ? 'text-rose-700' : 'text-emerald-700'
                 }`}>
-                  {isRejected ? 'REJECTED' : 'APPROVED FOR PUBLISH'}
+                  {isRejected ? 'REJECTED' : 'APPROVED'}
                 </div>
               </div>
             </div>
@@ -953,7 +1012,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
             }}
             className="text-[11px] text-[#2457D6] hover:underline font-semibold cursor-pointer"
           >
-            View Completion Certificate
+            View Completion Record
           </button>
         </div>
       )}
@@ -1101,7 +1160,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
               <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                 <input
                   type="text"
-                  placeholder="Reviewer rationale or audit sign-off note (e.g. Approved with corrections for Q4 publish)..."
+                  placeholder="Reviewer rationale or audit sign-off note (e.g. Approved with corrections for release)..."
                   value={decisionNotes}
                   onChange={(e) => setDecisionNotes(e.target.value)}
                   className="w-full sm:flex-1 text-xs p-2 rounded-lg border border-slate-200 focus:border-[#2457D6] focus:ring-1 focus:ring-[#2457D6] focus:outline-none bg-white"
@@ -1167,6 +1226,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
                 { id: 'direct_contradiction', label: 'Contradictions' },
                 { id: 'contextual_inconsistency', label: 'Context' },
                 { id: 'unsupported_claim', label: 'Claims' },
+                { id: 'potential_issue', label: 'Issues' },
               ].map(f => (
                 <button
                   key={f.id}
@@ -1199,9 +1259,46 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
                 const suggestionStatus = finding.suggestion?.status || 'pending';
                 const pinNumber = idx + 1;
                 const isPending = suggestionStatus === 'pending';
+                
+const occurrenceMatches: number[] = [];
+const searchText = finding.exactText;
+const documentText = activeReview.currentContent || '';
+
+if (searchText.trim().length > 0) {
+  let searchFrom = 0;
+
+  while (searchFrom <= documentText.length - searchText.length) {
+    const matchAt = documentText.indexOf(searchText, searchFrom);
+
+    if (matchAt === -1) break;
+
+    occurrenceMatches.push(matchAt);
+    searchFrom = matchAt + searchText.length;
+  }
+}
+
+const selectedOccurrence = selectedOccurrences[finding.id];
+const needsOccurrenceChoice = occurrenceMatches.length > 1;
+const hasValidOccurrence =
+  occurrenceMatches.length === 1 ||
+  (needsOccurrenceChoice &&
+    selectedOccurrence !== undefined &&
+    selectedOccurrence >= 0 &&
+    selectedOccurrence < occurrenceMatches.length);
+
+const occurrencePreview = (start: number) => {
+  const before = documentText.slice(Math.max(0, start - 35), start);
+  const after = documentText.slice(
+    start + searchText.length,
+    start + searchText.length + 35
+  );
+
+  return `…${before}${searchText}${after}…`;
+};
 
                 return (
                   <div
+
                     key={finding.id}
                     ref={(el) => { findingCardRefs.current[finding.id] = el; }}
                     onClick={() => handleSelectFindingFromRight(finding.id)}
@@ -1250,6 +1347,46 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
                       &ldquo;{finding.exactText}&rdquo;
                     </div>
 
+
+{finding.suggestion && (
+  <div className="mt-2 mb-3">
+    {occurrenceMatches.length === 0 ? (
+      <p className="text-[11px] text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-2">
+        The exact flagged text is no longer present in the current draft.
+        Rerun the analysis before applying this suggestion.
+      </p>
+    ) : needsOccurrenceChoice ? (
+      <div className="space-y-1">
+        <label className="block text-[11px] font-semibold text-amber-800">
+          This text appears {occurrenceMatches.length} times. Choose which
+          occurrence to change:
+        </label>
+        <select
+          value={selectedOccurrence ?? ''}
+          onChange={(e) =>
+            setSelectedOccurrences(prev => ({
+              ...prev,
+              [finding.id]: Number(e.target.value),
+            }))
+          }
+          onClick={(e) => e.stopPropagation()}
+          className="w-full text-xs p-2 rounded-lg border border-amber-300 bg-amber-50 text-slate-800"
+        >
+          <option value="" disabled>
+            Select an occurrence
+          </option>
+          {occurrenceMatches.map((start, occurrenceIdx) => (
+            <option key={start} value={occurrenceIdx}>
+              Occurrence {occurrenceIdx + 1}: {occurrencePreview(start)}
+            </option>
+          ))}
+        </select>
+      </div>
+    ) : null}
+  </div>
+)}
+
+
                     {/* Detailed Explanation */}
                     <p className="text-xs text-slate-600 leading-relaxed mb-3">
                       {finding.explanation}
@@ -1276,22 +1413,83 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
                       )}
                     </div>
 
-                    <div className="pt-3 border-t border-slate-100 space-y-2">
-                      <div className="flex items-center justify-between gap-2 text-xs">
-                        <span className="font-semibold text-slate-800">Finding decision</span>
-                        {finding.findingDecision && <span className="rounded-full px-2 py-0.5 bg-slate-100 text-slate-700 font-medium">{finding.findingDecision.replace(/_/g, ' ')}</span>}
-                      </div>
-                      {finding.findingDecisionReviewer && <p className="text-[10px] text-slate-500">Recorded by {finding.findingDecisionReviewer}{finding.findingDecisionAt ? ` · ${new Date(finding.findingDecisionAt).toLocaleString()}` : ''}</p>}
-                      {finding.findingDecisionNote && <p className="text-[11px] text-slate-600">Note: {finding.findingDecisionNote}</p>}
-                      {!isCompleted && <>
-                        <input aria-label={`Optional note for ${finding.title}`} value={findingDecisionNote} onChange={e => setFindingDecisionNote(e.target.value)} placeholder="Optional reviewer note" className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-200" />
-                        <div className="flex flex-wrap gap-2">
-                          <button onClick={() => handleFindingDecision(finding.id, 'accepted')} className="px-2.5 py-1 text-xs font-medium bg-emerald-700 hover:bg-emerald-800 text-white rounded">Accept Finding</button>
-                          <button onClick={() => handleFindingDecision(finding.id, 'dismissed')} className="px-2.5 py-1 text-xs font-medium border border-slate-200 hover:bg-slate-50 text-slate-700 rounded">Dismiss Finding</button>
-                          <button onClick={() => handleFindingDecision(finding.id, 'verification_required')} className="px-2.5 py-1 text-xs font-medium border border-amber-200 hover:bg-amber-50 text-amber-800 rounded">Mark for Verification</button>
-                        </div>
-                      </>}
-                    </div>
+                    
+<div className="pt-3 border-t border-slate-100 space-y-2">
+  <div className="flex items-center justify-between gap-2 text-xs">
+    <span className="font-semibold text-slate-800">Finding decision</span>
+    {finding.findingDecision && (
+      <span className={`rounded-full px-2 py-0.5 font-medium ${
+        finding.findingDecision === 'accepted'
+          ? 'bg-emerald-100 text-emerald-800'
+          : finding.findingDecision === 'dismissed'
+            ? 'bg-slate-100 text-slate-700'
+            : 'bg-amber-100 text-amber-800'
+      }`}>
+        {finding.findingDecision === 'accepted'
+          ? 'Accepted'
+          : finding.findingDecision === 'dismissed'
+            ? 'Dismissed'
+            : 'Verification Requested'}
+      </span>
+    )}
+  </div>
+
+  {finding.findingDecisionReviewer && (
+    <p className="text-[10px] text-slate-500">
+      Recorded by {finding.findingDecisionReviewer}
+      {finding.findingDecisionAt
+        ? ` · ${new Date(finding.findingDecisionAt).toLocaleString()}`
+        : ''}
+    </p>
+  )}
+
+  {finding.findingDecisionNote && (
+    <p className="text-[11px] text-slate-600">
+      Reviewer note: {finding.findingDecisionNote}
+    </p>
+  )}
+
+  {!isCompleted && (
+    <>
+      <input
+        aria-label={`Optional note for ${finding.title}`}
+        value={findingDecisionNotes[finding.id] || ''}
+        onChange={e => setNoteForFinding(finding.id, e.target.value)}
+        placeholder="Optional reviewer note"
+        className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-200"
+      />
+
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={() => handleFindingDecision(finding.id, 'accepted')}
+          disabled={finding.findingDecision === 'accepted'}
+          className="px-2.5 py-1 text-xs font-medium bg-emerald-700 hover:bg-emerald-800 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {finding.findingDecision === 'accepted' ? '✓ Finding Accepted' : 'Accept Finding'}
+        </button>
+
+        <button
+          onClick={() => handleFindingDecision(finding.id, 'dismissed')}
+          disabled={finding.findingDecision === 'dismissed'}
+          className="px-2.5 py-1 text-xs font-medium border border-slate-200 hover:bg-slate-50 text-slate-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {finding.findingDecision === 'dismissed' ? '✓ Finding Dismissed' : 'Dismiss Finding'}
+        </button>
+
+        <button
+          onClick={() => handleFindingDecision(finding.id, 'verification_required')}
+          disabled={finding.findingDecision === 'verification_required'}
+          className="px-2.5 py-1 text-xs font-medium border border-amber-200 hover:bg-amber-50 text-amber-800 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {finding.findingDecision === 'verification_required'
+            ? '✓ Verification Requested'
+            : 'Mark for Verification'}
+        </button>
+      </div>
+    </>
+  )}
+</div>
+
 
                     {/* Intent-Preserving Suggestion & Decision Controls */}
                     {finding.suggestion && (
@@ -1331,8 +1529,16 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
                                 Cancel
                               </button>
                               <button
-                                onClick={() => handleSuggestionAction(finding.id, 'edit', customEditText)}
-                                className="px-3 py-1 bg-[#2457D6] text-white text-xs rounded font-medium cursor-pointer shadow-xs"
+                                onClick={() =>
+  handleSuggestionAction(
+    finding.id,
+    'edit',
+    customEditText,
+    needsOccurrenceChoice ? selectedOccurrence : undefined
+  )
+}
+disabled={!hasValidOccurrence}
+                                className="px-3 py-1 bg-[#2457D6] text-white text-xs rounded font-medium cursor-pointer shadow-xs disabled:opacity-40 disabled:cursor-not-allowed"
                               >
                                 Save Custom Revision
                               </button>
@@ -1346,29 +1552,64 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
                                 : finding.suggestion.suggestedText}
                             </div>
 
-                            <div className="text-[11px] text-slate-500 leading-tight">
-                              <span className="font-medium text-slate-800">Rationale: </span>
-                              {finding.suggestion.rationale}
-                            </div>
-                            <div className="text-[11px] text-slate-500 leading-tight">
-                              <span className="font-medium text-slate-800">Author Intent: </span>
-                              {finding.suggestion.authorIntentPreserved}
-                            </div>
+                           
+<div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
+  <div>
+    <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500 mb-1">
+      Why this correction?
+    </p>
+    <p className="text-xs leading-relaxed text-slate-700">
+      {finding.suggestion.rationale}
+    </p>
+  </div>
+
+  {finding.suggestion.authorIntentPreserved && (
+    <div className="pt-2 border-t border-slate-200">
+      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500 mb-1">
+        Original author intent
+      </p>
+      <p className="text-xs leading-relaxed text-slate-700">
+        {finding.suggestion.authorIntentPreserved}
+      </p>
+    </div>
+  )}
+</div>
+
                           </>
                         )}
 
                         {/* Action Buttons: Only active if review is not already completed */}
                         {!isCompleted && editingFindingId !== finding.id && (
                           <div className="flex items-center gap-2 pt-1">
-                            {suggestionStatus !== 'accepted' && (
-                              <button
-                                onClick={() => handleSuggestionAction(finding.id, 'accept')}
-                                className="px-2.5 py-1 text-xs font-medium bg-emerald-700 hover:bg-emerald-800 text-white rounded flex items-center gap-1 transition-colors shadow-2xs cursor-pointer"
-                              >
-                                <Check className="w-3 h-3" />
-                                <span>Accept Change</span>
-                              </button>
-                            )}
+                            
+{suggestionStatus === 'accepted' ? (
+  <span className="px-2.5 py-1 text-xs font-semibold bg-emerald-100 text-emerald-800 rounded flex items-center gap-1">
+    <Check className="w-3 h-3" />
+    Change Applied
+  </span>
+) : suggestionStatus === 'edited' ? (
+  <span className="px-2.5 py-1 text-xs font-semibold bg-blue-100 text-blue-800 rounded flex items-center gap-1">
+    <Check className="w-3 h-3" />
+    Custom Revision Applied
+  </span>
+) : (
+  <button
+    onClick={() =>
+      handleSuggestionAction(
+        finding.id,
+        'accept',
+        undefined,
+        needsOccurrenceChoice ? selectedOccurrence : undefined
+      )
+    }
+    disabled={!hasValidOccurrence}
+    className="px-2.5 py-1 text-xs font-medium bg-emerald-700 hover:bg-emerald-800 text-white rounded flex items-center gap-1 transition-colors shadow-2xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+  >
+    <Check className="w-3 h-3" />
+    <span>Accept Change</span>
+  </button>
+)}
+
 
                             <button
                               onClick={() => {

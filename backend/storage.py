@@ -88,7 +88,10 @@ def review_model(row):
             findingDecisionNote=item.finding_decision_note,
             suggestion=SuggestionModel(id=suggestion.id, suggestedText=suggestion.suggested_text,
                 rationale=suggestion.rationale, authorIntentPreserved=suggestion.author_intent_preserved,
-                status=suggestion.status, customEditedText=suggestion.custom_edited_text)
+                status=suggestion.status, customEditedText=suggestion.custom_edited_text,
+                appliedStart=getattr(suggestion, 'applied_start', None),
+                appliedEnd=getattr(suggestion, 'applied_end', None),
+                replacedText=getattr(suggestion, 'replaced_text', None))
             if suggestion else None))
     created = row.created_at.isoformat() + ("Z" if row.created_at.tzinfo is None else "")
     updated = row.updated_at.isoformat() + ("Z" if row.updated_at.tzinfo is None else "")
@@ -139,7 +142,10 @@ def add_review(session, document):
                 rationale=finding.suggestion.rationale,
                 author_intent_preserved=finding.suggestion.authorIntentPreserved,
                 status=finding.suggestion.status,
-                custom_edited_text=finding.suggestion.customEditedText)
+                custom_edited_text=finding.suggestion.customEditedText,
+                applied_start=finding.suggestion.appliedStart,
+                applied_end=finding.suggestion.appliedEnd,
+                replaced_text=finding.suggestion.replacedText)
         row.findings.append(finding_row)
     session.add(row)
     return row
