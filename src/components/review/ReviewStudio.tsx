@@ -525,18 +525,18 @@ findingsToHighlight.forEach((f, fIdx) => {
                 ref={(el) => { documentPinRefs.current[match.finding.id] = el; }}
                 onClick={() => handleSelectFindingFromText(match.finding.id)}
                 className={`inline-flex items-center gap-1 cursor-pointer transition-all px-1.5 py-0.5 rounded mx-0.5 ${
-                  isSelected
-                    ? 'ring-2 ring-[#2457D6] bg-blue-50 font-medium text-slate-900 shadow-xs'
-                    : isAccepted
-                    ? 'bg-emerald-50 text-emerald-950 border border-emerald-300'
-                    : isRejected
-                    ? 'bg-slate-100 text-slate-400 line-through'
-                    : match.finding.severity === 'critical'
-                    ? 'bg-rose-50 text-rose-950 border-b-2 border-rose-500 hover:bg-rose-100/70'
-                    : match.finding.severity === 'high'
-                    ? 'bg-amber-50 text-amber-950 border-b-2 border-amber-500 hover:bg-amber-100/70'
-                    : 'bg-blue-50 text-blue-950 border-b-2 border-blue-500 hover:bg-blue-100/70'
-                }`}
+  isAccepted
+    ? `bg-emerald-50 text-emerald-950 border border-emerald-300 ${isSelected ? 'ring-2 ring-emerald-500 shadow-xs' : ''}`
+    : isRejected
+    ? `bg-slate-100 text-slate-400 line-through ${isSelected ? 'ring-2 ring-[#2457D6]' : ''}`
+    : isSelected
+    ? 'ring-2 ring-[#2457D6] bg-blue-50 font-medium text-slate-900 shadow-xs'
+    : match.finding.severity === 'critical'
+    ? 'bg-rose-50 text-rose-950 border-b-2 border-rose-500 hover:bg-rose-100/70'
+    : match.finding.severity === 'high'
+    ? 'bg-amber-50 text-amber-950 border-b-2 border-amber-500 hover:bg-amber-100/70'
+    : 'bg-blue-50 text-blue-950 border-b-2 border-blue-500 hover:bg-blue-100/70'
+}`}
                 title={`[Pin ${match.pinIndex}] ${match.finding.title} — Click to inspect evidence`}
               >
                 <span className={`text-[9px] font-mono px-1 py-0.2 rounded font-bold ${
