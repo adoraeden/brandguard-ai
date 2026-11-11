@@ -456,14 +456,16 @@ findingsToHighlight.forEach((f, fIdx) => {
   const isAccepted = f.suggestion?.status === 'accepted';
 
   // For accepted changes, use the exact saved replacement position.
-  if (
-    isAccepted &&
-    f.appliedStart != null &&
-    f.appliedEnd != null
-  ) {
-    const localStart = f.appliedStart - paragraphStart;
-    const localEnd = f.appliedEnd - paragraphStart;
+  const appliedStart = f.suggestion?.appliedStart;
+const appliedEnd = f.suggestion?.appliedEnd;
 
+if (
+  isAccepted &&
+  appliedStart != null &&
+  appliedEnd != null
+) {
+  const localStart = appliedStart - paragraphStart;
+  const localEnd = appliedEnd - paragraphStart;
     if (
       localStart >= 0 &&
       localEnd <= paragraph.length &&
