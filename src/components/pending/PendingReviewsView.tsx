@@ -27,8 +27,10 @@ export const PendingReviewsView: React.FC<PendingReviewsViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [contentFilter, setContentFilter] = useState('all');
 
-  // Pending reviews: reviews where decisionStatus is 'pending'
-  const pendingReviews = reviews.filter(r => r.decisionStatus === 'pending');
+  // Includes new reviews and saved partial approvals with unresolved findings.
+  const pendingReviews = reviews.filter(r =>
+    ['pending', 'partially_approved'].includes(r.decisionStatus)
+  );
 
   const filteredPending = pendingReviews.filter(r => {
     const q = searchQuery.toLowerCase();
@@ -58,7 +60,7 @@ export const PendingReviewsView: React.FC<PendingReviewsViewProps> = ({
             Pending Communication Reviews
           </h1>
           <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
-            Submissions currently undergoing brand verification. Every finding requires explicit reviewer decision (accept, edit, or reject) before publication approval can be granted.
+            Reviews awaiting decisions, including saved partial approvals. Unresolved findings remain available for the reviewer to continue.
           </p>
         </div>
 
@@ -124,6 +126,7 @@ export const PendingReviewsView: React.FC<PendingReviewsViewProps> = ({
                 <th className="py-3 px-4">Content Type</th>
                 <th className="py-3 px-4">Assigned Reviewer</th>
                 <th className="py-3 px-4">Last Updated</th>
+                <th className="py-3 px-4">Review Status</th>
                 <th className="py-3 px-4">Unresolved Findings</th>
                 <th className="py-3 px-4 text-right">Action</th>
               </tr>
@@ -131,7 +134,7 @@ export const PendingReviewsView: React.FC<PendingReviewsViewProps> = ({
             <tbody className="divide-y divide-slate-100 text-xs">
               {filteredPending.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400">
+                  <td colSpan={8} className="py-12 text-center text-slate-400">
                     <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
                     <div className="font-bold text-slate-800">Review Queue Cleared</div>
                     <div className="text-xs text-slate-500 mt-0.5">
@@ -173,6 +176,17 @@ export const PendingReviewsView: React.FC<PendingReviewsViewProps> = ({
                       {/* Last Updated */}
                       <td className="py-3.5 px-4 text-slate-500 font-mono text-[11px] whitespace-nowrap">
                         {r.updatedAt ? r.updatedAt.split('T')[0] : r.createdAt.split('T')[0]}
+                      </td>
+
+                      {/* Review Status */}
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${
+                          r.decisionStatus === 'partially_approved'
+                            ? 'border-indigo-200 bg-indigo-50 text-indigo-800'
+                            : 'border-amber-200 bg-amber-50 text-amber-800'
+                        }`}>
+                          {r.decisionStatus === 'partially_approved' ? 'Partially approved · open' : 'Awaiting review'}
+                        </span>
                       </td>
 
                       {/* Unresolved Findings */}
