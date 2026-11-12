@@ -63,9 +63,9 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   );
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-5">
+    <div className="page-content mx-auto w-full max-w-[1440px] space-y-6 p-6 lg:p-8">
       {/* 1. Compact Governance Status Header */}
-      <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white rounded-2xl border border-slate-200/80 p-6 lg:p-7 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-6">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-semibold text-[#2457D6] uppercase tracking-wider font-mono">
@@ -74,7 +74,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             <span className="text-slate-300">·</span>
             <span className="text-xs text-slate-500 font-medium">AuraCloud Technologies</span>
           </div>
-          <h1 className="text-lg font-bold text-slate-900 tracking-tight">
+          <h1 className="text-2xl lg:text-[28px] font-bold text-slate-950 tracking-tight">
             Brand Governance Command Centre
           </h1>
           <p className="text-xs text-slate-500">
@@ -119,7 +119,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
 
       {/* Prominent Pending Human Reviews Queue Banner & Shortcut */}
       {pendingReviews.length > 0 && (
-        <div className="bg-amber-50/70 border border-amber-300 rounded-xl p-4 shadow-xs space-y-3">
+        <div className="bg-amber-50/60 border border-amber-200 rounded-2xl p-5 lg:p-6 shadow-sm space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-amber-200">
             <div className="flex items-center gap-2.5">
               <div className="w-7 h-7 rounded-lg bg-amber-500 text-white flex items-center justify-center font-bold text-xs shadow-2xs">
@@ -152,8 +152,8 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           </div>
 
           {/* Compact pending reviews grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {pendingReviews.map((rev: any) => (
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3.5">
+            {pendingReviews.slice(0, 4).map((rev: any) => (
               <div
                 key={rev.id}
                 className="bg-white rounded-lg border border-amber-200/90 p-3 hover:border-amber-400 hover:shadow-xs transition-all flex items-center justify-between gap-3"
@@ -192,7 +192,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
         {/* Left Column (7 cols): Review Activity & Recent Reviews */}
         <div className="lg:col-span-7 space-y-5">
           {/* Review Activity Breakdown */}
-          <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs space-y-3">
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Activity className="w-4 h-4 text-[#2457D6]" />
@@ -243,7 +243,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           </div>
 
           {/* Recent Reviews Table */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
             <div className="p-3.5 border-b border-slate-100 flex items-center justify-between">
               <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900">
                 Recent Reviews
@@ -263,7 +263,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                   No review records found. Launch your first review above.
                 </div>
               ) : (
-                recentReviews.map((rev: any) => (
+                recentReviews.slice(0, 6).map((rev: any) => (
                   <div
                     key={rev.id}
                     onClick={() => onSelectReview(rev.id)}
