@@ -35,10 +35,10 @@ export const PendingReviewsView: React.FC<PendingReviewsViewProps> = ({
   const filteredPending = pendingReviews.filter(r => {
     const q = searchQuery.toLowerCase();
     return (
-      r.title.toLowerCase().includes(q) ||
-      r.id.toLowerCase().includes(q) ||
-      r.reviewer.toLowerCase().includes(q) ||
-      r.contentType.toLowerCase().includes(q)
+      (r.title || '').toLowerCase().includes(q) ||
+      (r.id || '').toLowerCase().includes(q) ||
+      (r.reviewer || '').toLowerCase().includes(q) ||
+      (r.contentType || '').toLowerCase().includes(q)
     ) && (contentFilter === 'all' || r.contentType === contentFilter);
   });
 
@@ -139,7 +139,7 @@ export const PendingReviewsView: React.FC<PendingReviewsViewProps> = ({
               <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-3 text-xs">
                 <div><span className="block text-slate-400">Content type</span><span className="mt-1 block font-medium capitalize text-slate-700">{review.contentType.replace(/_/g, ' ')}</span></div>
                 <div><span className="block text-slate-400">Assigned reviewer</span><span className="mt-1 block font-medium text-slate-700">{review.reviewer || 'Unassigned'}</span></div>
-                <div><span className="block text-slate-400">Last updated</span><span className="mt-1 block font-medium text-slate-700">{(review.updatedAt || review.createdAt).split('T')[0]}</span></div>
+                <div><span className="block text-slate-400">Last updated</span><span className="mt-1 block font-medium text-slate-700">{(review.updatedAt || review.createdAt || '').split('T')[0] || '—'}</span></div>
                 <div><span className="block text-slate-400">Unresolved findings</span><span className={`mt-1 inline-flex rounded-full px-2 py-1 font-semibold ${unresolved > 0 ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'}`}>{unresolved} open</span></div>
               </div>
               <button type="button" onClick={() => onOpenReview(review)} className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700">
@@ -210,7 +210,7 @@ export const PendingReviewsView: React.FC<PendingReviewsViewProps> = ({
 
                       {/* Last Updated */}
                       <td className="py-3.5 px-4 text-slate-500 font-mono text-[11px] whitespace-nowrap">
-                        {r.updatedAt ? r.updatedAt.split('T')[0] : r.createdAt.split('T')[0]}
+                        {(r.updatedAt || r.createdAt || '').split('T')[0] || '—'}
                       </td>
 
                       {/* Review Status */}
