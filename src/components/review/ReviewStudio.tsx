@@ -1563,7 +1563,7 @@ if (
       >
         {/* LEFT PANEL: Document Workspace (user-resizable width) */}
         <div
-          style={{ width: `calc(${documentPanePercent}% - 5px)` }}
+          style={{ width: window.innerWidth >= 768 ? `calc(${documentPanePercent}% - 5px)` : '100%' }}
           className="w-full md:w-auto min-w-0 min-h-[55vh] md:min-h-0 border-b md:border-b-0 md:border-r border-slate-200 flex flex-col bg-white overflow-hidden"
         >
           {/* Document Top Bar */}
@@ -1734,7 +1734,7 @@ if (
         </div>
         {/* RIGHT PANEL: Findings List & Evidence Actions */}
         <div
-          style={{ width: `calc(${100 - documentPanePercent}% - 5px)` }}
+          style={{ width: window.innerWidth >= 768 ? `calc(${100 - documentPanePercent}% - 5px)` : '100%' }}
           className="w-full md:w-auto min-w-0 min-h-[55vh] md:min-h-0 flex flex-col bg-slate-50/50 overflow-hidden"
         >
           {/* Findings Filter Bar */}
