@@ -48,18 +48,18 @@ export const PendingReviewsView: React.FC<PendingReviewsViewProps> = ({
   );
 
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-5 md:space-y-6">
+    <div className="page-content mx-auto w-full max-w-[1440px] space-y-6 p-5 md:p-8">
       {/* Header */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white rounded-2xl border border-slate-200/80 p-6 lg:p-7 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-6">
         <div>
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-amber-700 mb-1">
             <Clock className="w-3.5 h-3.5 text-amber-600" />
             <span>Human Review Queue</span>
           </div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+          <h1 className="text-2xl lg:text-[28px] font-bold text-slate-950 tracking-tight">
             Pending Communication Reviews
           </h1>
-          <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
+          <p className="text-sm text-slate-500 mt-2 max-w-2xl leading-relaxed">
             Reviews awaiting decisions, including saved partial approvals. Unresolved findings remain available for the reviewer to continue.
           </p>
         </div>
@@ -88,7 +88,7 @@ export const PendingReviewsView: React.FC<PendingReviewsViewProps> = ({
       </div>
 
       {/* Toolbar */}
-      <div className="bg-white rounded-xl border border-slate-200 p-3 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs">
+      <div className="bg-white rounded-2xl border border-slate-200/80 p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-sm">
         <div className="flex items-center gap-2 text-xs text-slate-600">
           <Filter className="w-3.5 h-3.5 text-slate-400" />
           <span className="font-medium">Filter Queue:</span>
@@ -113,6 +113,41 @@ export const PendingReviewsView: React.FC<PendingReviewsViewProps> = ({
           />
         </div>
         </div>
+      </div>
+
+      {/* Responsive review cards for laptop, tablet and mobile widths */}
+      <div className="grid grid-cols-1 gap-3 xl:hidden">
+        {filteredPending.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
+            <CheckCircle2 className="mx-auto mb-3 h-9 w-9 text-emerald-600" />
+            <h2 className="text-base font-semibold text-slate-900">Your review queue is clear</h2>
+            <p className="mt-1 text-sm text-slate-500">No pending reviews match the current filters.</p>
+          </div>
+        ) : filteredPending.map((review) => {
+          const unresolved = review.summary?.unresolvedFindings ?? review.findings.filter(f => !f.suggestion || f.suggestion.status === 'pending').length;
+          return (
+            <article key={review.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-blue-200 hover:shadow-md">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="text-sm font-semibold leading-5 text-slate-900">{review.title}</h2>
+                  <p className="mt-1 truncate font-mono text-[11px] text-blue-700">{review.id}</p>
+                </div>
+                <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800">
+                  {review.decisionStatus === 'partially_approved' ? 'In progress' : 'Awaiting review'}
+                </span>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-3 text-xs">
+                <div><span className="block text-slate-400">Content type</span><span className="mt-1 block font-medium capitalize text-slate-700">{review.contentType.replace(/_/g, ' ')}</span></div>
+                <div><span className="block text-slate-400">Assigned reviewer</span><span className="mt-1 block font-medium text-slate-700">{review.reviewer || 'Unassigned'}</span></div>
+                <div><span className="block text-slate-400">Last updated</span><span className="mt-1 block font-medium text-slate-700">{(review.updatedAt || review.createdAt).split('T')[0]}</span></div>
+                <div><span className="block text-slate-400">Unresolved findings</span><span className={`mt-1 inline-flex rounded-full px-2 py-1 font-semibold ${unresolved > 0 ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'}`}>{unresolved} open</span></div>
+              </div>
+              <button type="button" onClick={() => onOpenReview(review)} className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700">
+                Continue review <ArrowRight className="h-4 w-4" />
+              </button>
+            </article>
+          );
+        })}
       </div>
 
       {/* Table */}
