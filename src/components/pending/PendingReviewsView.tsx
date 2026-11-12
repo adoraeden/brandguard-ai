@@ -116,7 +116,7 @@ export const PendingReviewsView: React.FC<PendingReviewsViewProps> = ({
       </div>
 
       {/* Responsive review cards for laptop, tablet and mobile widths */}
-      <div className="grid grid-cols-1 gap-3 xl:hidden">
+      <div className="grid grid-cols-1 gap-3">
         {filteredPending.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
             <CheckCircle2 className="mx-auto mb-3 h-9 w-9 text-emerald-600" />
@@ -150,8 +150,8 @@ export const PendingReviewsView: React.FC<PendingReviewsViewProps> = ({
         })}
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
+      {/* The responsive review cards are the single queue presentation at every viewport width. */}
+      <div className="hidden bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
           <table className="app-table min-w-[960px] w-full text-left border-collapse">
             <thead>
