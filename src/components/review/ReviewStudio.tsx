@@ -290,7 +290,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   // Review Results State (State B)
   const [selectedFindingId, setSelectedFindingId] = useState<string | null>(null);
   const [filterCategory, setFilterCategory] = useState<string>('all');
-  const [documentPanePercent, setDocumentPanePercent] = useState(58);
+  const [documentPanePercent, setDocumentPanePercent] = useState(62);
   const workspaceRef = useRef<HTMLDivElement | null>(null);
   const resizingWorkspace = useRef(false);
   const [showOriginalDiff, setShowOriginalDiff] = useState(false);
@@ -1011,7 +1011,7 @@ if (
     const isRejected = verdict === 'rejected';
 
     return (
-      <div className="h-[calc(100vh-3rem)] overflow-y-auto p-8 max-w-3xl mx-auto flex flex-col justify-center animate-in fade-in duration-200">
+      <div className="h-full min-h-0 overflow-y-auto p-6 lg:p-8 max-w-4xl mx-auto flex flex-col justify-center animate-in fade-in duration-200">
         <div className="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm space-y-6">
           {/* Status Icon & Header */}
           <div className="flex flex-col items-center text-center space-y-3">
@@ -1147,7 +1147,7 @@ if (
   // ==================================================================
   if (viewMode === 'submission' || !activeReview) {
     return (
-      <div className="h-[calc(100vh-3rem)] overflow-y-auto p-8 max-w-4xl mx-auto space-y-6">
+      <div className="h-full min-h-0 overflow-y-auto p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -1358,7 +1358,7 @@ if (
   const analysisTone = getHighestAnalysisTone(deterministicStatus.tone, aiStatus.tone);
 
   return (
-    <div className="flex flex-col min-h-[calc(100vh-3rem)] h-auto overflow-y-auto md:h-[calc(100vh-3rem)] md:min-h-0 md:overflow-hidden">
+    <div className="h-full min-h-0 flex flex-col overflow-hidden">
       {/* 1. Subheader Strip with Prominent Finding Counts (Requirement 11) */}
       <div className="bg-white border-b border-slate-200 px-6 py-2.5 flex flex-wrap items-center justify-between gap-4 shrink-0 z-10 shadow-2xs">
         <div className="flex items-center gap-3 min-w-0">
@@ -1559,11 +1559,11 @@ if (
       {/* 2. Side-by-Side Review Panels: Left Document vs Right Findings */}
       <div
         ref={workspaceRef}
-        className="flex-1 flex flex-col md:flex-row overflow-visible md:overflow-hidden"
+        className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden"
       >
         {/* LEFT PANEL: Document Workspace (user-resizable width) */}
         <div
-          style={{ width: window.innerWidth >= 768 ? `calc(${documentPanePercent}% - 5px)` : '100%' }}
+          style={{ width: window.innerWidth >= 768 ? `calc(${documentPanePercent}% - 4px)` : '100%' }}
           className="w-full md:w-auto min-w-0 min-h-[55vh] md:min-h-0 border-b md:border-b-0 md:border-r border-slate-200 flex flex-col bg-white overflow-hidden"
         >
           {/* Document Top Bar */}
@@ -1589,7 +1589,7 @@ if (
 
           {/* Document Text (Independent Scroll) */}
           <div className="flex-1 p-6 overflow-y-auto font-sans text-sm leading-relaxed bg-white">
-            <div className="max-w-2xl mx-auto space-y-4">
+            <div className="max-w-4xl mx-auto w-full space-y-4">
               <div className="text-xs font-mono text-slate-400 border-b border-slate-100 pb-2 flex items-center justify-between">
                 <span>Content Type: {activeReview.contentType.replace(/_/g, ' ')}</span>
                 <span className="flex items-center gap-1.5 text-slate-600">
@@ -1728,22 +1728,22 @@ if (
             if (event.key === 'ArrowLeft') setDocumentPanePercent(value => Math.max(35, value - 2));
             if (event.key === 'ArrowRight') setDocumentPanePercent(value => Math.min(70, value + 2));
           }}
-          className="hidden md:flex w-2 shrink-0 cursor-col-resize items-center justify-center bg-slate-100 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+          className="hidden md:flex w-2 shrink-0 cursor-col-resize touch-none items-center justify-center bg-slate-100 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
         >
           <span className="h-10 w-0.5 rounded-full bg-slate-400" />
         </div>
         {/* RIGHT PANEL: Findings List & Evidence Actions */}
         <div
-          style={{ width: window.innerWidth >= 768 ? `calc(${100 - documentPanePercent}% - 5px)` : '100%' }}
+          style={{ width: window.innerWidth >= 768 ? `calc(${100 - documentPanePercent}% - 4px)` : '100%' }}
           className="w-full md:w-auto min-w-0 min-h-[55vh] md:min-h-0 flex flex-col bg-slate-50/50 overflow-hidden"
         >
           {/* Findings Filter Bar */}
-          <div className="px-4 py-2 bg-white border-b border-slate-200 flex items-center justify-between text-xs">
-            <div className="flex items-center gap-1.5 font-semibold text-slate-800">
+          <div className="px-4 py-2 bg-white border-b border-slate-200 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2 text-xs">
+            <div className="flex items-center gap-1.5 font-semibold text-slate-800 shrink-0">
               <Filter className="w-3.5 h-3.5 text-[#2457D6]" />
               <span>Evidence Filter:</span>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex flex-wrap items-center gap-1">
               {[
                 { id: 'all', label: 'All' },
                 { id: 'exact_violation', label: 'Exact Rules' },
