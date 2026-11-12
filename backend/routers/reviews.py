@@ -854,7 +854,7 @@ def record_decision(
     if not row:
         raise HTTPException(404, "Review document not found")
 
-    if row.decision_status != "pending" or row.status in ("completed", "archived"):
+    if row.status in ("completed", "archived"):
         raise HTTPException(409, "This review is locked and read-only")
 
     if payload.completeDecision == "pending":
@@ -956,7 +956,41 @@ def record_decision(
         }
     )
 
-    if payload.completeDecision:
+    if payload.completeDecision == "partially_approved":
+        if unresolved <= 0:
+            raise HTTPException(
+                409,
+                "There are no pending findings. Submit a final approval instead.",
+            )
+
+        row.decision_status = "partially_approved"
+        row.status = "in_review"
+        row.decision_notes = payload.decisionNotes or row.decision_notes
+        row.decided_at = None
+        row.reviewer = actor
+
+        db.add(
+            DBDecisionAudit(
+                id=f"aud-{uuid4().hex}",
+                review_id=review_id,
+                action="partial_approval",
+                reviewer=actor,
+                previous_value=before,
+                new_value={
+                    "decisionStatus": row.decision_status,
+                    "status": row.status,
+                    "decisionNotes": row.decision_notes,
+                    "acceptedCount": row.summary["acceptedSuggestions"],
+                    "rejectedCount": row.summary["rejectedSuggestions"],
+                    "editedCount": row.summary["editedSuggestions"],
+                    "pendingCount": unresolved,
+                    "totalFindings": len(active_findings(row.findings)),
+                },
+                created_at=now,
+            )
+        )
+
+    elif payload.completeDecision:
         if unresolved > 0:
             row.updated_at = now
             db.commit()
@@ -965,10 +999,9 @@ def record_decision(
                 status_code=400,
                 content={
                     "error": (
-                        "Cannot finalize review with unresolved findings. "
-                        "Resolve each suggestion or record an accepted/dismissed "
-                        f"finding decision before final sign-off. "
-                        f"({unresolved} finding(s) still unresolved)."
+                        "A final decision requires all findings to be resolved. "
+                        "Use partial approval to save reviewed changes while "
+                        f"leaving {unresolved} finding(s) pending."
                     ),
                     "unresolvedCount": unresolved,
                     "acceptedCount": row.summary["acceptedSuggestions"],
@@ -997,6 +1030,11 @@ def record_decision(
                     "decisionStatus": row.decision_status,
                     "status": row.status,
                     "decisionNotes": row.decision_notes,
+                    "acceptedCount": row.summary["acceptedSuggestions"],
+                    "rejectedCount": row.summary["rejectedSuggestions"],
+                    "editedCount": row.summary["editedSuggestions"],
+                    "pendingCount": unresolved,
+                    "totalFindings": len(active_findings(row.findings)),
                 },
                 created_at=now,
             )
@@ -1038,7 +1076,7 @@ def decide_finding(
     if not row:
         raise HTTPException(404, "Review document not found")
 
-    if row.decision_status != "pending" or row.status in ("completed", "archived"):
+    if row.status in ("completed", "archived"):
         raise HTTPException(409, "This review is locked and read-only")
 
     finding = next(
