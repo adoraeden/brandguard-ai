@@ -197,7 +197,7 @@ function AppContent() {
 
         {/* Viewport View Switcher */}
         <main className={`flex-1 bg-[#F8FAFC] ${
-          currentTab === 'review_studio' || currentTab === 'brand_intelligence' 
+          currentTab === 'review_studio' || currentTab === 'brand_intelligence' || currentTab === 'evidence_ingestion' 
             ? 'overflow-hidden flex flex-col' 
             : 'overflow-y-auto'
         }`}>
@@ -234,7 +234,7 @@ function AppContent() {
           )}
 
           {currentTab === 'evidence_ingestion' && (
-            <EvidenceIngestionView isAdmin={true} onDataChanged={loadAllData} onNavigateToKnowledgeBase={() => handleSelectTab('brand_intelligence')} />
+            <EvidenceIngestionView onDataChanged={loadAllData} onNavigateToKnowledgeBase={() => handleSelectTab('brand_intelligence')} />
           )}
 
           {currentTab === 'brand_intelligence' && (
