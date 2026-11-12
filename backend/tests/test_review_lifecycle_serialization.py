@@ -1,6 +1,7 @@
 import unittest
 
-from models import ReviewDocumentModel, ReviewFindingModel
+from models import ApprovedFactModel, ReviewDocumentModel, ReviewFindingModel
+from routers.reviews import enrich_finding_evidence
 from storage import add_review, review_model
 
 
@@ -82,6 +83,62 @@ class ReviewLifecycleSerializationTests(unittest.TestCase):
         self.assertEqual(restored.sourcePageNumber, 4)
         self.assertEqual(restored.sourceSectionLabel, 'Availability')
         self.assertEqual(restored.sourceExcerpt, 'The verified service availability is 99.95%.')
+
+
+
+    def test_evidence_enrichment_attaches_source_provenance_and_status(self):
+        fact = ApprovedFactModel(
+            id='fact-source-test',
+            title='Availability commitment',
+            statement='The service provides a verified 99.95% monthly uptime SLA.',
+            category='uptime_performance',
+            source='Uploaded reliability guide',
+            verificationStatus='verified',
+            lastUpdated='2026-11-12',
+            sourceDocumentId='doc-source-test',
+            sourcePageNumber=4,
+            sourceSectionLabel='Availability',
+            sourceExcerpt='The service provides a verified 99.95% monthly uptime SLA.',
+        )
+        supported = ReviewFindingModel(
+            id='finding-supported',
+            reviewId='review-evidence-test',
+            title='Availability claim',
+            category='direct_contradiction',
+            severity='high',
+            exactText='We guarantee 100% uptime.',
+            explanation='The claim differs from the approved SLA.',
+            sourceRuleOrTerm='Availability commitment',
+            sourceReference='Uploaded reliability guide',
+            detectionMethod='gemini_contextual',
+            confidence='high',
+            evidenceRecordType='fact',
+            evidenceRecordId=fact.id,
+            evidenceQuote='verified 99.95% monthly uptime SLA',
+        )
+        unsupported = ReviewFindingModel(
+            id='finding-unsupported',
+            reviewId='review-evidence-test',
+            title='Insufficient Evidence',
+            category='unsupported_claim',
+            severity='medium',
+            exactText='We guarantee zero downtime.',
+            explanation='No approved source supports the claim.',
+            sourceRuleOrTerm='Insufficient Evidence',
+            sourceReference='No directly relevant approved source was found.',
+            detectionMethod='gemini_contextual',
+            confidence='low',
+        )
+
+        enrich_finding_evidence([supported, unsupported], [], [fact])
+
+        self.assertEqual(supported.evidenceStatus, 'supported')
+        self.assertEqual(supported.sourceDocumentId, 'doc-source-test')
+        self.assertEqual(supported.sourcePageNumber, 4)
+        self.assertEqual(supported.sourceSectionLabel, 'Availability')
+        self.assertEqual(supported.sourceExcerpt, fact.sourceExcerpt)
+        self.assertEqual(unsupported.evidenceStatus, 'unsupported')
+        self.assertIsNone(unsupported.sourceDocumentId)
 
 
 
