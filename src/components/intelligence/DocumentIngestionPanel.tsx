@@ -124,7 +124,8 @@ const buildDemoPdfFile = (sample: DemoEvidenceDocument): File => {
   offsets.slice(1).forEach(offset => {
     pdf += String(offset).padStart(10, '0') + ' 00000 n \n';
   });
-  pdf += 'trailer\n<< /Size ' + (objects.length + 1) + ' /Root 1 0 R >>\nstartxref\n' + xrefOffset + '\n%%EOF';
+  const demoId = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(value => value.toString(16).padStart(2, '0')).join('');
+  pdf += 'trailer\\n<< /Size ' + (objects.length + 1) + ' /Root 1 0 R /ID [<' + demoId + '><' + demoId + '>] >>\\nstartxref\\n' + xrefOffset + '\\n%%EOF';
   return new File([encoder.encode(pdf) as unknown as BlobPart], sample.filename, { type: 'application/pdf' });
 };
 
@@ -391,12 +392,12 @@ export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ 
                     </span>
                   </div>
                   <div className="space-y-2 p-3">
-                    {documentItem.candidates.length === 0 && (
+                    {documentItem.candidates.filter(candidate => candidate.status === 'pending').length === 0 && (
                       <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-3 text-[11px] text-slate-600">
-                        Text was extracted and the original document is stored, but no likely fact or guideline passages matched the current extraction rules. Add relevant knowledge manually or try a more text-focused source.
+                        All extracted passages have been reviewed. Approved entries are available in Brand Intelligence, and rejected passages are retained in the review audit.
                       </div>
                     )}
-                    {documentItem.candidates.map(candidate => {
+                    {documentItem.candidates.filter(candidate => candidate.status === 'pending').map(candidate => {
                       const draft = drafts[candidate.id] || { title: candidate.title, approvedText: candidate.excerpt };
                       const busy = busyCandidate === candidate.id;
                       return (
