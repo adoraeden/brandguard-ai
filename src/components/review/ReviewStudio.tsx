@@ -310,6 +310,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   const [decisionNotes, setDecisionNotes] = useState('');
   const [isCompleting, setIsCompleting] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [decisionFeedback, setDecisionFeedback] = useState<string | null>(null);
   const [isRerunningAnalysis, setIsRerunningAnalysis] = useState(false);
   const [rerunFeedback, setRerunFeedback] = useState<{
     kind: 'success' | 'warning' | 'error';
@@ -454,6 +455,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   ) => {
     if (!activeReview) return;
     setValidationError(null);
+    setDecisionFeedback(null);
 
     try {
       const updated = await api.recordDecision(activeReview.id, {
@@ -482,6 +484,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   const handleFindingDecision = async (findingId: string, decision: 'accepted' | 'dismissed' | 'verification_required') => {
     if (!activeReview) return;
     setValidationError(null);
+    setDecisionFeedback(null);
     try {
       const note = findingDecisionNotes[findingId]?.trim() || undefined;
       const updated = await api.decideFinding(activeReview.id, findingId, decision, note, currentUser.name);
@@ -496,59 +499,41 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
     }
   };
 
-  const handleFinalDecision = async (decision: 'approved_with_changes' | 'approved_as_is' | 'rejected') => {
+  const handleFinalDecision = async (decision: 'approved_as_is' | 'rejected') => {
     if (!activeReview) return;
 
     const unresolvedCount = activeReview.summary.unresolvedFindings;
-
-    if (decision === 'approved_as_is' && unresolvedCount > 0) {
-      setValidationError(
-        `Cannot approve as-is while ${unresolvedCount} finding(s) are pending. Use Approve w/ Changes to save the reviewed work and keep those findings pending.`
-      );
-      return;
-    }
-
-    const isPartialApproval = decision === 'approved_with_changes' && unresolvedCount > 0;
-    const decisionToSubmit: 'partially_approved' | 'approved_with_changes' | 'approved_as_is' | 'rejected' =
-      isPartialApproval ? 'partially_approved' : decision;
+    const isCheckpoint = unresolvedCount > 0;
 
     setIsCompleting(true);
     setValidationError(null);
+    setDecisionFeedback(null);
 
     try {
       const updated = await api.recordDecision(activeReview.id, {
-        completeDecision: decisionToSubmit,
+        completeDecision: decision,
         decisionNotes,
         reviewer: currentUser.name || reviewer,
       });
       onDecisionUpdated(updated);
-      
-      // Partial approval is a saved checkpoint: keep the review open and its
-      // unresolved findings actionable instead of showing the final completion screen.
-      if (isPartialApproval) {
+
+      if (isCheckpoint) {
         setCompletionRecord(null);
         setViewMode('results');
         setDecisionNotes('');
+        setDecisionFeedback(
+          decision === 'approved_as_is'
+            ? `Checkpoint saved. ${unresolvedCount} finding(s) remain pending and have not been approved. This review will stay in the Pending queue.`
+            : `Checkpoint saved. ${unresolvedCount} finding(s) remain pending and have not been rejected. This review will stay in the Pending queue.`
+        );
         return;
       }
 
-      setCompletionRecord({
-        verdict: decision,
-        document: updated,
-      });
+      setCompletionRecord({ verdict: decision, document: updated });
     } catch (err: any) {
       console.error('Failed to complete review:', err);
       const message = err instanceof Error ? err.message : '';
-      const backendMissingPartialApproval =
-        isPartialApproval &&
-        /partially_approved/i.test(message) &&
-        /(input should|valid literal|permitted)/i.test(message);
-
-      setValidationError(
-        backendMissingPartialApproval
-          ? 'The connected Render backend is still running an older version that does not accept partial approvals. Deploy the phase-2-1-reviewer-experience branch to the BrandGuard backend service, then retry.'
-          : message || 'Failed to persist review decision.'
-      );
+      setValidationError(message || 'Failed to persist review decision.');
     } finally {
       setIsCompleting(false);
     }
@@ -1449,9 +1434,20 @@ if (
               ? 'bg-indigo-50 text-indigo-800 border-indigo-200'
               : 'bg-amber-50 text-amber-800 border-amber-200'
           }`}>
-            {activeReview.decisionStatus === 'partially_approved' ? 'partially approved · still open' : activeReview.decisionStatus.replace(/_/g, ' ')}
+            {activeReview.decisionStatus === 'partially_approved' ? 'pending · more findings' : activeReview.decisionStatus.replace(/_/g, ' ')}
           </span>
 
+          <button
+            type="button"
+            onClick={() => setAnalysisPanelCollapsed(value => !value)}
+            aria-expanded={!analysisPanelCollapsed}
+            aria-controls="analysis-checks-panel"
+            title={analysisPanelCollapsed ? 'Show deterministic and AI analysis checks' : 'Hide analysis checks to expand both review panes'}
+            className="ml-1 px-2.5 py-1 text-xs border border-slate-200 hover:bg-slate-100 rounded-lg text-slate-700 font-medium transition-colors flex items-center gap-1 cursor-pointer"
+          >
+            {analysisPanelCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+            <span>{analysisPanelCollapsed ? 'Show Checks' : 'Hide Checks'}</span>
+          </button>
           <button
             onClick={() => setViewMode('submission')}
             className="ml-2 px-2.5 py-1 text-xs border border-slate-200 hover:bg-slate-100 rounded-lg text-slate-700 font-medium transition-colors flex items-center gap-1 cursor-pointer"
@@ -1483,33 +1479,14 @@ if (
         </div>
       )}
 
-      <div
-        ref={analysisPanelRef}
-        style={{ height: analysisPanelCollapsed ? 42 : analysisPanelHeight }}
-        className={`mx-4 mt-2 shrink-0 rounded-lg border px-3 py-2 text-[11px] shadow-2xs overflow-hidden transition-[height] duration-150 ${ANALYSIS_PANEL_TONE_STYLES[analysisTone]}`}
-      >
-        {analysisPanelCollapsed ? (
-          <div className="flex h-full items-center justify-between gap-3">
-            <span className="font-semibold text-slate-700">Analysis checks hidden · document workspace expanded</span>
-            <div className="flex shrink-0 items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setAnalysisPanelCollapsed(false)}
-                className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                <ChevronDown className="h-3 w-3" /> Show checks
-              </button>
-              <button
-                type="button"
-                onClick={handleRerunAnalysis}
-                disabled={isRerunningAnalysis}
-                className="inline-flex items-center gap-1 rounded-md border border-[#2457D6] bg-[#2457D6] px-2 py-1 text-[10px] font-semibold text-white hover:bg-[#1946B8] disabled:opacity-60"
-              >
-                <RotateCcw className="h-3 w-3" /> Re-run
-              </button>
-            </div>
-          </div>
-        ) : (
+      {!analysisPanelCollapsed && (
+        <>
+          <div
+            id="analysis-checks-panel"
+            ref={analysisPanelRef}
+            style={{ height: analysisPanelHeight }}
+            className={`mx-4 mt-2 shrink-0 rounded-lg border px-3 py-2 text-[11px] shadow-2xs overflow-hidden transition-[height] duration-150 ${ANALYSIS_PANEL_TONE_STYLES[analysisTone]}`}
+          >
         <div className="flex h-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0 flex-1 space-y-1.5">
             <div role="status" aria-live="polite" className="grid grid-cols-1 lg:grid-cols-2 gap-x-4 gap-y-1">
@@ -1581,14 +1558,6 @@ if (
           <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
             <button
               type="button"
-              onClick={() => setAnalysisPanelCollapsed(true)}
-              className="inline-flex items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-[10px] font-semibold text-slate-700 hover:bg-slate-50"
-              title="Hide analysis checks to give more space to the document and pins"
-            >
-              <ChevronUp className="h-3 w-3" /> Hide checks
-            </button>
-            <button
-              type="button"
               onClick={handleRerunAnalysis}
               disabled={isRerunningAnalysis}
               aria-busy={isRerunningAnalysis}
@@ -1603,9 +1572,7 @@ if (
             </button>
           </div>
         </div>
-        )}
-      </div>
-      {!analysisPanelCollapsed && (
+          </div>
         <div
           role="separator"
           aria-label="Resize analysis checks panel vertically"
@@ -1633,6 +1600,7 @@ if (
         >
           <span className="h-0.5 w-12 rounded-full bg-slate-400" />
         </div>
+        </>
       )}
       {rerunFeedback && <div
         role={rerunFeedback.kind === 'error' ? 'alert' : 'status'}
@@ -1713,7 +1681,7 @@ if (
                   <div className="flex items-center gap-2">
                     <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
                     <span>
-                      <strong>{unresolvedCount} finding(s) pending:</strong> You can save the decisions already made. The remaining findings stay in the pending review queue.
+                      <strong>{unresolvedCount} finding(s) pending:</strong> The remaining findings have not been approved or rejected. This review will stay in the Pending queue until they are addressed.
                     </span>
                   </div>
                   <button
@@ -1722,6 +1690,12 @@ if (
                   >
                     Jump to Unresolved
                   </button>
+                </div>
+              )}
+
+              {decisionFeedback && (
+                <div role="status" className="p-2 bg-emerald-50 border border-emerald-200 rounded text-xs text-emerald-800">
+                  {decisionFeedback}
                 </div>
               )}
 
@@ -1752,37 +1726,20 @@ if (
                 />
 
                 <button
-                  onClick={() => handleFinalDecision('approved_with_changes')}
-                  disabled={isCompleting || !hasRecordedDecisions}
-                  title={unresolvedCount > 0 ? 'Save reviewed decisions and keep pending findings open' : 'Approve with Changes'}
-                  className="px-3 py-1.5 text-white font-medium text-xs rounded-lg flex items-center gap-1 whitespace-nowrap shadow-xs transition-colors bg-emerald-700 hover:bg-emerald-800 cursor-pointer disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed"
+                  onClick={() => handleFinalDecision('approved_as_is')}
+                  disabled={isCompleting}
+                  title={unresolvedCount > 0 ? 'Save this checkpoint; the remaining findings will stay pending' : 'Approve As-Is'}
+                  className="px-3 py-1.5 text-white font-medium text-xs rounded-lg flex items-center gap-1 whitespace-nowrap shadow-xs transition-colors bg-slate-800 hover:bg-slate-900 cursor-pointer disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed"
                 >
                   <Check className="w-3.5 h-3.5" />
-                  <span>{unresolvedCount > 0 ? 'Save Partial Approval' : 'Approve w/ Changes'}</span>
-                </button>
-
-                <button
-                  onClick={() => handleFinalDecision('approved_as_is')}
-                  disabled={isCompleting || unresolvedCount > 0}
-                  title={unresolvedCount > 0 ? 'Review all findings before approving as-is' : 'Approve As-Is'}
-                  className={`px-3 py-1.5 text-white font-medium text-xs rounded-lg flex items-center gap-1 whitespace-nowrap shadow-xs transition-colors ${
-                    unresolvedCount > 0
-                      ? 'bg-slate-300 cursor-not-allowed text-slate-500'
-                      : 'bg-slate-800 hover:bg-slate-900 cursor-pointer'
-                  }`}
-                >
                   <span>Approve As-Is</span>
                 </button>
 
                 <button
                   onClick={() => handleFinalDecision('rejected')}
-                  disabled={isCompleting || unresolvedCount > 0}
-                  title={unresolvedCount > 0 ? 'Review all findings before rejecting the entire review' : 'Reject Review'}
-                  className={`px-3 py-1.5 text-white font-medium text-xs rounded-lg flex items-center gap-1 whitespace-nowrap shadow-xs transition-colors ${
-                    unresolvedCount > 0
-                      ? 'bg-slate-300 cursor-not-allowed text-slate-500'
-                      : 'bg-rose-700 hover:bg-rose-800 cursor-pointer'
-                  }`}
+                  disabled={isCompleting}
+                  title={unresolvedCount > 0 ? 'Save this checkpoint; the remaining findings will stay pending' : 'Reject Review'}
+                  className="px-3 py-1.5 text-white font-medium text-xs rounded-lg flex items-center gap-1 whitespace-nowrap shadow-xs transition-colors bg-rose-700 hover:bg-rose-800 cursor-pointer disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed"
                 >
                   <XCircle className="w-3.5 h-3.5" />
                   <span>Reject</span>
