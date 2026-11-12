@@ -166,7 +166,7 @@ function AppContent() {
     loadAllData();
   };
 
-  const pendingReviewsList = reviews.filter(r => r.decisionStatus === 'pending');
+  const pendingReviewsList = reviews.filter(r => ['pending', 'partially_approved'].includes(r.decisionStatus));
   const pendingReviewsCount = pendingReviewsList.length;
 
   const unresolvedCount = overviewData?.counts?.unresolvedFindings ?? 
