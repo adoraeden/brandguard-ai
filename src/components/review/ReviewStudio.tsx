@@ -530,7 +530,7 @@ if (
   isAccepted
     ? `bg-emerald-50 text-emerald-950 border border-emerald-300 ${isSelected ? 'ring-2 ring-emerald-500 shadow-xs' : ''}`
     : isRejected
-    ? `bg-slate-100 text-slate-400 line-through ${isSelected ? 'ring-2 ring-[#2457D6]' : ''}`
+  ? `bg-rose-50 text-rose-700 border border-rose-300 line-through ${isSelected ? 'ring-2 ring-rose-500' : ''}`
     : isSelected
     ? 'ring-2 ring-[#2457D6] bg-blue-50 font-medium text-slate-900 shadow-xs'
     : match.finding.severity === 'critical'
@@ -1281,7 +1281,27 @@ if (searchText.trim().length > 0) {
 
 const selectedOccurrence = selectedOccurrences[finding.id];
 const needsOccurrenceChoice = occurrenceMatches.length > 1;
+
+const appliedStart = finding.suggestion?.appliedStart;
+const appliedEnd = finding.suggestion?.appliedEnd;
+const replacedText = finding.suggestion?.replacedText;
+
+const appliedText =
+  suggestionStatus === 'edited'
+    ? finding.suggestion?.customEditedText
+    : finding.suggestion?.suggestedText;
+
+const hasAppliedOccurrence =
+  (suggestionStatus === 'accepted' || suggestionStatus === 'edited') &&
+  appliedStart != null &&
+  appliedEnd != null &&
+  appliedStart >= 0 &&
+  appliedEnd <= documentText.length &&
+  appliedEnd > appliedStart &&
+  documentText.slice(appliedStart, appliedEnd) === appliedText;
+
 const hasValidOccurrence =
+  hasAppliedOccurrence ||
   occurrenceMatches.length === 1 ||
   (needsOccurrenceChoice &&
     selectedOccurrence !== undefined &&
@@ -1352,7 +1372,7 @@ const occurrencePreview = (start: number) => {
 
 {finding.suggestion && (
   <div className="mt-2 mb-3">
-    {occurrenceMatches.length === 0 ? (
+    {occurrenceMatches.length === 0 && !hasAppliedOccurrence ? (
       <p className="text-[11px] text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-2">
         The exact flagged text is no longer present in the current draft.
         Rerun the analysis before applying this suggestion.
@@ -1465,7 +1485,7 @@ const occurrencePreview = (start: number) => {
         <button
           onClick={() => handleFindingDecision(finding.id, 'accepted')}
           disabled={finding.findingDecision === 'accepted'}
-          className="px-2.5 py-1 text-xs font-medium bg-emerald-700 hover:bg-emerald-800 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-2.5 py-1 text-xs font-medium bg-blue-700 hover:bg-blue-800 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {finding.findingDecision === 'accepted' ? '✓ Finding Accepted' : 'Accept Finding'}
         </button>
@@ -1616,7 +1636,11 @@ disabled={!hasValidOccurrence}
                             <button
                               onClick={() => {
                                 setEditingFindingId(finding.id);
-                                setCustomEditText(finding.suggestion?.suggestedText || '');
+                                setCustomEditText(
+  finding.suggestion?.customEditedText ||
+  finding.suggestion?.suggestedText ||
+  ''
+);
                               }}
                               className="px-2.5 py-1 text-xs font-medium border border-slate-200 hover:bg-slate-50 text-slate-700 rounded flex items-center gap-1 transition-colors cursor-pointer"
                             >
