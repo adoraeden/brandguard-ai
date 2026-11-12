@@ -538,7 +538,17 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
       });
     } catch (err: any) {
       console.error('Failed to complete review:', err);
-      setValidationError(err.message || 'Failed to persist review decision.');
+      const message = err instanceof Error ? err.message : '';
+      const backendMissingPartialApproval =
+        isPartialApproval &&
+        /partially_approved/i.test(message) &&
+        /(input should|valid literal|permitted)/i.test(message);
+
+      setValidationError(
+        backendMissingPartialApproval
+          ? 'The connected Render backend is still running an older version that does not accept partial approvals. Deploy the phase-2-1-reviewer-experience branch to the BrandGuard backend service, then retry.'
+          : message || 'Failed to persist review decision.'
+      );
     } finally {
       setIsCompleting(false);
     }
