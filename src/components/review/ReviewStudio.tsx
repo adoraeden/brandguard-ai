@@ -502,17 +502,16 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
       return;
     }
 
-    if (decision === 'approved_with_changes' && unresolvedCount > 0) {
-      // A partial approval is a checkpoint, not final completion.
-      decision = 'partially_approved' as any;
-    }
+    const isPartialApproval = decision === 'approved_with_changes' && unresolvedCount > 0;
+    const decisionToSubmit: 'partially_approved' | 'approved_with_changes' | 'approved_as_is' | 'rejected' =
+      isPartialApproval ? 'partially_approved' : decision;
 
     setIsCompleting(true);
     setValidationError(null);
 
     try {
       const updated = await api.recordDecision(activeReview.id, {
-        completeDecision: decision,
+        completeDecision: decisionToSubmit,
         decisionNotes,
         reviewer: currentUser.name || reviewer,
       });
@@ -520,7 +519,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
       
       // Partial approval is a saved checkpoint: keep the review open and its
       // unresolved findings actionable instead of showing the final completion screen.
-      if (decision === 'partially_approved') {
+      if (isPartialApproval) {
         setCompletionRecord(null);
         setViewMode('results');
         setDecisionNotes('');
@@ -595,9 +594,11 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   // Jump to first unresolved finding
   const handleJumpToFirstUnresolved = () => {
     if (!activeReview) return;
-    const unresolved = activeReview.findings.find(
-      f => !f.suggestion || f.suggestion.status === 'pending'
-    );
+    const unresolved = activeReview.findings.find(f => {
+      if (f.lifecycleStatus === 'resolved') return false;
+      if (f.suggestion) return f.suggestion.status === 'pending';
+      return !['accepted', 'dismissed'].includes(f.findingDecision || '');
+    });
     if (unresolved) {
       setSelectedFindingId(unresolved.id);
       if (findingCardRefs.current[unresolved.id]) {
@@ -1349,8 +1350,14 @@ if (
   // STATE B: FULL-HEIGHT SIDE-BY-SIDE REVIEW RESULTS WORKSPACE
   // ==================================================================
   const unresolvedCount = activeReview.summary.unresolvedFindings;
-  const acceptedCount = activeReview.summary.acceptedSuggestions;
-  const rejectedCount = activeReview.summary.rejectedSuggestions;
+  const acceptedCount = activeReview.summary.acceptedSuggestions +
+    activeReview.findings.filter(f => !f.suggestion && f.findingDecision === 'accepted').length;
+  const rejectedCount = activeReview.summary.rejectedSuggestions +
+    activeReview.findings.filter(f => !f.suggestion && f.findingDecision === 'dismissed').length;
+  const hasRecordedDecisions = activeReview.findings.some(f =>
+    (f.suggestion && ['accepted', 'edited', 'rejected'].includes(f.suggestion.status)) ||
+    (!f.suggestion && ['accepted', 'dismissed'].includes(f.findingDecision || ''))
+  );
   const pendingCount = unresolvedCount;
   const isCompleted = ['approved_with_changes', 'approved_as_is', 'rejected'].includes(activeReview.decisionStatus);
   const deterministicStatus = getDeterministicStatusView(activeReview);
@@ -1664,7 +1671,7 @@ if (
 
                 <button
                   onClick={() => handleFinalDecision('approved_with_changes')}
-                  disabled={isCompleting || (unresolvedCount === 0 && acceptedCount === 0 && rejectedCount === 0)}
+                  disabled={isCompleting || !hasRecordedDecisions}
                   title={unresolvedCount > 0 ? 'Save reviewed decisions and keep pending findings open' : 'Approve with Changes'}
                   className="px-3 py-1.5 text-white font-medium text-xs rounded-lg flex items-center gap-1 whitespace-nowrap shadow-xs transition-colors bg-emerald-700 hover:bg-emerald-800 cursor-pointer disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed"
                 >
@@ -1782,7 +1789,11 @@ if (
                 const CatIcon = catMeta.icon;
                 const suggestionStatus = finding.suggestion?.status || 'pending';
                 const pinNumber = idx + 1;
-                const isPending = suggestionStatus === 'pending';
+                const isPending = finding.lifecycleStatus !== 'resolved' && (
+                  finding.suggestion
+                    ? finding.suggestion.status === 'pending'
+                    : !['accepted', 'dismissed'].includes(finding.findingDecision || '')
+                );
                 const wording = getWordingPresentation(finding);
                 const suggestedReplacement = finding.suggestion?.suggestedText;
                 const appliedReplacement =
