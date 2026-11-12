@@ -1047,6 +1047,15 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
                   <div className="text-slate-700 font-mono text-[11px] mt-0.5">{selectedRecord.data.sourceReference}</div>
                 </div>
 
+                {selectedRecord.data.sourceDocumentId && (
+                  <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-3 space-y-2">
+                    <div className="text-[10px] font-semibold uppercase text-slate-500">Original document provenance</div>
+                    <div className="text-[11px] text-slate-700">{selectedRecord.data.sourcePageNumber ? 'Page ' + selectedRecord.data.sourcePageNumber : 'Page not recorded'}{selectedRecord.data.sourceSectionLabel ? ' · ' + selectedRecord.data.sourceSectionLabel : ''}</div>
+                    {selectedRecord.data.sourceExcerpt && <p className="text-[11px] leading-relaxed text-slate-600">{selectedRecord.data.sourceExcerpt}</p>}
+                    <a href={api.getDocumentDownloadUrl(selectedRecord.data.sourceDocumentId)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 hover:underline"><FileText className="h-3.5 w-3.5" /> Download original source</a>
+                  </div>
+                )}
+
                 {selectedRecord.data.examples && (
                   <div className="space-y-2 pt-2 border-t border-slate-100">
                     <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-[11px]">
@@ -1136,6 +1145,15 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
                     {selectedRecord.data.verificationStatus}
                   </span>
                 </div>
+
+                {selectedRecord.data.sourceDocumentId && (
+                  <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-3 space-y-2">
+                    <div className="text-[10px] font-semibold uppercase text-slate-500">Original document provenance</div>
+                    <div className="text-[11px] text-slate-700">{selectedRecord.data.sourcePageNumber ? 'Page ' + selectedRecord.data.sourcePageNumber : 'Page not recorded'}{selectedRecord.data.sourceSectionLabel ? ' · ' + selectedRecord.data.sourceSectionLabel : ''}</div>
+                    {selectedRecord.data.sourceExcerpt && <p className="text-[11px] leading-relaxed text-slate-600">{selectedRecord.data.sourceExcerpt}</p>}
+                    <a href={api.getDocumentDownloadUrl(selectedRecord.data.sourceDocumentId)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 hover:underline"><FileText className="h-3.5 w-3.5" /> Download original source</a>
+                  </div>
+                )}
               </div>
             )}
 
