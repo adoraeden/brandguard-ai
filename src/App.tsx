@@ -37,6 +37,7 @@ function AppContent() {
 
   // Review Studio Active Document State
   const [activeReview, setActiveReview] = useState<ReviewDocument | null>(null);
+  const [knowledgeFocusId, setKnowledgeFocusId] = useState<string | null>(null);
   const [draftToLoad, setDraftToLoad] = useState<typeof SAMPLE_DOCUMENTS[0] | null>(null);
 
   const [isLoading, setIsLoading] = useState(false);
@@ -234,7 +235,7 @@ function AppContent() {
           )}
 
           {currentTab === 'evidence_ingestion' && (
-            <EvidenceIngestionView onDataChanged={loadAllData} onNavigateToKnowledgeBase={() => handleSelectTab('brand_intelligence')} />
+            <EvidenceIngestionView onDataChanged={loadAllData} onNavigateToKnowledgeBase={(recordId) => { setKnowledgeFocusId(recordId); handleSelectTab('brand_intelligence'); }} />
           )}
 
           {currentTab === 'brand_intelligence' && (
@@ -244,6 +245,8 @@ function AppContent() {
               facts={facts}
               sources={sources}
               onDataChanged={loadAllData}
+              focusRecordId={knowledgeFocusId}
+              onFocusHandled={() => setKnowledgeFocusId(null)}
             />
           )}
 
