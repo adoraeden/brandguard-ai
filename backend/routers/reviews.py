@@ -1,5 +1,7 @@
 
 from datetime import datetime
+import csv
+import io
 import logging
 from uuid import uuid4
 
@@ -13,8 +15,10 @@ from database import (
     DBDecisionAudit,
     DBKnowledgeSource,
     DBReviewDocument,
+    DBIngestedDocument,
     DBReviewFinding,
     DBReviewSuggestion,
+    DBReviewStage,
     DBTerminology,
     get_db,
 )
@@ -26,6 +30,9 @@ from models import (
     ReviewDocumentModel,
     ReviewSummaryModel,
     FindingDecisionRequest,
+    ReviewWorkflowStageCreateRequest,
+    ReviewWorkflowStageDecisionRequest,
+    ReviewWorkflowStageModel,
 )
 from rule_engine import run_python_deterministic_checks
 from storage import (
@@ -481,6 +488,7 @@ def submit_review(
     )
 
     findings = deterministic + contextual_result.findings
+    enrich_finding_evidence(findings, guidelines, facts, sources, db, terminology)
 
     summary = ReviewSummaryModel(
         totalFindings=len(findings),
@@ -529,6 +537,89 @@ def submit_review(
     except Exception:
         db.rollback()
         raise
+
+
+def _normalise_evidence_text(value):
+    return " ".join(str(value or "").casefold().split())
+
+
+def _uploaded_document_id(source_url):
+    prefix = "internal://api/documents/"
+    if not isinstance(source_url, str) or not source_url.startswith(prefix):
+        return None
+    remainder = source_url[len(prefix):]
+    document_id = remainder.split("/", 1)[0].strip()
+    return document_id or None
+
+
+def enrich_finding_evidence(findings, guidelines, facts, sources=None, db=None, terminology=None):
+    """Attach auditable source provenance and conservative claim/evidence statuses."""
+    guideline_by_id = {item.id: item for item in guidelines}
+    fact_by_id = {item.id: item for item in facts}
+    source_by_id = {item.id: item for item in (sources or [])}
+    terminology_by_id = {item.id: item for item in (terminology or [])}
+
+    for finding in findings:
+        record = None
+        record_type = finding.evidenceRecordType
+        record_id = finding.evidenceRecordId
+
+        if record_type == "guideline" and record_id:
+            record = guideline_by_id.get(record_id)
+        elif record_type == "fact" and record_id:
+            record = fact_by_id.get(record_id)
+        elif record_type == "knowledge_source" and record_id:
+            record = source_by_id.get(record_id)
+        elif record_type == "terminology" and record_id:
+            record = terminology_by_id.get(record_id)
+
+        if record is not None:
+            finding.sourceDocumentId = getattr(record, "sourceDocumentId", None)
+            finding.sourcePageNumber = getattr(record, "sourcePageNumber", None)
+            finding.sourceSectionLabel = getattr(record, "sourceSectionLabel", None)
+            finding.sourceExcerpt = getattr(record, "sourceExcerpt", None)
+
+            # Uploaded source documents are represented in the approved catalogue
+            # by a KnowledgeSource record. Resolve its internal URL back to the
+            # stored original and locate the exact cited passage on its source page.
+            if record_type == "knowledge_source":
+                document_id = _uploaded_document_id(getattr(record, "url", None))
+                if document_id:
+                    finding.sourceDocumentId = document_id
+                    if db is not None and finding.evidenceQuote:
+                        document = db.get(DBIngestedDocument, document_id)
+                        quote = _normalise_evidence_text(finding.evidenceQuote)
+                        for page in (getattr(document, "extracted_pages", None) or []):
+                            page_text = _normalise_evidence_text(page.get("text", ""))
+                            if quote and quote in page_text:
+                                finding.sourcePageNumber = page.get("pageNumber")
+                                finding.sourceSectionLabel = page.get("sectionLabel")
+                                finding.sourceExcerpt = finding.evidenceQuote
+                                break
+
+        # A validated contradiction is conflicting. A policy citation is partial
+        # support, not proof that a factual claim itself is true.
+        if finding.category == "direct_contradiction" and record is not None and finding.evidenceQuote:
+            finding.evidenceStatus = "conflicting"
+        elif finding.category == "unsupported_claim" and not record_id:
+            finding.evidenceStatus = "unsupported"
+        elif record_type == "terminology" and record is not None:
+            # A terminology match is traceable to an approved policy entry, but it is
+            # not factual evidence for a product or performance claim.
+            finding.evidenceStatus = "partially_supported"
+        elif record is not None and finding.evidenceQuote:
+            if record_type in ("guideline", "terminology") or finding.category in (
+                "contextual_inconsistency", "potential_issue"
+            ):
+                finding.evidenceStatus = "partially_supported"
+            else:
+                finding.evidenceStatus = "supported"
+        elif record_id and finding.evidenceQuote:
+            finding.evidenceStatus = "partially_supported"
+        elif finding.category == "unsupported_claim":
+            finding.evidenceStatus = "unsupported"
+        else:
+            finding.evidenceStatus = "not_assessed"
 
 
 def _finding_key(detection_method, category, exact_text):
@@ -627,6 +718,7 @@ def rerun_review_analysis(
         )
 
         generated = deterministic + contextual_result.findings
+        enrich_finding_evidence(generated, guidelines, facts, sources, db, terminology)
 
         # Build separate keys for each analysis engine.
         deterministic_keys = {
@@ -727,6 +819,11 @@ def rerun_review_analysis(
                 evidence_record_type=finding.evidenceRecordType,
                 evidence_record_id=finding.evidenceRecordId,
                 evidence_quote=finding.evidenceQuote,
+                evidence_status=finding.evidenceStatus,
+                source_document_id=finding.sourceDocumentId,
+                source_page_number=finding.sourcePageNumber,
+                source_section_label=finding.sourceSectionLabel,
+                source_excerpt=finding.sourceExcerpt,
                 analysis_run_id=run_id,
                 lifecycle_status="active",
             )
@@ -854,7 +951,7 @@ def record_decision(
     if not row:
         raise HTTPException(404, "Review document not found")
 
-    if row.decision_status != "pending" or row.status in ("completed", "archived"):
+    if row.status in ("completed", "archived"):
         raise HTTPException(409, "This review is locked and read-only")
 
     if payload.completeDecision == "pending":
@@ -956,51 +1053,100 @@ def record_decision(
         }
     )
 
-    if payload.completeDecision:
-        if unresolved > 0:
-            row.updated_at = now
-            db.commit()
-
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "error": (
-                        "Cannot finalize review with unresolved findings. "
-                        "Resolve each suggestion or record an accepted/dismissed "
-                        f"finding decision before final sign-off. "
-                        f"({unresolved} finding(s) still unresolved)."
-                    ),
-                    "unresolvedCount": unresolved,
-                    "acceptedCount": row.summary["acceptedSuggestions"],
-                    "rejectedCount": row.summary["rejectedSuggestions"],
-                    "editedCount": row.summary["editedSuggestions"],
-                    "totalFindings": len(active_findings(row.findings)),
-                },
+    if payload.completeDecision == "partially_approved":
+        if unresolved <= 0:
+            raise HTTPException(
+                409,
+                "There are no pending findings. Submit a final approval instead.",
             )
 
-        row.decision_status = payload.completeDecision
-        row.status = "completed"
+        row.decision_status = "partially_approved"
+        row.status = "in_review"
         row.decision_notes = payload.decisionNotes or row.decision_notes
-        row.decided_at = now.isoformat()
-
-        if payload.reviewer:
-            row.reviewer = actor
+        row.decided_at = None
+        row.reviewer = actor
 
         db.add(
             DBDecisionAudit(
                 id=f"aud-{uuid4().hex}",
                 review_id=review_id,
-                action="complete",
+                action="partial_approval",
                 reviewer=actor,
                 previous_value=before,
                 new_value={
                     "decisionStatus": row.decision_status,
                     "status": row.status,
                     "decisionNotes": row.decision_notes,
+                    "acceptedCount": row.summary["acceptedSuggestions"],
+                    "rejectedCount": row.summary["rejectedSuggestions"],
+                    "editedCount": row.summary["editedSuggestions"],
+                    "pendingCount": unresolved,
+                    "totalFindings": len(active_findings(row.findings)),
                 },
                 created_at=now,
             )
         )
+
+    elif payload.completeDecision:
+        if unresolved > 0:
+            # A reviewer checkpoint records the requested action without
+            # closing the review. Unresolved findings remain explicitly pending.
+            row.decision_status = "pending"
+            row.status = "in_review"
+            row.decision_notes = payload.decisionNotes or row.decision_notes
+            row.decided_at = None
+            row.reviewer = actor
+
+            db.add(
+                DBDecisionAudit(
+                    id=f"aud-{uuid4().hex}",
+                    review_id=review_id,
+                    action="decision_checkpoint",
+                    reviewer=actor,
+                    previous_value=before,
+                    new_value={
+                        "checkpointDecision": payload.completeDecision,
+                        "decisionStatus": row.decision_status,
+                        "status": row.status,
+                        "decisionNotes": row.decision_notes,
+                        "acceptedCount": row.summary["acceptedSuggestions"],
+                        "rejectedCount": row.summary["rejectedSuggestions"],
+                        "editedCount": row.summary["editedSuggestions"],
+                        "pendingCount": unresolved,
+                        "totalFindings": len(active_findings(row.findings)),
+                    },
+                    created_at=now,
+                )
+            )
+        else:
+            row.decision_status = payload.completeDecision
+            row.status = "completed"
+            row.decision_notes = payload.decisionNotes or row.decision_notes
+            row.decided_at = now.isoformat()
+
+            if payload.reviewer:
+                row.reviewer = actor
+
+            db.add(
+                DBDecisionAudit(
+                    id=f"aud-{uuid4().hex}",
+                    review_id=review_id,
+                    action="complete",
+                    reviewer=actor,
+                    previous_value=before,
+                    new_value={
+                        "decisionStatus": row.decision_status,
+                        "status": row.status,
+                        "decisionNotes": row.decision_notes,
+                        "acceptedCount": row.summary["acceptedSuggestions"],
+                        "rejectedCount": row.summary["rejectedSuggestions"],
+                        "editedCount": row.summary["editedSuggestions"],
+                        "pendingCount": unresolved,
+                        "totalFindings": len(active_findings(row.findings)),
+                    },
+                    created_at=now,
+                )
+            )
 
     elif unresolved and row.status == "completed":
         row.status = "in_review"
@@ -1038,7 +1184,7 @@ def decide_finding(
     if not row:
         raise HTTPException(404, "Review document not found")
 
-    if row.decision_status != "pending" or row.status in ("completed", "archived"):
+    if row.status in ("completed", "archived"):
         raise HTTPException(409, "This review is locked and read-only")
 
     finding = next(
@@ -1100,6 +1246,147 @@ def decide_finding(
     except Exception:
         db.rollback()
         raise
+
+
+
+def apply_workflow_stage_decision(stages, stage, decision, note, now):
+    if stage.status not in ("in_review", "returned"):
+        raise HTTPException(409, "Only the active or returned stage can receive a decision")
+    if any(item.stage_order < stage.stage_order and item.status != "approved" for item in stages):
+        raise HTTPException(409, "Earlier review stages must be approved first")
+    previous = {"status": stage.status, "decisionNote": stage.decision_note}
+    stage.status = decision
+    stage.decision_note = note
+    stage.updated_at = now
+    stage.completed_at = now if decision in ("approved", "rejected") else None
+    if decision == "approved":
+        next_stage = next((item for item in stages if item.stage_order > stage.stage_order and item.status == "pending"), None)
+        if next_stage:
+            next_stage.status = "in_review"
+            next_stage.updated_at = now
+    return previous
+
+
+def workflow_stage_model(row):
+    return ReviewWorkflowStageModel(
+        id=row.id, reviewId=row.review_id, order=row.stage_order,
+        name=row.name, assignedReviewer=row.assigned_reviewer,
+        status=row.status, decisionNote=row.decision_note,
+        createdBy=row.created_by, createdAt=row.created_at.isoformat() + "Z",
+        updatedAt=row.updated_at.isoformat() + "Z",
+        completedAt=row.completed_at.isoformat() + "Z" if row.completed_at else None,
+    )
+
+
+def next_workflow_stage_status(stages):
+    """Activate a newly appended stage only when no stage is currently in progress."""
+    if not stages:
+        return "in_review"
+    if any(item.status in ("pending", "in_review", "returned") for item in stages):
+        return "pending"
+    if all(item.status == "approved" for item in stages):
+        return "in_review"
+    return "pending"
+
+
+@router.get("/{review_id}/workflow", response_model=list[ReviewWorkflowStageModel])
+def get_review_workflow(review_id: str, db: Session = Depends(get_db)):
+    review = db.get(DBReviewDocument, review_id)
+    if not review:
+        raise HTTPException(404, "Review document not found")
+    rows = db.query(DBReviewStage).filter_by(review_id=review_id).order_by(DBReviewStage.stage_order.asc()).all()
+    return [workflow_stage_model(item) for item in rows]
+
+
+@router.post("/{review_id}/workflow/stages", response_model=ReviewWorkflowStageModel, status_code=201)
+def add_review_workflow_stage(review_id: str, payload: ReviewWorkflowStageCreateRequest, db: Session = Depends(get_db)):
+    review = db.get(DBReviewDocument, review_id)
+    if not review:
+        raise HTTPException(404, "Review document not found")
+    if review.status in ("completed", "archived"):
+        raise HTTPException(409, "Completed reviews cannot be reassigned")
+    name, assigned = payload.name.strip(), payload.assignedReviewer.strip()
+    if not name or not assigned:
+        raise HTTPException(422, "A stage name and assigned reviewer are required")
+    rows = db.query(DBReviewStage).filter_by(review_id=review_id).order_by(DBReviewStage.stage_order.asc()).all()
+    now = datetime.utcnow()
+    actor = (payload.reviewer or review.reviewer or "Human Brand Reviewer").strip()
+    row = DBReviewStage(
+        id=f"stage-{uuid4().hex}", review_id=review_id,
+        stage_order=(rows[-1].stage_order + 1) if rows else 1,
+        name=name, assigned_reviewer=assigned,
+        status=next_workflow_stage_status(rows),
+        created_by=actor, created_at=now, updated_at=now,
+    )
+    db.add(row)
+    db.add(DBDecisionAudit(
+        id=f"aud-{uuid4().hex}", review_id=review_id,
+        action="workflow_stage_assigned", reviewer=actor,
+        previous_value=None,
+        new_value={"stageId": row.id, "order": row.stage_order, "name": name,
+                   "assignedReviewer": assigned, "status": row.status},
+        created_at=now,
+    ))
+    try:
+        db.commit()
+        db.refresh(row)
+        return workflow_stage_model(row)
+    except Exception:
+        db.rollback()
+        raise
+
+
+@router.post("/{review_id}/workflow/stages/{stage_id}/decision", response_model=list[ReviewWorkflowStageModel])
+def decide_review_workflow_stage(review_id: str, stage_id: str, payload: ReviewWorkflowStageDecisionRequest, db: Session = Depends(get_db)):
+    review = db.query(DBReviewDocument).filter(DBReviewDocument.id == review_id).with_for_update().first()
+    if not review:
+        raise HTTPException(404, "Review document not found")
+    if review.status in ("completed", "archived"):
+        raise HTTPException(409, "Completed reviews cannot be changed")
+    stages = db.query(DBReviewStage).filter_by(review_id=review_id).order_by(DBReviewStage.stage_order.asc()).all()
+    stage = next((item for item in stages if item.id == stage_id), None)
+    if not stage:
+        raise HTTPException(404, "Workflow stage not found")
+    actor = (payload.reviewer or stage.assigned_reviewer).strip()
+    if actor.casefold() != stage.assigned_reviewer.casefold():
+        raise HTTPException(403, "Only the assigned reviewer can decide this stage")
+    now = datetime.utcnow()
+    previous = apply_workflow_stage_decision(stages, stage, payload.decision, payload.note, now)
+    db.add(DBDecisionAudit(
+        id=f"aud-{uuid4().hex}", review_id=review_id,
+        action="workflow_stage_" + payload.decision, reviewer=actor,
+        previous_value=previous,
+        new_value={"stageId": stage.id, "stageName": stage.name,
+                   "assignedReviewer": stage.assigned_reviewer,
+                   "status": stage.status, "note": stage.decision_note},
+        created_at=now,
+    ))
+    try:
+        db.commit()
+        return [workflow_stage_model(item) for item in stages]
+    except Exception:
+        db.rollback()
+        raise
+
+
+@router.get("/{review_id}/workflow/export")
+def export_review_workflow(review_id: str, db: Session = Depends(get_db)):
+    review = db.get(DBReviewDocument, review_id)
+    if not review:
+        raise HTTPException(404, "Review document not found")
+    stages = db.query(DBReviewStage).filter_by(review_id=review_id).order_by(DBReviewStage.stage_order.asc()).all()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Review ID", "Review title", "Stage order", "Stage", "Assigned reviewer",
+                     "Status", "Decision note", "Created by", "Created at", "Updated at", "Completed at"])
+    for stage in stages:
+        writer.writerow([review.id, review.title, stage.stage_order, stage.name, stage.assigned_reviewer,
+                         stage.status, stage.decision_note or "", stage.created_by,
+                         stage.created_at.isoformat(), stage.updated_at.isoformat(),
+                         stage.completed_at.isoformat() if stage.completed_at else ""])
+    from fastapi.responses import StreamingResponse
+    return StreamingResponse(iter([output.getvalue()]), media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="review-{review_id}-workflow.csv"'})
 
 
 @router.delete("/{review_id}")

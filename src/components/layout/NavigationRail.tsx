@@ -1,25 +1,17 @@
 import React from 'react';
-import { 
-  LayoutDashboard, 
-  Clock, 
-  FileSearch, 
-  BookOpen, 
-  ClipboardList, 
-  BarChart3, 
-  Building2,
-  Cpu,
-  ChevronRight,
-  ShieldCheck,
-  UserCheck
+import {
+  LayoutDashboard, Clock, FileSearch, BookOpen, ClipboardList,
+  BarChart3, Building2, ShieldCheck
 } from 'lucide-react';
 import { DEMO_USERS, useDemoProfile } from '../../context/DemoProfileContext';
 
-export type NavTab = 
-  | 'overview' 
-  | 'pending_reviews' 
-  | 'review_studio' 
-  | 'brand_intelligence' 
-  | 'decision_archive' 
+export type NavTab =
+  | 'overview'
+  | 'pending_reviews'
+  | 'review_studio'
+  | 'brand_intelligence'
+  | 'evidence_ingestion'
+  | 'decision_archive'
   | 'governance_insights';
 
 interface NavigationRailProps {
@@ -38,185 +30,101 @@ export const NavigationRail: React.FC<NavigationRailProps> = ({
   const { currentUser, selectDemoProfile } = useDemoProfile();
 
   const primaryNav = [
-    {
-      id: 'overview' as NavTab,
-      label: 'Command Centre',
-      icon: LayoutDashboard,
-    },
-    {
-      id: 'pending_reviews' as NavTab,
-      label: 'Pending Reviews',
-      icon: Clock,
-      badge: pendingReviewsCount > 0 ? pendingReviewsCount : undefined,
-      badgeColor: 'bg-amber-100 text-amber-900 border-amber-300',
-    },
-    {
-      id: 'review_studio' as NavTab,
-      label: 'Review Studio',
-      icon: FileSearch,
-      badge: unresolvedCount > 0 ? `${unresolvedCount} pins` : undefined,
-      badgeColor: 'bg-rose-50 text-rose-700 border-rose-200',
-    },
+    { id: 'overview' as NavTab, label: 'Command Centre', icon: LayoutDashboard },
+    { id: 'pending_reviews' as NavTab, label: 'Pending Reviews', icon: Clock, badge: pendingReviewsCount },
+    { id: 'review_studio' as NavTab, label: 'Review Studio', icon: FileSearch, badge: unresolvedCount, suffix: 'open' },
+  ];
+  const secondaryNav = [
+    { id: 'evidence_ingestion' as NavTab, label: 'Evidence Ingestion', icon: FileSearch },
+    { id: 'brand_intelligence' as NavTab, label: 'Brand Intelligence', icon: BookOpen },
+    { id: 'decision_archive' as NavTab, label: 'Decision Ledger', icon: ClipboardList },
+    { id: 'governance_insights' as NavTab, label: 'Governance Insights', icon: BarChart3 },
   ];
 
-  const secondaryNav = [
-    {
-      id: 'brand_intelligence' as NavTab,
-      label: 'Brand Intelligence',
-      icon: BookOpen,
-    },
-    {
-      id: 'decision_archive' as NavTab,
-      label: 'Decision Ledger',
-      icon: ClipboardList,
-    },
-    {
-      id: 'governance_insights' as NavTab,
-      label: 'Governance Insights',
-      icon: BarChart3,
-    },
-  ];
+  const renderItem = (item: typeof primaryNav[number] | typeof secondaryNav[number]) => {
+    const Icon = item.icon;
+    const active = currentTab === item.id;
+    const badge = 'badge' in item ? item.badge : undefined;
+    return (
+      <button
+        key={item.id}
+        type="button"
+        onClick={() => onSelectTab(item.id)}
+        aria-current={active ? 'page' : undefined}
+        aria-label={item.label}
+        title={item.label}
+        className={`group relative flex w-full min-h-11 items-center gap-3 rounded-xl px-3.5 py-2.5 text-left text-sm transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+          active
+            ? 'bg-blue-50 text-blue-700 font-semibold shadow-sm'
+            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950 font-medium'
+        }`}
+      >
+        {active && <span className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-blue-600" />}
+        <Icon className={`h-[18px] w-[18px] shrink-0 ${active ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
+        <span className="min-w-0 flex-1 truncate">{item.label}</span>
+        {typeof badge === 'number' && badge > 0 && (
+          <span className={`min-w-6 rounded-full px-2 py-0.5 text-center text-[11px] font-semibold tabular-nums ${
+            item.id === 'pending_reviews' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-700'
+          }`}>{badge}</span>
+        )}
+      </button>
+    );
+  };
 
   return (
-    <aside className="w-full h-14 md:w-56 md:h-screen bg-white border-t md:border-t-0 md:border-r border-slate-200 flex flex-row md:flex-col justify-between shrink-0 select-none z-20">
-      {/* Top Brand & Workspace Block */}
-      <div className="min-w-0 flex-1 md:flex-none">
-        {/* Brand Header */}
-        <div className="hidden md:block px-4 py-4 border-b border-slate-100">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-md bg-[#2457D6] text-white flex items-center justify-center font-bold text-xs shadow-xs">
-              <ShieldCheck className="w-4 h-4 stroke-[2.2]" />
+    <aside className="z-30 flex h-16 w-full shrink-0 flex-row items-center justify-between border-t border-slate-200 bg-white px-2 shadow-[0_-4px_16px_rgba(15,23,42,0.04)] md:h-screen md:w-[252px] md:flex-col md:items-stretch md:border-r md:border-t-0 md:px-0 md:shadow-[4px_0_24px_rgba(15,23,42,0.025)]">
+      <div className="flex min-w-0 flex-1 items-center md:block md:flex-none">
+        <div className="hidden border-b border-slate-100 px-6 pb-5 pt-6 md:block">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md shadow-blue-600/20">
+              <ShieldCheck className="h-5 w-5" strokeWidth={2.2} />
             </div>
-            <div>
-              <div className="font-semibold text-xs tracking-tight text-slate-900 leading-none">
-                BrandGuard AI
-              </div>
-              <div className="text-[10px] text-slate-400 font-medium mt-0.5">
-                Brand Governance
-              </div>
+            <div className="min-w-0">
+              <div className="text-[15px] font-bold tracking-tight text-slate-950">BrandGuard AI</div>
+              <div className="mt-0.5 text-xs font-medium text-slate-500">Brand governance workspace</div>
             </div>
           </div>
-
-          {/* Active Workspace Pill */}
-          <div className="mt-3 px-2 py-1.5 rounded bg-slate-50 border border-slate-200/80 flex items-center justify-between text-[11px]">
-            <span className="flex items-center gap-1.5 text-slate-700 font-medium truncate">
-              <Building2 className="w-3 h-3 text-[#2457D6] shrink-0" />
+          <div className="mt-5 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+            <span className="flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-700">
+              <Building2 className="h-4 w-4 shrink-0 text-blue-600" />
               <span className="truncate">AuraCloud Tech</span>
             </span>
-            <span className="text-[9px] font-mono font-medium text-slate-500 bg-white border border-slate-200 px-1 rounded">
-              Demo
-            </span>
+            <span className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Demo</span>
           </div>
         </div>
 
-        {/* Navigation Sections */}
-        <div className="h-full md:h-auto px-1 py-1 md:p-2.5 flex md:block gap-1 md:space-y-4 overflow-x-auto">
-          {/* Workspace Group */}
-          <div>
-            <div className="hidden md:block px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-              Workspace
-            </div>
-            <div className="flex md:block gap-1 md:space-y-0.5">
-              {primaryNav.map((item) => {
-                const Icon = item.icon;
-                const isActive = currentTab === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => onSelectTab(item.id)}
-                    aria-label={item.label}
-                    title={item.label}
-                    className={`w-11 h-11 md:w-full md:h-auto shrink-0 justify-center md:justify-between text-left flex items-center px-2.5 py-1.5 rounded text-xs transition-colors cursor-pointer ${
-                      isActive
-                        ? 'bg-blue-50 text-[#2457D6] font-semibold border-l-2 border-[#2457D6]'
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-[#2457D6]' : 'text-slate-400'}`} />
-                      <span className="hidden md:block truncate">{item.label}</span>
-                    </div>
-                    {item.badge !== undefined && (
-                      <span className={`hidden md:inline text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold border ${item.badgeColor || 'bg-slate-100 text-slate-700'}`}>
-                        {item.badge}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Governance & Knowledge Group */}
-          <div>
-            <div className="hidden md:block px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-              Governance
-            </div>
-            <div className="flex md:block gap-1 md:space-y-0.5">
-              {secondaryNav.map((item) => {
-                const Icon = item.icon;
-                const isActive = currentTab === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => onSelectTab(item.id)}
-                    aria-label={item.label}
-                    title={item.label}
-                    className={`w-11 h-11 md:w-full md:h-auto shrink-0 justify-center md:justify-between text-left flex items-center px-2.5 py-1.5 rounded text-xs transition-colors cursor-pointer ${
-                      isActive
-                        ? 'bg-blue-50 text-[#2457D6] font-semibold border-l-2 border-[#2457D6]'
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-[#2457D6]' : 'text-slate-400'}`} />
-                      <span className="hidden md:block truncate">{item.label}</span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
+        <nav aria-label="Main navigation" className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-1 py-1 md:block md:space-y-7 md:px-4 md:py-6">
+          <section className="flex min-w-0 items-center gap-1 md:block md:space-y-1.5">
+            <div className="hidden px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 md:block">Workspace</div>
+            {primaryNav.map(renderItem)}
+          </section>
+          <section className="hidden md:block md:space-y-1.5">
+            <div className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">Governance</div>
+            {secondaryNav.map(renderItem)}
+          </section>
+          <section className="flex items-center gap-1 md:hidden">
+            {secondaryNav.map(renderItem)}
+          </section>
+        </nav>
       </div>
 
-      <label className="md:hidden mx-1 h-11 w-12 shrink-0 rounded-lg border border-slate-200 bg-white flex items-center justify-center" title="Switch demo profile">
-        <span className="sr-only">Select demo profile</span>
-        <select aria-label="Select demo profile" value={currentUser.id} onChange={event => selectDemoProfile(event.target.value)} className="w-full h-full bg-transparent text-center text-[10px] font-semibold text-[#2457D6] focus:outline-none">
-          {DEMO_USERS.map(user => <option key={user.id} value={user.id}>{user.avatarInitials}</option>)}
+      <label className="hidden items-center gap-2 border-t border-slate-100 bg-slate-50/70 px-4 py-4 md:flex">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-blue-100 bg-blue-50 text-xs font-bold text-blue-700">{currentUser.avatarInitials}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-semibold text-slate-800">{currentUser.name}</span>
+          <span className="mt-0.5 block text-xs capitalize text-slate-500">{currentUser.title} · {currentUser.role}</span>
+        </span>
+        <select aria-label="Switch demo profile" value={currentUser.id} onChange={event => selectDemoProfile(event.target.value)} className="max-w-[104px] rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-600">
+          {DEMO_USERS.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
         </select>
       </label>
 
-      {/* Bottom Profile Area with Optional Demo Profile Selector (Requirement 8) */}
-      <div className="hidden md:block p-3 border-t border-slate-100 bg-slate-50/50 space-y-2">
-        <div className="flex items-center justify-between px-1 text-[10px] text-slate-400 font-mono">
-          <span>DEMO PROFILE</span>
-          <span className="capitalize font-semibold text-[#2457D6]">{currentUser.role}</span>
-        </div>
-
-        <div className="p-2 rounded bg-white border border-slate-200 flex items-center justify-between gap-2 shadow-2xs">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="w-6 h-6 rounded bg-blue-100 text-[#2457D6] font-semibold text-[10px] flex items-center justify-center border border-blue-200 shrink-0">
-              {currentUser.avatarInitials}
-            </div>
-            <div className="min-w-0">
-              <div className="text-[11px] font-semibold text-slate-800 truncate leading-none">
-                {currentUser.name}
-              </div>
-              <div className="text-[9px] text-slate-400 truncate mt-0.5">
-                {currentUser.title}
-              </div>
-            </div>
-          </div>
-
-          <label className="inline-flex items-center">
-            <span className="sr-only">Select demo profile</span>
-            <select aria-label="Select demo profile" value={currentUser.id} onChange={event => selectDemoProfile(event.target.value)} className="max-w-28 rounded-md border border-slate-200 bg-white px-1.5 py-1 text-[10px] font-medium text-slate-600 focus:outline-none focus:ring-2 focus:ring-[#2457D6]/30">
-              {DEMO_USERS.map(user => <option key={user.id} value={user.id}>{user.name} · {user.role === 'admin' ? 'Admin' : 'Reviewer'}</option>)}
-            </select>
-          </label>
-        </div>
-      </div>
+      <label className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white md:hidden">
+        <span className="sr-only">Switch demo profile</span>
+        <select aria-label="Switch demo profile" value={currentUser.id} onChange={event => selectDemoProfile(event.target.value)} className="h-full w-full rounded-xl bg-transparent text-center text-[10px] font-semibold text-blue-700">
+          {DEMO_USERS.map(user => <option key={user.id} value={user.id}>{user.avatarInitials}</option>)}
+        </select>
+      </label>
     </aside>
   );
 };

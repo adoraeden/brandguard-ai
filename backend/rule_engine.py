@@ -43,6 +43,9 @@ def run_python_deterministic_checks(
                 explanation=term.explanation,
                 sourceRuleOrTerm=f"Terminology: {term.preferredTerm}",
                 sourceReference=f"Approved Terminology Catalogue §{term.category}",
+                evidenceRecordType='terminology',
+                evidenceRecordId=term.id,
+                evidenceQuote=term.restrictedTerm,
                 detectionMethod='deterministic_rule',
                 confidence='high',
                 suggestion=SuggestionModel(
@@ -114,8 +117,8 @@ def run_python_deterministic_checks(
             'category': 'unsupported_claim',
             'severity': 'high',
             'suggested': '99.95% verified uptime SLA',
-            'explanation': 'Contradicts verified engineering SLA of 99.95% with multi-region failover.',
-            'source': 'Engineering Operational SLA Agreement v4.2, 2026'
+            'explanation': 'This absolute availability claim requires direct support from a current approved SLA. No linked approved fact is attached to this deterministic rule, so verify the claim before publication.',
+            'source': 'No directly linked approved evidence in the current evidence registry'
         },
         {
             'pattern': re.compile(r'(military-grade|unhackable\s*shield|bulletproof\s*security)', re.IGNORECASE),
@@ -123,8 +126,8 @@ def run_python_deterministic_checks(
             'category': 'unsupported_claim',
             'severity': 'high',
             'suggested': 'SOC-2 Type II certified and AES-256 encrypted',
-            'explanation': 'AuraCloud relies on SOC-2 Type II audited controls and AES-256 encryption at rest, not colloquial military-grade claims.',
-            'source': 'Independent Security Audit Report (Grant Thornton, Aug 2026)'
+            'explanation': 'This security superlative requires direct support from a current approved security source. No linked approved fact is attached to this deterministic rule, so verify the claim before publication.',
+            'source': 'No directly linked approved evidence in the current evidence registry'
         },
         {
             'pattern': re.compile(r'(guaranteed\s*regulatory\s*immunity|100%\s*legal\s*immunity)', re.IGNORECASE),
@@ -132,8 +135,8 @@ def run_python_deterministic_checks(
             'category': 'unsupported_claim',
             'severity': 'critical',
             'suggested': 'HIPAA and GDPR compliance support',
-            'explanation': 'Legal violation: platform software cannot confer legal immunity from regulatory audits.',
-            'source': 'Legal & Risk Communications Manual 2026, §5.1'
+            'explanation': 'A claim of guaranteed legal or regulatory immunity is high risk and requires review against approved legal guidance. No linked approved source is attached to this deterministic rule.',
+            'source': 'No directly linked approved evidence in the current evidence registry'
         },
         {
             'pattern': re.compile(r'(cheap\s*unlimited\s*lifetime\s*access|free\s*forever\s*unlimited)', re.IGNORECASE),
@@ -141,8 +144,17 @@ def run_python_deterministic_checks(
             'category': 'exact_violation',
             'severity': 'medium',
             'suggested': 'custom enterprise annual licensing',
-            'explanation': 'Commercial policy dictates annual seat subscriptions. Lifetime tiers do not exist.',
-            'source': 'Commercial Licensing Directory 2026'
+            'explanation': 'This pricing and licensing claim must be checked against the current approved commercial policy. No linked approved fact is attached to this deterministic rule.',
+            'source': 'No directly linked approved evidence in the current evidence registry'
+        },
+        {
+            'pattern': re.compile(r'\bexplainable\s+AI\s+insights\b', re.IGNORECASE),
+            'title': 'Unsubstantiated AI Explainability Claim',
+            'category': 'unsupported_claim',
+            'severity': 'medium',
+            'suggested': None,
+            'explanation': 'The current approved AuraCloud evidence registry does not describe the explainability mechanism, validation trail, or controls behind this claim. Provide approved technical evidence or reword the statement before publication.',
+            'source': 'No directly relevant approved source in the current AuraCloud evidence registry'
         }
     ]
 
@@ -155,6 +167,16 @@ def run_python_deterministic_checks(
             if any(abs((f.startIndex or -1) - start_idx) < 5 for f in findings):
                 continue
 
+            suggestion = None
+            if f_rule.get('suggested'):
+                suggestion = SuggestionModel(
+                    id=f"sug-det-{review_id}-{finding_counter}",
+                    suggestedText=f_rule['suggested'],
+                    rationale=f"Align with verified facts: {f_rule['explanation']}",
+                    authorIntentPreserved="Preserves value proposition grounded in audited facts.",
+                    status='pending'
+                )
+
             finding = ReviewFindingModel(
                 id=f"det-{review_id}-{finding_counter}",
                 reviewId=review_id,
@@ -165,17 +187,13 @@ def run_python_deterministic_checks(
                 startIndex=start_idx,
                 endIndex=end_idx,
                 explanation=f_rule['explanation'],
-                sourceRuleOrTerm=f"Factsheet: {f_rule['title']}",
+                sourceRuleOrTerm=(
+                    "Insufficient Evidence"
+                ),
                 sourceReference=f_rule['source'],
                 detectionMethod='fact_check',
                 confidence='high',
-                suggestion=SuggestionModel(
-                    id=f"sug-det-{review_id}-{finding_counter}",
-                    suggestedText=f_rule['suggested'],
-                    rationale=f"Align with verified facts: {f_rule['explanation']}",
-                    authorIntentPreserved="Preserves value proposition grounded in audited facts.",
-                    status='pending'
-                )
+                suggestion=suggestion
             )
             finding_counter += 1
             findings.append(finding)

@@ -3,7 +3,7 @@ from datetime import datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, create_engine, text
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, LargeBinary, String, Text, create_engine, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 
@@ -24,6 +24,52 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expi
 Base = declarative_base()
 
 
+class DBIngestedDocument(Base):
+    __tablename__ = "ingested_documents"
+    id = Column(String, primary_key=True)
+    filename = Column(String, nullable=False)
+    mime_type = Column(String, nullable=False)
+    size_bytes = Column(Integer, nullable=False)
+    sha256 = Column(String, nullable=False, unique=True, index=True)
+    file_data = Column(LargeBinary, nullable=False)
+    extraction_status = Column(String, nullable=False)
+    extracted_pages = Column(JSONB, nullable=False, default=list)
+    uploaded_by = Column(String, nullable=False)
+    uploaded_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    candidates = relationship("DBEvidenceCandidate", cascade="all, delete-orphan",
+                              order_by="DBEvidenceCandidate.position")
+
+
+class DBEvidenceCandidate(Base):
+    __tablename__ = "evidence_candidates"
+    id = Column(String, primary_key=True)
+    document_id = Column(String, ForeignKey("ingested_documents.id", ondelete="CASCADE"), nullable=False, index=True)
+    position = Column(Integer, nullable=False, default=0)
+    candidate_type = Column(String, nullable=False)
+    title = Column(String, nullable=False)
+    excerpt = Column(Text, nullable=False)
+    page_number = Column(Integer, nullable=True)
+    section_label = Column(String, nullable=True)
+    confidence = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="pending")
+    approved_record_type = Column(String, nullable=True)
+    approved_record_id = Column(String, nullable=True)
+    reviewed_by = Column(String, nullable=True)
+    reviewed_at = Column(String, nullable=True)
+
+
+class DBDocumentAudit(Base):
+    __tablename__ = "document_ingestion_audit"
+    id = Column(String, primary_key=True)
+    document_id = Column(String, ForeignKey("ingested_documents.id", ondelete="CASCADE"), nullable=False, index=True)
+    candidate_id = Column(String, nullable=True)
+    action = Column(String, nullable=False)
+    reviewer = Column(String, nullable=True)
+    previous_value = Column(JSONB, nullable=True)
+    new_value = Column(JSONB, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 class DBBrandGuideline(Base):
     __tablename__ = "brand_guidelines"
     id = Column(String, primary_key=True)
@@ -36,6 +82,10 @@ class DBBrandGuideline(Base):
     last_updated = Column(String, nullable=False)
     approved_example = Column(Text, nullable=True)
     prohibited_example = Column(Text, nullable=True)
+    source_document_id = Column(String, ForeignKey("ingested_documents.id", ondelete="SET NULL"), nullable=True)
+    source_page_number = Column(Integer, nullable=True)
+    source_section_label = Column(String, nullable=True)
+    source_excerpt = Column(Text, nullable=True)
 
 
 class DBTerminology(Base):
@@ -60,6 +110,10 @@ class DBApprovedFact(Base):
     source = Column(String, nullable=False)
     verification_status = Column(String, nullable=False, default="verified")
     last_updated = Column(String, nullable=False)
+    source_document_id = Column(String, ForeignKey("ingested_documents.id", ondelete="SET NULL"), nullable=True)
+    source_page_number = Column(Integer, nullable=True)
+    source_section_label = Column(String, nullable=True)
+    source_excerpt = Column(Text, nullable=True)
 
 
 class DBKnowledgeSource(Base):
@@ -97,6 +151,22 @@ class DBReviewDocument(Base):
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     findings = relationship("DBReviewFinding", cascade="all, delete-orphan", order_by="DBReviewFinding.position")
     audit_history = relationship("DBDecisionAudit", cascade="all, delete-orphan", order_by="DBDecisionAudit.created_at")
+    workflow_stages = relationship("DBReviewStage", cascade="all, delete-orphan", order_by="DBReviewStage.stage_order")
+
+
+class DBReviewStage(Base):
+    __tablename__ = "review_workflow_stages"
+    id = Column(String, primary_key=True)
+    review_id = Column(String, ForeignKey("review_documents.id", ondelete="CASCADE"), nullable=False, index=True)
+    stage_order = Column(Integer, nullable=False)
+    name = Column(String, nullable=False)
+    assigned_reviewer = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="pending")
+    decision_note = Column(Text, nullable=True)
+    created_by = Column(String, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)
 
 
 class DBReviewFinding(Base):
@@ -118,6 +188,11 @@ class DBReviewFinding(Base):
     evidence_record_type = Column(String, nullable=True)
     evidence_record_id = Column(String, nullable=True)
     evidence_quote = Column(Text, nullable=True)
+    evidence_status = Column(String, nullable=True)
+    source_document_id = Column(String, nullable=True)
+    source_page_number = Column(Integer, nullable=True)
+    source_section_label = Column(String, nullable=True)
+    source_excerpt = Column(Text, nullable=True)
     analysis_run_id = Column(String, nullable=True, index=True)
     finding_decision = Column(String, nullable=True)
     finding_decision_reviewer = Column(String, nullable=True)
@@ -172,6 +247,19 @@ def init_db():
     # additive migrations preserve all existing rows and are safe to rerun.
     with engine.begin() as connection:
         connection.execute(text(
+            "ALTER TABLE brand_guidelines ADD COLUMN IF NOT EXISTS source_document_id VARCHAR REFERENCES ingested_documents(id) ON DELETE SET NULL"
+        ))
+        connection.execute(text("ALTER TABLE brand_guidelines ADD COLUMN IF NOT EXISTS source_page_number INTEGER"))
+        connection.execute(text("ALTER TABLE brand_guidelines ADD COLUMN IF NOT EXISTS source_section_label VARCHAR"))
+        connection.execute(text("ALTER TABLE brand_guidelines ADD COLUMN IF NOT EXISTS source_excerpt TEXT"))
+        connection.execute(text("ALTER TABLE evidence_candidates ADD COLUMN IF NOT EXISTS position INTEGER NOT NULL DEFAULT 0"))
+        connection.execute(text(
+            "ALTER TABLE approved_facts ADD COLUMN IF NOT EXISTS source_document_id VARCHAR REFERENCES ingested_documents(id) ON DELETE SET NULL"
+        ))
+        connection.execute(text("ALTER TABLE approved_facts ADD COLUMN IF NOT EXISTS source_page_number INTEGER"))
+        connection.execute(text("ALTER TABLE approved_facts ADD COLUMN IF NOT EXISTS source_section_label VARCHAR"))
+        connection.execute(text("ALTER TABLE approved_facts ADD COLUMN IF NOT EXISTS source_excerpt TEXT"))
+        connection.execute(text(
             "ALTER TABLE review_documents ADD COLUMN IF NOT EXISTS decided_at VARCHAR"
         ))
         connection.execute(text(
@@ -213,6 +301,11 @@ def init_db():
         connection.execute(text(
             "ALTER TABLE review_findings ADD COLUMN IF NOT EXISTS evidence_quote TEXT"
         ))
+        connection.execute(text("ALTER TABLE review_findings ADD COLUMN IF NOT EXISTS evidence_status VARCHAR"))
+        connection.execute(text("ALTER TABLE review_findings ADD COLUMN IF NOT EXISTS source_document_id VARCHAR"))
+        connection.execute(text("ALTER TABLE review_findings ADD COLUMN IF NOT EXISTS source_page_number INTEGER"))
+        connection.execute(text("ALTER TABLE review_findings ADD COLUMN IF NOT EXISTS source_section_label VARCHAR"))
+        connection.execute(text("ALTER TABLE review_findings ADD COLUMN IF NOT EXISTS source_excerpt TEXT"))
         connection.execute(text(
             "ALTER TABLE review_findings ADD COLUMN IF NOT EXISTS analysis_run_id VARCHAR"
         ))

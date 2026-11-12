@@ -4,7 +4,9 @@ import {
   ApprovedFact, 
   KnowledgeSource, 
   ReviewDocument, 
-  GovernanceInsights 
+  ReviewWorkflowStage,
+  GovernanceInsights,
+  IngestedDocument
 } from '../types';
 
 // All application APIs are served by FastAPI. Set VITE_API_BASE_URL to the
@@ -179,6 +181,48 @@ export const api = {
     return res.json();
   },
 
+  // Uploaded source documents and human-reviewed extraction candidates.
+  async getDocuments(): Promise<IngestedDocument[]> {
+    const res = await apiFetch('/api/documents');
+    if (!res.ok) throw new Error(await apiError(res, 'Failed to fetch uploaded documents'));
+    return res.json();
+  },
+
+  getDocumentDownloadUrl(documentId: string): string {
+    return new URL(`/api/documents/${documentId}/download`, `${API_BASE_URL || window.location.origin}/`).toString();
+  },
+
+  async uploadDocument(file: File, uploadedBy: string): Promise<IngestedDocument> {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('uploaded_by', uploadedBy);
+    const res = await apiFetch('/api/documents', { method: 'POST', body: form });
+    if (!res.ok) throw new Error(await apiError(res, 'Failed to upload document'));
+    return res.json();
+  },
+
+  async decideEvidenceCandidate(
+    documentId: string,
+    candidateId: string,
+    payload: {
+      decision: 'approve' | 'reject';
+      recordType?: 'fact' | 'guideline';
+      title?: string;
+      approvedText?: string;
+      category?: string;
+      severity?: 'critical' | 'high' | 'medium' | 'low' | 'informational';
+      reviewer?: string;
+    }
+  ) {
+    const res = await apiFetch(`/api/documents/${documentId}/candidates/${candidateId}/decision`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(await apiError(res, 'Failed to save extracted evidence decision'));
+    return res.json();
+  },
+
   // Reviews
   async getReviews(): Promise<ReviewDocument[]> {
     const res = await apiFetch('/api/reviews');
@@ -190,6 +234,32 @@ export const api = {
     const res = await apiFetch(`/api/reviews/${id}`);
     if (!res.ok) throw new Error('Failed to fetch review document');
     return res.json();
+  },
+
+  async getReviewWorkflow(id: string): Promise<ReviewWorkflowStage[]> {
+    const res = await apiFetch('/api/reviews/' + id + '/workflow');
+    if (!res.ok) throw new Error(await apiError(res, 'Failed to fetch review workflow'));
+    return res.json();
+  },
+
+  async addReviewWorkflowStage(id: string, payload: { name: string; assignedReviewer: string; reviewer?: string }): Promise<ReviewWorkflowStage> {
+    const res = await apiFetch('/api/reviews/' + id + '/workflow/stages', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(await apiError(res, 'Failed to assign review stage'));
+    return res.json();
+  },
+
+  async decideReviewWorkflowStage(id: string, stageId: string, payload: { decision: 'approved' | 'returned' | 'rejected'; note?: string; reviewer?: string }): Promise<ReviewWorkflowStage[]> {
+    const res = await apiFetch('/api/reviews/' + id + '/workflow/stages/' + stageId + '/decision', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(await apiError(res, 'Failed to save workflow stage decision'));
+    return res.json();
+  },
+
+  getReviewWorkflowExportUrl(id: string): string {
+    return new URL('/api/reviews/' + id + '/workflow/export', (API_BASE_URL || window.location.origin) + '/').toString();
   },
 
   async getReviewHistory(id: string): Promise<any[]> {
@@ -231,7 +301,7 @@ export const api = {
       customText?: string;
       occurrenceIndex?: number;
       targetIndex?: number;
-      completeDecision?: 'approved_with_changes' | 'approved_as_is' | 'rejected';
+      completeDecision?: 'partially_approved' | 'approved_with_changes' | 'approved_as_is' | 'rejected';
       decisionNotes?: string;
       reviewer?: string;
     }

@@ -18,7 +18,9 @@ import {
   UserCheck, 
   Pin, 
   Link2, 
-  ChevronRight, 
+  ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Cpu, 
   ArrowLeft,
   ArrowRight,
@@ -35,7 +37,8 @@ import {
   ReviewFinding, 
   ContentType, 
   FindingCategory, 
-  FindingSeverity 
+  FindingSeverity,
+  ReviewWorkflowStage
 } from '../../types';
 import { SAMPLE_DOCUMENTS } from '../../data/mockData';
 import { api } from '../../services/apiClient';
@@ -48,6 +51,7 @@ interface ReviewStudioProps {
   initialDraftToLoad?: typeof SAMPLE_DOCUMENTS[0] | null;
   onNavigateToLedger?: () => void;
   onNavigateToPending?: () => void;
+  onNavigateHome?: () => void;
 }
 
 type AnalysisTone = 'success' | 'warning' | 'error' | 'neutral';
@@ -263,6 +267,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   initialDraftToLoad,
   onNavigateToLedger,
   onNavigateToPending,
+  onNavigateHome,
 }) => {
   const { currentUser } = useDemoProfile();
 
@@ -274,6 +279,11 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   // Dedicated Completion View State (Item 1)
   const [completionRecord, setCompletionRecord] = useState<{
     verdict: 'approved_with_changes' | 'approved_as_is' | 'rejected';
+    document: ReviewDocument;
+  } | null>(null);
+  const [checkpointRecord, setCheckpointRecord] = useState<{
+    decision: 'approved_as_is' | 'rejected';
+    unresolvedCount: number;
     document: ReviewDocument;
   } | null>(null);
 
@@ -290,6 +300,13 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   // Review Results State (State B)
   const [selectedFindingId, setSelectedFindingId] = useState<string | null>(null);
   const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [documentPanePercent, setDocumentPanePercent] = useState(56);
+  const workspaceRef = useRef<HTMLDivElement | null>(null);
+  const resizingWorkspace = useRef(false);
+  const [analysisPanelHeight, setAnalysisPanelHeight] = useState(122);
+  const [analysisPanelCollapsed, setAnalysisPanelCollapsed] = useState(true);
+  const analysisPanelRef = useRef<HTMLDivElement | null>(null);
+  const resizingAnalysisPanel = useRef(false);
   const [showOriginalDiff, setShowOriginalDiff] = useState(false);
   
   // Custom edit state for finding suggestion
@@ -297,10 +314,19 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   const [customEditText, setCustomEditText] = useState('');
   const [selectedOccurrences, setSelectedOccurrences] = useState<Record<string, number>>({});
 
+  const [workflowPanelCollapsed, setWorkflowPanelCollapsed] = useState(true);
+  const [workflowStages, setWorkflowStages] = useState<ReviewWorkflowStage[]>([]);
+  const [workflowStageName, setWorkflowStageName] = useState('');
+  const [workflowAssignee, setWorkflowAssignee] = useState('');
+  const [workflowNote, setWorkflowNote] = useState('');
+  const [workflowError, setWorkflowError] = useState<string | null>(null);
+  const [workflowBusy, setWorkflowBusy] = useState(false);
+
   // Human Final Decision State
   const [decisionNotes, setDecisionNotes] = useState('');
   const [isCompleting, setIsCompleting] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [decisionFeedback, setDecisionFeedback] = useState<string | null>(null);
   const [isRerunningAnalysis, setIsRerunningAnalysis] = useState(false);
   const [rerunFeedback, setRerunFeedback] = useState<{
     kind: 'success' | 'warning' | 'error';
@@ -317,6 +343,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
     pinNumber: number;
     left: number;
     top: number;
+    placement: 'above' | 'below';
   } | null>(null);
 
   useEffect(() => {
@@ -344,9 +371,20 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
     const preview = pinPreviewRef.current;
     if (!pinPreview || !preview) return;
 
-    const padding = 12;
-    const maxTop = window.innerHeight - preview.offsetHeight - padding;
-    const nextTop = Math.max(padding, Math.min(pinPreview.top, maxTop));
+    const padding = 16;
+    const rect = preview.getBoundingClientRect();
+    let nextTop = pinPreview.top;
+
+    if (rect.bottom > window.innerHeight - padding) {
+      nextTop = pinPreview.placement === 'above'
+        ? Math.max(padding + rect.height, pinPreview.top)
+        : Math.max(padding, window.innerHeight - rect.height - padding);
+    }
+    if (rect.top < padding) {
+      nextTop = pinPreview.placement === 'above'
+        ? Math.min(window.innerHeight - padding, pinPreview.top + (padding - rect.top))
+        : padding;
+    }
 
     if (Math.abs(nextTop - pinPreview.top) > 1) {
       setPinPreview(current => current ? { ...current, top: nextTop } : current);
@@ -370,6 +408,43 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
       setValidationError(null);
     }
   }, [activeReview?.id]);
+
+  useEffect(() => {
+    if (!activeReview?.id) { setWorkflowStages([]); return; }
+    let cancelled = false;
+    api.getReviewWorkflow(activeReview.id)
+      .then(stages => { if (!cancelled) { setWorkflowStages(stages); setWorkflowError(null); } })
+      .catch(error => { if (!cancelled) setWorkflowError(error?.message || 'Could not load the staged review workflow.'); });
+    return () => { cancelled = true; };
+  }, [activeReview?.id]);
+
+  const handleAddWorkflowStage = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!activeReview || !workflowStageName.trim() || !workflowAssignee.trim()) return;
+    setWorkflowBusy(true); setWorkflowError(null);
+    try {
+      const created = await api.addReviewWorkflowStage(activeReview.id, {
+        name: workflowStageName.trim(), assignedReviewer: workflowAssignee.trim(), reviewer: currentUser.name,
+      });
+      setWorkflowStages(previous => [...previous, created]);
+      setWorkflowStageName(''); setWorkflowAssignee('');
+    } catch (error: any) {
+      setWorkflowError(error?.message || 'Could not assign this review stage.');
+    } finally { setWorkflowBusy(false); }
+  };
+
+  const handleWorkflowDecision = async (stage: ReviewWorkflowStage, decision: 'approved' | 'returned' | 'rejected') => {
+    if (!activeReview) return;
+    setWorkflowBusy(true); setWorkflowError(null);
+    try {
+      const updated = await api.decideReviewWorkflowStage(activeReview.id, stage.id, {
+        decision, note: workflowNote.trim() || undefined, reviewer: currentUser.name,
+      });
+      setWorkflowStages(updated); setWorkflowNote('');
+    } catch (error: any) {
+      setWorkflowError(error?.message || 'Could not save the stage decision.');
+    } finally { setWorkflowBusy(false); }
+  };
 
   // Load sample draft when provided, unless an existing review is active.
   useEffect(() => {
@@ -433,6 +508,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   ) => {
     if (!activeReview) return;
     setValidationError(null);
+    setDecisionFeedback(null);
 
     try {
       const updated = await api.recordDecision(activeReview.id, {
@@ -461,6 +537,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   const handleFindingDecision = async (findingId: string, decision: 'accepted' | 'dismissed' | 'verification_required') => {
     if (!activeReview) return;
     setValidationError(null);
+    setDecisionFeedback(null);
     try {
       const note = findingDecisionNotes[findingId]?.trim() || undefined;
       const updated = await api.decideFinding(activeReview.id, findingId, decision, note, currentUser.name);
@@ -475,21 +552,15 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
     }
   };
 
-  const handleFinalDecision = async (decision: 'approved_with_changes' | 'approved_as_is' | 'rejected') => {
+  const handleFinalDecision = async (decision: 'approved_as_is' | 'rejected') => {
     if (!activeReview) return;
 
     const unresolvedCount = activeReview.summary.unresolvedFindings;
-    
-    // Strict block: do not allow reviewer to finalise with unresolved findings
-    if (unresolvedCount > 0) {
-      setValidationError(
-        `Finalization blocked: ${unresolvedCount} finding(s) remain unresolved. Every finding must receive an explicit human decision (accept, edit, or reject) before final sign-off.`
-      );
-      return;
-    }
+    const isCheckpoint = unresolvedCount > 0;
 
     setIsCompleting(true);
     setValidationError(null);
+    setDecisionFeedback(null);
 
     try {
       const updated = await api.recordDecision(activeReview.id, {
@@ -498,15 +569,21 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
         reviewer: currentUser.name || reviewer,
       });
       onDecisionUpdated(updated);
-      
-      // Navigate to dedicated completion view
-      setCompletionRecord({
-        verdict: decision,
-        document: updated,
-      });
+
+      if (isCheckpoint) {
+        setCompletionRecord(null);
+        setViewMode('results');
+        setDecisionNotes('');
+        setDecisionFeedback(null);
+        setCheckpointRecord({ decision, unresolvedCount, document: updated });
+        return;
+      }
+
+      setCompletionRecord({ verdict: decision, document: updated });
     } catch (err: any) {
       console.error('Failed to complete review:', err);
-      setValidationError(err.message || 'Failed to persist review decision.');
+      const message = err instanceof Error ? err.message : '';
+      setValidationError(message || 'Failed to persist review decision.');
     } finally {
       setIsCompleting(false);
     }
@@ -568,9 +645,11 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   // Jump to first unresolved finding
   const handleJumpToFirstUnresolved = () => {
     if (!activeReview) return;
-    const unresolved = activeReview.findings.find(
-      f => !f.suggestion || f.suggestion.status === 'pending'
-    );
+    const unresolved = activeReview.findings.find(f => {
+      if (f.lifecycleStatus === 'resolved') return false;
+      if (f.suggestion) return f.suggestion.status === 'pending';
+      return !['accepted', 'dismissed'].includes(f.findingDecision || '');
+    });
     if (unresolved) {
       setSelectedFindingId(unresolved.id);
       if (findingCardRefs.current[unresolved.id]) {
@@ -679,17 +758,20 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
     if (!target) return;
 
     const rect = target.getBoundingClientRect();
-    const width = Math.min(320, window.innerWidth - 24);
+    const width = 320;
     const left = Math.min(
-      Math.max(12, rect.left),
-      Math.max(12, window.innerWidth - width - 12)
+      Math.max(16, rect.left),
+      Math.max(16, window.innerWidth - width - 16)
     );
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const placement = spaceBelow >= 300 || spaceBelow >= rect.top ? 'below' : 'above';
 
     setPinPreview({
       finding,
       pinNumber,
       left,
-      top: rect.bottom + 8,
+      top: placement === 'below' ? rect.bottom + 10 : rect.top - 10,
+      placement,
     });
   };
 
@@ -890,7 +972,10 @@ if (
         style={{
           left: pinPreview.left,
           top: pinPreview.top,
-          width: 'min(20rem, calc(100vw - 1.5rem))',
+          width: '20rem',
+          maxHeight: 'calc(100vh - 2rem)',
+          overflowY: 'auto',
+          transform: pinPreview.placement === 'above' ? 'translateY(-100%)' : undefined,
         }}
         className="pointer-events-none fixed z-[100] rounded-xl border border-slate-300 bg-white p-3 text-left shadow-2xl"
       >
@@ -914,6 +999,15 @@ if (
           <div className="mt-0.5 break-words font-mono text-xs font-semibold leading-relaxed text-rose-950">
             &ldquo;{finding.exactText}&rdquo;
           </div>
+        </div>
+
+        <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-2">
+          <div className="text-[9px] font-bold uppercase tracking-wide text-slate-700">
+            Why this was flagged
+          </div>
+          <p className="mt-1 whitespace-pre-wrap break-words text-[11px] leading-relaxed text-slate-700">
+            {finding.explanation}
+          </p>
         </div>
 
         <p className="mt-2 text-[11px] leading-relaxed text-slate-600">
@@ -969,7 +1063,7 @@ if (
     const isRejected = verdict === 'rejected';
 
     return (
-      <div className="h-[calc(100vh-3rem)] overflow-y-auto p-8 max-w-3xl mx-auto flex flex-col justify-center animate-in fade-in duration-200">
+      <div className="h-full min-h-0 overflow-y-auto p-6 lg:p-8 max-w-4xl mx-auto flex flex-col justify-center animate-in fade-in duration-200">
         <div className="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm space-y-6">
           {/* Status Icon & Header */}
           <div className="flex flex-col items-center text-center space-y-3">
@@ -1105,7 +1199,7 @@ if (
   // ==================================================================
   if (viewMode === 'submission' || !activeReview) {
     return (
-      <div className="h-[calc(100vh-3rem)] overflow-y-auto p-8 max-w-4xl mx-auto space-y-6">
+      <div className="h-full min-h-0 overflow-y-auto p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -1307,85 +1401,30 @@ if (
   // STATE B: FULL-HEIGHT SIDE-BY-SIDE REVIEW RESULTS WORKSPACE
   // ==================================================================
   const unresolvedCount = activeReview.summary.unresolvedFindings;
-  const acceptedCount = activeReview.summary.acceptedSuggestions;
-  const rejectedCount = activeReview.summary.rejectedSuggestions;
-  const isCompleted = activeReview.decisionStatus !== 'pending';
+  const acceptedCount = activeReview.summary.acceptedSuggestions +
+    activeReview.findings.filter(f => !f.suggestion && f.findingDecision === 'accepted').length;
+  const rejectedCount = activeReview.summary.rejectedSuggestions +
+    activeReview.findings.filter(f => !f.suggestion && f.findingDecision === 'dismissed').length;
+  const pendingCount = unresolvedCount;
+  const isCompleted = ['approved_with_changes', 'approved_as_is', 'rejected'].includes(activeReview.decisionStatus);
   const deterministicStatus = getDeterministicStatusView(activeReview);
   const aiStatus = getAiStatusView(activeReview);
   const analysisTone = getHighestAnalysisTone(deterministicStatus.tone, aiStatus.tone);
 
   return (
-    <div className="flex flex-col min-h-[calc(100vh-3rem)] h-auto overflow-y-auto md:h-[calc(100vh-3rem)] md:min-h-0 md:overflow-hidden">
-      {/* 1. Subheader Strip with Prominent Finding Counts (Requirement 11) */}
-      <div className="bg-white border-b border-slate-200 px-6 py-2.5 flex flex-wrap items-center justify-between gap-4 shrink-0 z-10 shadow-2xs">
-        <div className="flex items-center gap-3 min-w-0">
-          <div>
-            <div className="flex items-center gap-2 text-xs text-slate-500">
-              <span className="font-mono text-[#2457D6] font-semibold">{activeReview.id}</span>
-              <span>·</span>
-              <span className="capitalize">{activeReview.contentType.replace(/_/g, ' ')}</span>
-              <span>·</span>
-              <span>Reviewer: <strong className="text-slate-700">{activeReview.reviewer}</strong></span>
-            </div>
-            <h1 className="text-sm font-bold text-slate-900 truncate mt-0.5">
-              {activeReview.title}
-            </h1>
-          </div>
-        </div>
-
-        {/* Status Counters & Prominent Unresolved Display */}
-        <div className="flex flex-wrap items-center justify-end gap-2 text-xs">
-          <div className="flex items-center gap-1.5 font-mono text-slate-600">
-            <span>Total:</span>
-            <span className="font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded">
-              {activeReview.findings.length}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-1.5 font-mono text-emerald-700">
-            <span>Accepted:</span>
-            <span className="font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-              {acceptedCount}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-1.5 font-mono text-rose-700">
-            <span>Rejected:</span>
-            <span className="font-bold bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
-              {rejectedCount}
-            </span>
-          </div>
-
-          {/* Prominent Unresolved Counter */}
-          <div className={`flex items-center gap-1.5 font-mono px-2.5 py-0.5 rounded-full border ${
-            unresolvedCount > 0
-              ? 'bg-amber-50 text-amber-800 border-amber-300 font-bold'
-              : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-          }`}>
-            <span>Unresolved:</span>
-            <span className="underline">{unresolvedCount}</span>
-          </div>
-
-          <span className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full border uppercase ${
-            activeReview.decisionStatus === 'approved_with_changes'
-              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-              : activeReview.decisionStatus === 'approved_as_is'
-              ? 'bg-blue-50 text-blue-800 border-blue-200'
-              : activeReview.decisionStatus === 'rejected'
-              ? 'bg-rose-50 text-rose-800 border-rose-200'
-              : 'bg-amber-50 text-amber-800 border-amber-200'
-          }`}>
-            {activeReview.decisionStatus.replace(/_/g, ' ')}
-          </span>
-
-          <button
-            onClick={() => setViewMode('submission')}
-            className="ml-2 px-2.5 py-1 text-xs border border-slate-200 hover:bg-slate-100 rounded-lg text-slate-700 font-medium transition-colors flex items-center gap-1 cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>New Review</span>
-          </button>
-        </div>
+    <div className="min-h-full flex flex-col">
+      {/* Review summary counters; section title is provided by the shared application header. */}
+      <div className="bg-white border-b border-slate-200 px-5 py-3 flex flex-wrap items-center justify-end gap-3 shrink-0">
+        <div className="flex items-center gap-1.5 font-mono text-slate-600 text-xs"><span>Total:</span><strong className="text-slate-900 bg-slate-100 px-2 py-0.5 rounded">{activeReview.findings.length}</strong></div>
+        <div className="flex items-center gap-1.5 font-mono text-emerald-700 text-xs"><span>Accepted:</span><strong className="bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">{acceptedCount}</strong></div>
+        <div className="flex items-center gap-1.5 font-mono text-rose-700 text-xs"><span>Rejected:</span><strong className="bg-rose-50 px-2 py-0.5 rounded border border-rose-200">{rejectedCount}</strong></div>
+        <div className="flex items-center gap-1.5 font-mono text-amber-700 text-xs"><span>Pending:</span><strong className="bg-amber-50 px-2 py-0.5 rounded border border-amber-200">{pendingCount}</strong></div>
+        <div className={`flex items-center gap-1.5 font-mono px-2.5 py-0.5 rounded-full border text-xs ${unresolvedCount > 0 ? 'bg-amber-50 text-amber-800 border-amber-300 font-bold' : 'bg-emerald-50 text-emerald-800 border-emerald-200'}`}><span>Unresolved:</span><span className="underline">{unresolvedCount}</span></div>
+        <button type="button" onClick={() => setAnalysisPanelCollapsed(value => !value)} aria-expanded={!analysisPanelCollapsed} aria-controls="analysis-checks-panel" className="px-2.5 py-1 text-xs border border-slate-200 hover:bg-slate-100 rounded-lg text-slate-700 font-medium transition-colors flex items-center gap-1">
+          {analysisPanelCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+          <span>{analysisPanelCollapsed ? 'Show Checks' : 'Hide Checks'}</span>
+        </button>
+        <button onClick={() => setViewMode('submission')} className="px-2.5 py-1 text-xs border border-slate-200 hover:bg-slate-100 rounded-lg text-slate-700 font-medium transition-colors flex items-center gap-1"><Plus className="w-3.5 h-3.5" /><span>New Review</span></button>
       </div>
 
       {/* Completed Notice Banner if in read-only completed state */}
@@ -1409,10 +1448,17 @@ if (
         </div>
       )}
 
-      <div className={`mx-4 mt-3 rounded-xl border px-4 py-3 text-xs shadow-2xs ${ANALYSIS_PANEL_TONE_STYLES[analysisTone]}`}>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0 flex-1 space-y-3">
-            <div role="status" aria-live="polite" className="space-y-3">
+      {!analysisPanelCollapsed && (
+        <>
+          <div
+            id="analysis-checks-panel"
+            ref={analysisPanelRef}
+            style={{ height: analysisPanelHeight }}
+            className={`mx-4 mt-2 shrink-0 rounded-lg border px-3 py-2 text-[11px] shadow-2xs overflow-hidden transition-[height] duration-150 ${ANALYSIS_PANEL_TONE_STYLES[analysisTone]}`}
+          >
+        <div className="flex h-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <div role="status" aria-live="polite" className="grid grid-cols-1 lg:grid-cols-2 gap-x-4 gap-y-1">
               {[
                 {
                   title: 'Deterministic checks',
@@ -1447,7 +1493,7 @@ if (
               ))}
             </div>
 
-            <details className="rounded-lg border border-slate-200/80 bg-white/75 px-3 py-2">
+            <details className="rounded-lg border border-slate-200/80 bg-white/75 px-2.5 py-1.5">
               <summary className="cursor-pointer text-[11px] font-semibold text-slate-700">
                 Technical details
               </summary>
@@ -1478,22 +1524,53 @@ if (
             </details>
           </div>
 
-          <button
-            type="button"
-            onClick={handleRerunAnalysis}
-            disabled={isRerunningAnalysis}
-            aria-busy={isRerunningAnalysis}
-            className="inline-flex shrink-0 items-center justify-center gap-2 self-start rounded-xl border-2 border-[#2457D6] bg-[#2457D6] px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:bg-[#1946B8] hover:shadow-lg disabled:cursor-wait disabled:opacity-70 sm:self-auto"
-          >
-            {isRerunningAnalysis ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RotateCcw className="h-4 w-4" />
-            )}
-            {isRerunningAnalysis ? 'Re-running...' : 'Re-run Analysis'}
-          </button>
+          <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
+            <button
+              type="button"
+              onClick={handleRerunAnalysis}
+              disabled={isRerunningAnalysis}
+              aria-busy={isRerunningAnalysis}
+              className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[#2457D6] bg-[#2457D6] px-3 py-2 text-xs font-bold text-white shadow-sm transition-all hover:bg-[#1946B8] disabled:cursor-wait disabled:opacity-70"
+            >
+              {isRerunningAnalysis ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RotateCcw className="h-4 w-4" />
+              )}
+              {isRerunningAnalysis ? 'Re-running...' : 'Re-run Analysis'}
+            </button>
+          </div>
         </div>
-      </div>
+          </div>
+        <div
+          role="separator"
+          aria-label="Resize analysis checks panel vertically"
+          aria-orientation="horizontal"
+          aria-valuemin={76}
+          aria-valuemax={240}
+          aria-valuenow={analysisPanelHeight}
+          tabIndex={0}
+          onPointerDown={(event) => {
+            resizingAnalysisPanel.current = true;
+            event.currentTarget.setPointerCapture(event.pointerId);
+          }}
+          onPointerMove={(event) => {
+            if (!resizingAnalysisPanel.current || !analysisPanelRef.current) return;
+            const top = analysisPanelRef.current.getBoundingClientRect().top;
+            setAnalysisPanelHeight(Math.max(76, Math.min(240, event.clientY - top)));
+          }}
+          onPointerUp={() => { resizingAnalysisPanel.current = false; }}
+          onPointerCancel={() => { resizingAnalysisPanel.current = false; }}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowUp') setAnalysisPanelHeight(value => Math.max(76, value - 8));
+            if (event.key === 'ArrowDown') setAnalysisPanelHeight(value => Math.min(240, value + 8));
+          }}
+          className="mx-4 flex h-2 shrink-0 touch-none cursor-row-resize items-center justify-center rounded-b-md bg-slate-200/70 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+        >
+          <span className="h-0.5 w-12 rounded-full bg-slate-400" />
+        </div>
+        </>
+      )}
       {rerunFeedback && <div
         role={rerunFeedback.kind === 'error' ? 'alert' : 'status'}
         className={`mx-4 mt-2 rounded-lg border px-3 py-2 text-xs ${
@@ -1506,9 +1583,15 @@ if (
       >{rerunFeedback.message}</div>}
 
       {/* 2. Side-by-Side Review Panels: Left Document vs Right Findings */}
-      <div className="flex-1 flex flex-col md:flex-row overflow-visible md:overflow-hidden">
-        {/* LEFT PANEL: Document Workspace (56% width) */}
-        <div className="w-full md:w-[56%] min-h-[55vh] md:min-h-0 border-b md:border-b-0 md:border-r border-slate-200 flex flex-col bg-white overflow-hidden">
+      <div
+        ref={workspaceRef}
+        className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden"
+      >
+        {/* LEFT PANEL: Document Workspace (user-resizable width) */}
+        <div
+          style={{ width: window.innerWidth >= 1024 ? `calc(${documentPanePercent}% - 4px)` : '100%' }}
+          className="w-full lg:w-auto min-w-0 min-h-[42vh] lg:min-h-[calc(100dvh-170px)] lg:max-h-[calc(100dvh-170px)] lg:sticky lg:top-0 lg:self-start border-b lg:border-b-0 lg:border-r border-slate-200 flex flex-col bg-white overflow-hidden"
+        >
           {/* Document Top Bar */}
           <div className="px-6 py-2 bg-slate-50/75 border-b border-slate-200 flex items-center justify-between text-xs">
             <div className="flex items-center gap-2 text-slate-600">
@@ -1531,8 +1614,8 @@ if (
           </div>
 
           {/* Document Text (Independent Scroll) */}
-          <div className="flex-1 p-6 overflow-y-auto font-sans text-sm leading-relaxed bg-white">
-            <div className="max-w-2xl mx-auto space-y-4">
+          <div className="min-h-0 flex-1 p-6 overflow-y-auto font-sans text-sm leading-relaxed bg-white">
+            <div className="max-w-4xl mx-auto w-full space-y-4">
               <div className="text-xs font-mono text-slate-400 border-b border-slate-100 pb-2 flex items-center justify-between">
                 <span>Content Type: {activeReview.contentType.replace(/_/g, ' ')}</span>
                 <span className="flex items-center gap-1.5 text-slate-600">
@@ -1560,14 +1643,14 @@ if (
 
           {/* Human Governance Sign-Off Bar (Requirement 2: Blocks final approval with unresolved findings) */}
           {!isCompleted && (
-            <div className="p-3.5 bg-slate-50 border-t border-slate-200 space-y-2.5 shadow-xs">
+            <div className="sticky bottom-0 z-20 shrink-0 p-3.5 bg-slate-50 border-t border-slate-200 space-y-2.5 shadow-[0_-4px_12px_rgba(15,23,42,0.06)]">
               {/* Unresolved findings warning banner */}
               {unresolvedCount > 0 && (
                 <div className="p-2.5 bg-amber-50/90 border border-amber-300 rounded-lg text-xs text-amber-900 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
                     <span>
-                      <strong>{unresolvedCount} finding(s) unresolved:</strong> Every finding requires an explicit human decision (accept, edit, or reject) before final sign-off.
+                      <strong>{unresolvedCount} finding(s) pending:</strong> The remaining findings have not been approved or rejected. This review will stay in the Pending queue until they are addressed.
                     </span>
                   </div>
                   <button
@@ -1576,6 +1659,12 @@ if (
                   >
                     Jump to Unresolved
                   </button>
+                </div>
+              )}
+
+              {decisionFeedback && (
+                <div role="status" className="p-2 bg-emerald-50 border border-emerald-200 rounded text-xs text-emerald-800">
+                  {decisionFeedback}
                 </div>
               )}
 
@@ -1606,41 +1695,20 @@ if (
                 />
 
                 <button
-                  onClick={() => handleFinalDecision('approved_with_changes')}
-                  disabled={isCompleting || unresolvedCount > 0}
-                  title={unresolvedCount > 0 ? 'Resolve all findings before final approval' : 'Approve with Changes'}
-                  className={`px-3 py-1.5 text-white font-medium text-xs rounded-lg flex items-center gap-1 whitespace-nowrap shadow-xs transition-colors ${
-                    unresolvedCount > 0
-                      ? 'bg-slate-300 cursor-not-allowed text-slate-500'
-                      : 'bg-emerald-700 hover:bg-emerald-800 cursor-pointer'
-                  }`}
+                  onClick={() => handleFinalDecision('approved_as_is')}
+                  disabled={isCompleting}
+                  title={unresolvedCount > 0 ? 'Save this checkpoint; the remaining findings will stay pending' : 'Approve As-Is'}
+                  className="px-3 py-1.5 text-white font-medium text-xs rounded-lg flex items-center gap-1 whitespace-nowrap shadow-xs transition-colors bg-slate-800 hover:bg-slate-900 cursor-pointer disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed"
                 >
                   <Check className="w-3.5 h-3.5" />
-                  <span>Approve w/ Changes</span>
-                </button>
-
-                <button
-                  onClick={() => handleFinalDecision('approved_as_is')}
-                  disabled={isCompleting || unresolvedCount > 0}
-                  title={unresolvedCount > 0 ? 'Resolve all findings before final approval' : 'Approve As-Is'}
-                  className={`px-3 py-1.5 text-white font-medium text-xs rounded-lg flex items-center gap-1 whitespace-nowrap shadow-xs transition-colors ${
-                    unresolvedCount > 0
-                      ? 'bg-slate-300 cursor-not-allowed text-slate-500'
-                      : 'bg-slate-800 hover:bg-slate-900 cursor-pointer'
-                  }`}
-                >
                   <span>Approve As-Is</span>
                 </button>
 
                 <button
                   onClick={() => handleFinalDecision('rejected')}
-                  disabled={isCompleting || unresolvedCount > 0}
-                  title={unresolvedCount > 0 ? 'Resolve all findings before rejecting review' : 'Reject Review'}
-                  className={`px-3 py-1.5 text-white font-medium text-xs rounded-lg flex items-center gap-1 whitespace-nowrap shadow-xs transition-colors ${
-                    unresolvedCount > 0
-                      ? 'bg-slate-300 cursor-not-allowed text-slate-500'
-                      : 'bg-rose-700 hover:bg-rose-800 cursor-pointer'
-                  }`}
+                  disabled={isCompleting}
+                  title={unresolvedCount > 0 ? 'Save this checkpoint; the remaining findings will stay pending' : 'Reject Review'}
+                  className="px-3 py-1.5 text-white font-medium text-xs rounded-lg flex items-center gap-1 whitespace-nowrap shadow-xs transition-colors bg-rose-700 hover:bg-rose-800 cursor-pointer disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed"
                 >
                   <XCircle className="w-3.5 h-3.5" />
                   <span>Reject</span>
@@ -1650,15 +1718,47 @@ if (
           )}
         </div>
 
-        {/* RIGHT PANEL: Findings List & Evidence Actions (44% width) */}
-        <div className="w-full md:w-[44%] min-h-[55vh] md:min-h-0 flex flex-col bg-slate-50/50 overflow-hidden">
+        <div
+          role="separator"
+          aria-label="Resize document and findings panels"
+          aria-orientation="vertical"
+          aria-valuemin={35}
+          aria-valuemax={70}
+          aria-valuenow={documentPanePercent}
+          tabIndex={0}
+          onPointerDown={(event) => {
+            if (window.innerWidth < 1024) return;
+            resizingWorkspace.current = true;
+            event.currentTarget.setPointerCapture(event.pointerId);
+          }}
+          onPointerMove={(event) => {
+            if (!resizingWorkspace.current || !workspaceRef.current) return;
+            const bounds = workspaceRef.current.getBoundingClientRect();
+            const next = Math.round(((event.clientX - bounds.left) / bounds.width) * 100);
+            setDocumentPanePercent(Math.max(35, Math.min(70, next)));
+          }}
+          onPointerUp={() => { resizingWorkspace.current = false; }}
+          onPointerCancel={() => { resizingWorkspace.current = false; }}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowLeft') setDocumentPanePercent(value => Math.max(35, value - 2));
+            if (event.key === 'ArrowRight') setDocumentPanePercent(value => Math.min(70, value + 2));
+          }}
+          className="hidden lg:flex w-2 shrink-0 cursor-col-resize touch-none items-center justify-center bg-slate-100 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+        >
+          <span className="h-10 w-0.5 rounded-full bg-slate-400" />
+        </div>
+        {/* RIGHT PANEL: Findings List & Evidence Actions */}
+        <div
+          style={{ width: window.innerWidth >= 768 ? `calc(${100 - documentPanePercent}% - 4px)` : '100%' }}
+          className="w-full lg:w-auto min-w-0 min-h-[55vh] lg:min-h-0 flex flex-col bg-slate-50/50 overflow-hidden"
+        >
           {/* Findings Filter Bar */}
-          <div className="px-4 py-2 bg-white border-b border-slate-200 flex items-center justify-between text-xs">
-            <div className="flex items-center gap-1.5 font-semibold text-slate-800">
+          <div className="px-4 py-2 bg-white border-b border-slate-200 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2 text-xs">
+            <div className="flex items-center gap-1.5 font-semibold text-slate-800 shrink-0">
               <Filter className="w-3.5 h-3.5 text-[#2457D6]" />
               <span>Evidence Filter:</span>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex flex-wrap items-center gap-1">
               {[
                 { id: 'all', label: 'All' },
                 { id: 'exact_violation', label: 'Exact Rules' },
@@ -1682,6 +1782,42 @@ if (
             </div>
           </div>
 
+          <div className="border-b border-slate-200 bg-white px-4 py-3 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div><h3 className="text-sm font-bold text-slate-900">Collaborative review stages</h3><p className="text-xs text-slate-500">Assign sequential reviewers and record hand-offs.</p></div>
+              <div className="flex items-center gap-3"><a href={api.getReviewWorkflowExportUrl(activeReview.id)} className="text-xs font-semibold text-[#2457D6] underline" target="_blank" rel="noreferrer">Export workflow CSV</a><button type="button" onClick={() => setWorkflowPanelCollapsed(value => !value)} aria-expanded={!workflowPanelCollapsed} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">{workflowPanelCollapsed ? "Show stages" : "Hide stages"}</button></div>
+            </div>
+            {!workflowPanelCollapsed && <>
+            {workflowError && <p role="alert" className="rounded-md bg-rose-50 p-2 text-[10px] text-rose-700">{workflowError}</p>}
+            {workflowStages.length > 0 && <div className="space-y-2">{workflowStages.map(stage => (
+              <div key={stage.id} className="rounded-lg border border-slate-200 p-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-[11px] font-semibold text-slate-800">{stage.order}. {stage.name}</div>
+                  <span className={"rounded-full px-2 py-0.5 text-[9px] font-semibold " + (stage.status === 'approved' ? 'bg-emerald-50 text-emerald-700' : stage.status === 'rejected' ? 'bg-rose-50 text-rose-700' : stage.status === 'in_review' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700')}>{stage.status.replace(/_/g, ' ')}</span>
+                </div>
+                <p className="mt-1 text-[10px] text-slate-500">Assigned to {stage.assignedReviewer}</p>
+                {stage.decisionNote && <p className="mt-1 text-[10px] text-slate-600">Note: {stage.decisionNote}</p>}
+                {stage.assignedReviewer.toLowerCase() === currentUser.name.toLowerCase() && (stage.status === 'in_review' || stage.status === 'returned') && (
+                  <div className="mt-2 space-y-2">
+                    <input value={workflowNote} onChange={event => setWorkflowNote(event.target.value)} placeholder="Decision note (optional)" className="w-full rounded border border-slate-200 px-2 py-1.5 text-[10px]" />
+                    <div className="flex flex-wrap gap-1.5">
+                      <button type="button" disabled={workflowBusy} onClick={() => void handleWorkflowDecision(stage, 'approved')} className="rounded bg-emerald-700 px-2 py-1 text-[10px] font-semibold text-white disabled:opacity-50">Approve stage &amp; hand off</button>
+                      <button type="button" disabled={workflowBusy} onClick={() => void handleWorkflowDecision(stage, 'returned')} className="rounded border border-amber-300 px-2 py-1 text-[10px] font-semibold text-amber-800 disabled:opacity-50">Return for changes</button>
+                      <button type="button" disabled={workflowBusy} onClick={() => void handleWorkflowDecision(stage, 'rejected')} className="rounded border border-rose-200 px-2 py-1 text-[10px] font-semibold text-rose-700 disabled:opacity-50">Reject stage</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}</div>}
+            <form onSubmit={handleAddWorkflowStage} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2">
+              <input value={workflowStageName} onChange={event => setWorkflowStageName(event.target.value)} placeholder="Stage name (e.g. Legal review)" className="min-w-0 rounded border border-slate-200 px-2 py-1.5 text-[10px]" />
+              <input value={workflowAssignee} onChange={event => setWorkflowAssignee(event.target.value)} placeholder="Assign reviewer name" className="min-w-0 rounded border border-slate-200 px-2 py-1.5 text-[10px]" />
+              <button type="submit" disabled={workflowBusy || !workflowStageName.trim() || !workflowAssignee.trim() || isCompleted} className="rounded bg-[#2457D6] px-3 py-1.5 text-[10px] font-semibold text-white disabled:opacity-50">Add stage</button>
+            </form>
+            <p className="text-[9px] text-slate-400">Demo assignments are workflow records, not production authentication or access control.</p>
+            </>}
+          </div>
+
           {/* Findings List (Independent Scroll) */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
             {filteredFindings.length === 0 ? (
@@ -1697,7 +1833,11 @@ if (
                 const CatIcon = catMeta.icon;
                 const suggestionStatus = finding.suggestion?.status || 'pending';
                 const pinNumber = idx + 1;
-                const isPending = suggestionStatus === 'pending';
+                const isPending = finding.lifecycleStatus !== 'resolved' && (
+                  finding.suggestion
+                    ? finding.suggestion.status === 'pending'
+                    : !['accepted', 'dismissed'].includes(finding.findingDecision || '')
+                );
                 const wording = getWordingPresentation(finding);
                 const suggestedReplacement = finding.suggestion?.suggestedText;
                 const appliedReplacement =
@@ -1831,7 +1971,11 @@ const occurrencePreview = (start: number) => {
                           {finding.severity.toUpperCase()}
                         </span>
                         <span className="text-[10px] font-mono px-2 py-0.5 bg-slate-100 text-slate-600 rounded">
-                          {finding.detectionMethod === 'deterministic_rule' ? 'RULE' : 'GEMINI'}
+                          {finding.detectionMethod === 'deterministic_rule'
+                            ? 'RULE'
+                            : finding.detectionMethod === 'fact_check'
+                            ? 'FACT CHECK'
+                            : 'GEMINI'}
                         </span>
                         {finding.analysisRunId && finding.analysisRunId === activeReview.lastAnalysisRunId && (
                           <span className="text-[10px] rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-800">NEW THIS RERUN</span>
@@ -2113,6 +2257,25 @@ const occurrencePreview = (start: number) => {
                               Approved evidence: &ldquo;{finding.evidenceQuote}&rdquo;
                             </blockquote>
                           )}
+                          {finding.evidenceStatus && (
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${finding.evidenceStatus === 'supported' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : (finding.evidenceStatus === 'unsupported' || finding.evidenceStatus === 'conflicting') ? 'border-rose-200 bg-rose-50 text-rose-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+                                Evidence: {finding.evidenceStatus.replace(/_/g, ' ')}
+                              </span>
+                              {finding.sourcePageNumber != null && <span className="text-[10px] text-slate-500">Page {finding.sourcePageNumber}</span>}
+                              {finding.sourceSectionLabel && <span className="text-[10px] text-slate-500">Section: {finding.sourceSectionLabel}</span>}
+                            </div>
+                          )}
+                          {finding.sourceExcerpt && (
+                            <blockquote className="mt-2 rounded-md border border-slate-200 bg-white p-2 text-[11px] leading-relaxed text-slate-600">
+                              Source passage: &ldquo;{finding.sourceExcerpt}&rdquo;
+                            </blockquote>
+                          )}
+                          {finding.sourceDocumentId && (
+                            <a href={api.getDocumentDownloadUrl(finding.sourceDocumentId)} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()} className="mt-2 inline-flex text-[10px] font-semibold text-[#2457D6] underline">
+                              Open original evidence document
+                            </a>
+                          )}
                         </div>
                       )}
                     </div>
@@ -2207,6 +2370,60 @@ const occurrencePreview = (start: number) => {
         </div>
       </div>
       {renderPinPreview()}
+      {checkpointRecord && createPortal(
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/55 p-4">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="checkpoint-dialog-title"
+            aria-describedby="checkpoint-dialog-description"
+            className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl"
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 text-amber-700">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-amber-700">Review checkpoint saved</p>
+                <h2 id="checkpoint-dialog-title" className="mt-1 text-lg font-bold text-slate-900">
+                  This review is still pending
+                </h2>
+                <p id="checkpoint-dialog-description" className="mt-2 text-sm leading-relaxed text-slate-600">
+                  {checkpointRecord.unresolvedCount} finding{checkpointRecord.unresolvedCount === 1 ? '' : 's'} remain unresolved and have not been {checkpointRecord.decision === 'approved_as_is' ? 'approved' : 'rejected'}. The decisions already recorded are saved, but the overall review has not received final approval and remains in the Pending queue.
+                </p>
+                <p className="mt-2 text-xs text-slate-500">
+                  {checkpointRecord.document.title}
+                </p>
+              </div>
+            </div>
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setCheckpointRecord(null);
+                  setViewMode('results');
+                  onNavigateHome?.();
+                }}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                Go to Command Center
+              </button>
+              <button
+                type="button"
+                autoFocus
+                onClick={() => {
+                  setCheckpointRecord(null);
+                  setViewMode('results');
+                }}
+                className="rounded-lg bg-[#2457D6] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#1D4ED8]"
+              >
+                Continue Reviewing
+              </button>
+            </div>
+          </section>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

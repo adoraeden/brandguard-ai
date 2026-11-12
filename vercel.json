@@ -4,11 +4,11 @@
   "rewrites": [
     {
       "source": "/health",
-      "destination": "https://brandguard-fastapi-backend.onrender.com/health"
+      "destination": "https://brandguard-ai-tkr7.onrender.com/health"
     },
     {
       "source": "/api/(.*)",
-      "destination": "https://brandguard-fastapi-backend.onrender.com/api/$1"
+      "destination": "https://brandguard-ai-tkr7.onrender.com/api/$1"
     },
     {
       "source": "/(.*)",

@@ -101,6 +101,7 @@ def _approved_evidence(guidelines, terminology, facts, sources):
     for item in guidelines:
         if item.status == 'active':
             text = '\n'.join(filter(None, [item.description,
+                getattr(item, 'sourceExcerpt', None),
                 (item.examples or {}).get('approved'), (item.examples or {}).get('prohibited')]))
             records.append(ApprovedEvidence(item.id, 'guideline', item.title,
                 item.sourceReference, text, item.category))
@@ -113,8 +114,11 @@ def _approved_evidence(guidelines, terminology, facts, sources):
                 item.category))
     for item in facts:
         if item.verificationStatus in ('verified', 'approved'):
+            evidence_text = '\n'.join(filter(None, [
+                item.statement, getattr(item, 'sourceExcerpt', None)
+            ]))
             records.append(ApprovedEvidence(item.id, 'fact', item.title,
-                f'{item.source} [approved fact {item.id}]', item.statement,
+                f'{item.source} [approved fact {item.id}]', evidence_text,
                 item.category))
     for item in sources:
         if item.status == 'active':

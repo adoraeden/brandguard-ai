@@ -24,7 +24,7 @@ export type SuggestionStatus = 'pending' | 'accepted' | 'edited' | 'rejected';
 
 export type ReviewStatus = 'pending_review' | 'in_review' | 'completed' | 'archived';
 
-export type DecisionStatus = 'pending' | 'approved_with_changes' | 'approved_as_is' | 'rejected';
+export type DecisionStatus = 'pending' | 'partially_approved' | 'approved_with_changes' | 'approved_as_is' | 'rejected';
 
 export type UserRole = 'admin' | 'reviewer';
 
@@ -68,6 +68,11 @@ export interface ReviewFinding {
   evidenceRecordType?: 'guideline' | 'terminology' | 'fact' | 'knowledge_source';
   evidenceRecordId?: string;
   evidenceQuote?: string;
+  evidenceStatus?: 'supported' | 'partially_supported' | 'unsupported' | 'conflicting' | 'not_assessed';
+  sourceDocumentId?: string;
+  sourcePageNumber?: number;
+  sourceSectionLabel?: string;
+  sourceExcerpt?: string;
   analysisRunId?: string;
   lifecycleStatus?: 'active' | 'resolved';
   findingDecision?: 'accepted' | 'dismissed' | 'verification_required';
@@ -77,6 +82,20 @@ export interface ReviewFinding {
   appliedStart?: number | null;
 appliedEnd?: number | null;
 replacedText?: string | null;
+}
+
+export interface ReviewWorkflowStage {
+  id: string;
+  reviewId: string;
+  order: number;
+  name: string;
+  assignedReviewer: string;
+  status: 'pending' | 'in_review' | 'approved' | 'returned' | 'rejected';
+  decisionNote?: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string | null;
 }
 
 export interface ReviewDocument {
@@ -125,6 +144,10 @@ export interface BrandGuideline {
     approved: string;
     prohibited: string;
   };
+  sourceDocumentId?: string | null;
+  sourcePageNumber?: number | null;
+  sourceSectionLabel?: string | null;
+  sourceExcerpt?: string | null;
 }
 
 export interface TerminologyEntry {
@@ -148,6 +171,10 @@ export interface ApprovedFact {
   source: string;
   verificationStatus: 'verified' | 'provisional' | 'needs_revalidation' | 'approved' | 'pending_review' | 'under_review' | 'rejected';
   lastUpdated: string;
+  sourceDocumentId?: string | null;
+  sourcePageNumber?: number | null;
+  sourceSectionLabel?: string | null;
+  sourceExcerpt?: string | null;
 }
 
 export interface KnowledgeSource {
@@ -171,4 +198,35 @@ export interface GovernanceInsights {
   reviewStatistics?: { total: number; completed: number; pending: number; completionRate: number; totalFindings: number; unresolvedFindings: number };
   repeatedTerminology?: { term: string; count: number; category: string }[];
   referenceMismatches?: { type: 'guideline' | 'factsheet'; source: string; count: number }[];
+}
+
+export interface EvidenceCandidate {
+  id: string;
+  documentId: string;
+  candidateType: 'fact' | 'guideline';
+  title: string;
+  excerpt: string;
+  pageNumber?: number | null;
+  sectionLabel?: string | null;
+  confidence: 'low' | 'medium';
+  status: 'pending' | 'approved' | 'rejected';
+  approvedRecordType?: string | null;
+  approvedRecordId?: string | null;
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+}
+
+export interface IngestedDocument {
+  id: string;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+  sha256: string;
+  extractionStatus: 'extracted' | 'extraction_failed';
+  uploadedBy: string;
+  uploadedAt: string;
+  pageCount: number;
+  candidateCount: number;
+  pendingCandidateCount: number;
+  candidates: EvidenceCandidate[];
 }

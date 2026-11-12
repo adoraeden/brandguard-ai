@@ -29,7 +29,7 @@ ContentType = Literal[
 
 SuggestionStatus = Literal['pending', 'accepted', 'edited', 'rejected']
 ReviewStatus = Literal['pending_review', 'in_review', 'completed', 'archived']
-DecisionStatus = Literal['pending', 'approved_with_changes', 'approved_as_is', 'rejected']
+DecisionStatus = Literal['pending', 'partially_approved', 'approved_with_changes', 'approved_as_is', 'rejected']
 AIAnalysisStatus = Literal['completed', 'partial', 'not_configured', 'failed', 'timeout', 'service_failure', 'evidence_validation_failure', 'legacy_unknown']
 DeterministicAnalysisStatus = Literal['completed', 'failed', 'legacy_unknown']
 
@@ -63,6 +63,11 @@ class ReviewFindingModel(BaseModel):
     evidenceRecordType: Optional[Literal['guideline', 'terminology', 'fact', 'knowledge_source']] = None
     evidenceRecordId: Optional[str] = None
     evidenceQuote: Optional[str] = None
+    evidenceStatus: Optional[Literal['supported', 'partially_supported', 'unsupported', 'conflicting', 'not_assessed']] = None
+    sourceDocumentId: Optional[str] = None
+    sourcePageNumber: Optional[int] = None
+    sourceSectionLabel: Optional[str] = None
+    sourceExcerpt: Optional[str] = None
     analysisRunId: Optional[str] = None
     findingDecision: Optional[Literal['accepted', 'dismissed', 'verification_required']] = None
     findingDecisionReviewer: Optional[str] = None
@@ -128,6 +133,11 @@ class BrandGuidelineModel(BaseModel):
     status: Literal['active', 'under_review', 'archived'] = 'active'
     lastUpdated: str
     examples: Optional[dict] = None
+    sourceDocumentId: Optional[str] = None
+    sourcePageNumber: Optional[int] = None
+    sourceSectionLabel: Optional[str] = None
+    sourceExcerpt: Optional[str] = None
+
 
 class TerminologyEntryModel(BaseModel):
     id: str
@@ -148,6 +158,11 @@ class ApprovedFactModel(BaseModel):
     source: str
     verificationStatus: Literal['verified', 'provisional', 'needs_revalidation', 'approved', 'pending_review', 'under_review', 'rejected'] = 'verified'
     lastUpdated: str
+    sourceDocumentId: Optional[str] = None
+    sourcePageNumber: Optional[int] = None
+    sourceSectionLabel: Optional[str] = None
+    sourceExcerpt: Optional[str] = None
+
 
 class KnowledgeSourceModel(BaseModel):
     id: str
@@ -159,6 +174,77 @@ class KnowledgeSourceModel(BaseModel):
     ruleCount: int = 0
     url: Optional[str] = None
     status: Literal['active', 'under_review', 'archived'] = 'active'
+
+class EvidenceCandidateModel(BaseModel):
+    id: str
+    documentId: str
+    candidateType: Literal["fact", "guideline"]
+    title: str
+    excerpt: str
+    pageNumber: Optional[int] = None
+    sectionLabel: Optional[str] = None
+    confidence: Literal["low", "medium"]
+    status: Literal["pending", "approved", "rejected"] = "pending"
+    approvedRecordType: Optional[str] = None
+    approvedRecordId: Optional[str] = None
+    reviewedBy: Optional[str] = None
+    reviewedAt: Optional[str] = None
+
+
+class IngestedDocumentModel(BaseModel):
+    id: str
+    filename: str
+    mimeType: str
+    sizeBytes: int
+    sha256: str
+    extractionStatus: Literal["extracted", "extraction_failed"]
+    uploadedBy: str
+    uploadedAt: str
+    pageCount: int
+    candidateCount: int
+    pendingCandidateCount: int
+    candidates: List[EvidenceCandidateModel] = Field(default_factory=list)
+
+
+class IngestedDocumentDetailModel(IngestedDocumentModel):
+    pages: List[dict] = Field(default_factory=list)
+
+
+class EvidenceCandidateDecisionRequest(BaseModel):
+    decision: Literal["approve", "reject"]
+    recordType: Optional[Literal["fact", "guideline"]] = None
+    title: Optional[str] = Field(default=None, max_length=180)
+    approvedText: Optional[str] = Field(default=None, max_length=5000)
+    category: Optional[str] = None
+    severity: Optional[FindingSeverity] = "medium"
+    reviewer: Optional[str] = None
+
+
+class ReviewWorkflowStageCreateRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=120)
+    assignedReviewer: str = Field(min_length=2, max_length=160)
+    reviewer: Optional[str] = None
+
+
+class ReviewWorkflowStageDecisionRequest(BaseModel):
+    decision: Literal['approved', 'returned', 'rejected']
+    note: Optional[str] = Field(default=None, max_length=2000)
+    reviewer: Optional[str] = None
+
+
+class ReviewWorkflowStageModel(BaseModel):
+    id: str
+    reviewId: str
+    order: int
+    name: str
+    assignedReviewer: str
+    status: Literal['pending', 'in_review', 'approved', 'returned', 'rejected']
+    decisionNote: Optional[str] = None
+    createdBy: str
+    createdAt: str
+    updatedAt: str
+    completedAt: Optional[str] = None
+
 
 class DecisionUpdateRequest(BaseModel):
     findingId: Optional[str] = None

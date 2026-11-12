@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { 
   BookOpen, 
   Search, 
@@ -33,6 +33,8 @@ interface BrandIntelligenceViewProps {
   facts: ApprovedFact[];
   sources: KnowledgeSource[];
   onDataChanged: () => void;
+  focusRecordId?: string | null;
+  onFocusHandled?: () => void;
 }
 
 type KnowledgeCategory = 'all' | 'guidelines' | 'terminology' | 'facts' | 'sources';
@@ -44,6 +46,8 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
   facts,
   sources,
   onDataChanged,
+  focusRecordId,
+  onFocusHandled,
 }) => {
   const { currentUser, isAdmin } = useDemoProfile();
 
@@ -52,7 +56,39 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedRecord, setSelectedRecord] = useState<{ type: string; data: any } | null>(null);
+  const [recentlyApprovedRecord, setRecentlyApprovedRecord] = useState<{ id: string; type: 'fact' | 'guideline' } | null>(null);
+  const focusedKnowledgeRowRef = useRef<HTMLTableRowElement | null>(null);
   
+  useEffect(() => {
+    if (!focusRecordId) return;
+    const approvedFact = facts.find(fact => fact.id === focusRecordId);
+    const approvedGuideline = guidelines.find(guideline => guideline.id === focusRecordId);
+    if (!approvedFact && !approvedGuideline) return;
+
+    const type = approvedFact ? 'fact' : 'guideline';
+    const record = approvedFact || approvedGuideline!;
+    setSelectedCategory(type === 'fact' ? 'facts' : 'guidelines');
+    setSearchQuery('');
+    setStatusFilter('all');
+    setPriorityFilter('all');
+    setSelectedRecord({ type, data: record });
+    setRecentlyApprovedRecord({ id: record.id, type });
+
+    const clearHighlight = window.setTimeout(() => setRecentlyApprovedRecord(null), 9000);
+    return () => window.clearTimeout(clearHighlight);
+  }, [focusRecordId, facts, guidelines]);
+
+  useEffect(() => {
+    if (!focusRecordId || !recentlyApprovedRecord || !focusedKnowledgeRowRef.current) return;
+    const expectedCategory = recentlyApprovedRecord.type === 'fact' ? 'facts' : 'guidelines';
+    if (selectedCategory !== expectedCategory) return;
+    const frame = window.requestAnimationFrame(() => {
+      focusedKnowledgeRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      onFocusHandled?.();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [focusRecordId, selectedCategory, facts.length, guidelines.length, recentlyApprovedRecord, onFocusHandled]);
+
   // Modals for CRUD
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState<{ type: string; data: any } | null>(null);
@@ -466,23 +502,9 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
   const currentCategoryInfo = categories.find(c => c.id === selectedCategory) || categories[0];
 
   return (
-    <div className="page-content flex flex-col h-[calc(100vh-3rem)] min-h-0 overflow-hidden bg-[#F8FAFC]">
+    <div className="page-content flex min-h-full w-full flex-col bg-[#F8FAFC]">
       {/* Purpose Banner & Knowledge Toolbar (Requirement 5) */}
-      <div className="bg-white border-b border-slate-200 px-6 py-2.5 flex flex-wrap items-center justify-between gap-4 shrink-0 shadow-2xs">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-sm font-bold text-slate-900 leading-none">
-              Brand Intelligence Workspace
-            </h1>
-            <span className="text-slate-300">|</span>
-            <span className="text-[11px] text-[#2457D6] font-medium font-mono">
-              Grounding Engine Active
-            </span>
-          </div>
-          <p className="text-[11px] text-slate-500 mt-1">
-            Manage the approved brand rules, terminology, verified claims and reference documents used to evaluate submitted content.
-          </p>
-        </div>
+      <div className="bg-white border-b border-slate-200 px-4 py-2 flex flex-wrap items-center justify-end gap-4 shadow-2xs">
 
         {/* Toolbar Controls */}
         <div className="flex items-center gap-2.5">
@@ -546,7 +568,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
       </div>
 
       {/* Main 3-Column Structured Layout */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex min-h-[calc(100dvh-140px)]">
         {/* 1. LEFT PANEL: Compact Vertical Category Navigation with Explanations */}
         <div className="w-60 bg-white border-r border-slate-200 p-3 flex flex-col justify-between shrink-0">
           <div className="space-y-3">
@@ -617,7 +639,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
         </div>
 
         {/* 2. CENTRE PANEL: Scrollable Tailored Data Table with Row-Level Priority (Requirement 12) */}
-        <div className="flex-1 flex flex-col min-w-0 bg-white overflow-hidden">
+        <div className="flex-1 min-w-0 flex flex-col bg-white">
           {/* Category description header */}
           <div className="px-5 py-2 bg-slate-50/70 border-b border-slate-200 flex items-center justify-between text-xs text-slate-600">
             <span className="font-medium">
@@ -628,7 +650,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
             </span>
           </div>
 
-          <div className="flex-1 min-w-0 overflow-auto">
+          <div className="flex-1 min-h-0 min-w-0 overflow-auto">
             {/* ALL KNOWLEDGE CONSOLIDATED TABLE */}
             {selectedCategory === 'all' && (
               <table className="app-table min-w-[1000px] w-full text-left text-xs border-collapse">
@@ -738,9 +760,12 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
                       return (
                         <tr
                           key={g.id}
+                          ref={g.id === focusRecordId || (recentlyApprovedRecord?.type === 'guideline' && g.id === recentlyApprovedRecord.id) ? focusedKnowledgeRowRef : undefined}
                           onClick={() => setSelectedRecord({ type: 'guideline', data: g })}
-                          className={`hover:bg-slate-50/80 cursor-pointer transition-colors ${
-                            isSelected ? 'bg-blue-50/60 font-medium' : ''
+                          className={`cursor-pointer transition-all duration-500 hover:bg-slate-50/80 ${
+                            g.id === recentlyApprovedRecord?.id && recentlyApprovedRecord.type === 'guideline'
+                              ? 'bg-violet-50 ring-2 ring-inset ring-violet-300'
+                              : isSelected ? 'bg-blue-50/60 font-medium' : ''
                           }`}
                         >
                           <td className="p-3 pl-5 max-w-xs truncate">
@@ -750,6 +775,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
                                 title={`Severity: ${priorityStyle.label}`} 
                               />
                               <span className="font-semibold text-slate-900 truncate">{g.title}</span>
+                              {recentlyApprovedRecord?.type === 'guideline' && g.id === recentlyApprovedRecord.id && <span className="ml-2 rounded-full bg-violet-100 px-2 py-0.5 text-[9px] font-bold uppercase text-violet-800">Recently approved</span>}
                             </div>
                           </td>
 
@@ -887,14 +913,18 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
                       return (
                         <tr
                           key={f.id}
+                          ref={f.id === focusRecordId || (recentlyApprovedRecord?.type === 'fact' && f.id === recentlyApprovedRecord.id) ? focusedKnowledgeRowRef : undefined}
                           onClick={() => setSelectedRecord({ type: 'fact', data: f })}
-                          className={`hover:bg-slate-50/80 cursor-pointer transition-colors ${
-                            isSelected ? 'bg-blue-50/60 font-medium' : ''
+                          className={`cursor-pointer transition-all duration-500 ${
+                            f.id === recentlyApprovedRecord?.id
+                              ? 'bg-emerald-50 ring-2 ring-inset ring-emerald-300'
+                              : isSelected ? 'bg-blue-50/60 font-medium' : 'hover:bg-slate-50/80'
                           }`}
                         >
                           <td className="p-3 pl-5 max-w-xs truncate">
                             <div className="flex items-center gap-2">
                               <span className="font-semibold text-slate-900 truncate">{f.title}</span>
+                              {recentlyApprovedRecord?.type === 'fact' && f.id === recentlyApprovedRecord.id && <span className="shrink-0 rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-700">Recently approved</span>}
                             </div>
                           </td>
 
@@ -1047,6 +1077,15 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
                   <div className="text-slate-700 font-mono text-[11px] mt-0.5">{selectedRecord.data.sourceReference}</div>
                 </div>
 
+                {selectedRecord.data.sourceDocumentId && (
+                  <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-3 space-y-2">
+                    <div className="text-[10px] font-semibold uppercase text-slate-500">Original document provenance</div>
+                    <div className="text-[11px] text-slate-700">{selectedRecord.data.sourcePageNumber ? 'Page ' + selectedRecord.data.sourcePageNumber : 'Page not recorded'}{selectedRecord.data.sourceSectionLabel ? ' · ' + selectedRecord.data.sourceSectionLabel : ''}</div>
+                    {selectedRecord.data.sourceExcerpt && <p className="text-[11px] leading-relaxed text-slate-600">{selectedRecord.data.sourceExcerpt}</p>}
+                    <a href={api.getDocumentDownloadUrl(selectedRecord.data.sourceDocumentId)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 hover:underline"><FileText className="h-3.5 w-3.5" /> Download original source</a>
+                  </div>
+                )}
+
                 {selectedRecord.data.examples && (
                   <div className="space-y-2 pt-2 border-t border-slate-100">
                     <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-[11px]">
@@ -1136,6 +1175,15 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
                     {selectedRecord.data.verificationStatus}
                   </span>
                 </div>
+
+                {selectedRecord.data.sourceDocumentId && (
+                  <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-3 space-y-2">
+                    <div className="text-[10px] font-semibold uppercase text-slate-500">Original document provenance</div>
+                    <div className="text-[11px] text-slate-700">{selectedRecord.data.sourcePageNumber ? 'Page ' + selectedRecord.data.sourcePageNumber : 'Page not recorded'}{selectedRecord.data.sourceSectionLabel ? ' · ' + selectedRecord.data.sourceSectionLabel : ''}</div>
+                    {selectedRecord.data.sourceExcerpt && <p className="text-[11px] leading-relaxed text-slate-600">{selectedRecord.data.sourceExcerpt}</p>}
+                    <a href={api.getDocumentDownloadUrl(selectedRecord.data.sourceDocumentId)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 hover:underline"><FileText className="h-3.5 w-3.5" /> Download original source</a>
+                  </div>
+                )}
               </div>
             )}
 

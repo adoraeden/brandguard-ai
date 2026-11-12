@@ -243,10 +243,13 @@ Cut payroll costs immediately with fully autonomous employee replacement that wo
 Join 45,000 Fortune 500 enterprises who switched to our cheap unlimited lifetime access license.`,
   },
   {
-    title: 'Enterprise Website Hero Copy & Value Proposition',
+    title: 'Enterprise Website Hero Copy — Multi-Finding Stress Test',
     contentType: 'website_copy',
-    draft: `Meet AuraCloud Workspace — the intelligent workflow platform built for modern engineering and compliance teams. 
-Backed by a 99.95% verified uptime SLA and SOC-2 Type II audited security, we empower governance leaders to review communications with deterministic rigor and explainable AI insights.`,
+    draft: `Meet the Aura Cloud App — the next-generation enterprise platform for every team.
+Replace your entire marketing team with fully autonomous AI agents. AuraCloud is a fully autonomous employee replacement for every routine approval workflow.
+Enjoy guaranteed 100% zero downtime, protected by a military-grade unhackable shield that makes every customer record permanently safe.
+Our solution grants guaranteed regulatory immunity across every global audit. Get cheap unlimited lifetime access before this offer disappears.
+Explore our explainable AI insights and let automation make every decision without human review.`,
   },
 ];
 

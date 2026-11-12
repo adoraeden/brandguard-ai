@@ -15,7 +15,11 @@ def guideline_model(row):
         sourceReference=row.source_reference, status=row.status,
         lastUpdated=row.last_updated,
         examples={"approved": row.approved_example, "prohibited": row.prohibited_example}
-        if row.approved_example or row.prohibited_example else None)
+        if row.approved_example or row.prohibited_example else None,
+        sourceDocumentId=getattr(row, "source_document_id", None),
+        sourcePageNumber=getattr(row, "source_page_number", None),
+        sourceSectionLabel=getattr(row, "source_section_label", None),
+        sourceExcerpt=getattr(row, "source_excerpt", None))
 
 
 def guideline_row(model):
@@ -24,7 +28,9 @@ def guideline_row(model):
         source_reference=model.sourceReference, status=model.status,
         last_updated=model.lastUpdated,
         approved_example=(model.examples or {}).get("approved"),
-        prohibited_example=(model.examples or {}).get("prohibited"))
+        prohibited_example=(model.examples or {}).get("prohibited"),
+        source_document_id=model.sourceDocumentId, source_page_number=model.sourcePageNumber,
+        source_section_label=model.sourceSectionLabel, source_excerpt=model.sourceExcerpt)
 
 
 def terminology_model(row):
@@ -46,13 +52,19 @@ def terminology_row(model):
 def fact_model(row):
     return ApprovedFactModel(id=row.id, title=row.title, statement=row.statement,
         category=row.category, source=row.source,
-        verificationStatus=row.verification_status, lastUpdated=row.last_updated)
+        verificationStatus=row.verification_status, lastUpdated=row.last_updated,
+        sourceDocumentId=getattr(row, "source_document_id", None),
+        sourcePageNumber=getattr(row, "source_page_number", None),
+        sourceSectionLabel=getattr(row, "source_section_label", None),
+        sourceExcerpt=getattr(row, "source_excerpt", None))
 
 
 def fact_row(model):
     return DBApprovedFact(id=model.id, title=model.title, statement=model.statement,
         category=model.category, source=model.source,
-        verification_status=model.verificationStatus, last_updated=model.lastUpdated)
+        verification_status=model.verificationStatus, last_updated=model.lastUpdated,
+        source_document_id=model.sourceDocumentId, source_page_number=model.sourcePageNumber,
+        source_section_label=model.sourceSectionLabel, source_excerpt=model.sourceExcerpt)
 
 
 def source_model(row):
@@ -82,6 +94,11 @@ def review_model(row):
             sourceReference=item.source_reference, detectionMethod=item.detection_method,
             confidence=item.confidence, evidenceRecordType=item.evidence_record_type,
             evidenceRecordId=item.evidence_record_id, evidenceQuote=item.evidence_quote,
+            evidenceStatus=getattr(item, 'evidence_status', None),
+            sourceDocumentId=getattr(item, 'source_document_id', None),
+            sourcePageNumber=getattr(item, 'source_page_number', None),
+            sourceSectionLabel=getattr(item, 'source_section_label', None),
+            sourceExcerpt=getattr(item, 'source_excerpt', None),
             analysisRunId=item.analysis_run_id,
             findingDecision=item.finding_decision,
             findingDecisionReviewer=item.finding_decision_reviewer,
@@ -134,6 +151,11 @@ def add_review(session, document):
             source_reference=finding.sourceReference, detection_method=finding.detectionMethod,
             confidence=finding.confidence, evidence_record_type=finding.evidenceRecordType,
             evidence_record_id=finding.evidenceRecordId, evidence_quote=finding.evidenceQuote,
+            evidence_status=finding.evidenceStatus,
+            source_document_id=finding.sourceDocumentId,
+            source_page_number=finding.sourcePageNumber,
+            source_section_label=finding.sourceSectionLabel,
+            source_excerpt=finding.sourceExcerpt,
             analysis_run_id=finding.analysisRunId, finding_decision=finding.findingDecision,
             finding_decision_reviewer=finding.findingDecisionReviewer,
             finding_decision_at=finding.findingDecisionAt,

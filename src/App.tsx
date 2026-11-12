@@ -4,6 +4,7 @@ import { TopHeader } from './components/layout/TopHeader';
 import { OverviewView } from './components/overview/OverviewView';
 import { ReviewStudio } from './components/review/ReviewStudio';
 import { BrandIntelligenceView } from './components/intelligence/BrandIntelligenceView';
+import { EvidenceIngestionView } from './components/intelligence/EvidenceIngestionView';
 import { DecisionArchiveView } from './components/archive/DecisionArchiveView';
 import { GovernanceInsightsView } from './components/insights/GovernanceInsightsView';
 import { PendingReviewsView } from './components/pending/PendingReviewsView';
@@ -36,6 +37,7 @@ function AppContent() {
 
   // Review Studio Active Document State
   const [activeReview, setActiveReview] = useState<ReviewDocument | null>(null);
+  const [knowledgeFocusId, setKnowledgeFocusId] = useState<string | null>(null);
   const [draftToLoad, setDraftToLoad] = useState<typeof SAMPLE_DOCUMENTS[0] | null>(null);
 
   const [isLoading, setIsLoading] = useState(false);
@@ -166,7 +168,7 @@ function AppContent() {
     loadAllData();
   };
 
-  const pendingReviewsList = reviews.filter(r => r.decisionStatus === 'pending');
+  const pendingReviewsList = reviews.filter(r => ['pending', 'partially_approved'].includes(r.decisionStatus));
   const pendingReviewsCount = pendingReviewsList.length;
 
   const unresolvedCount = overviewData?.counts?.unresolvedFindings ?? 
@@ -182,22 +184,16 @@ function AppContent() {
         pendingReviewsCount={pendingReviewsCount}
       />
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col h-[calc(100dvh-3.5rem)] md:h-screen min-w-0 overflow-hidden">
-        {/* Top Header */}
+      {/* Main Content Area: the whole workspace scrolls; only the navigation rail stays fixed */}
+      <div className="flex-1 min-w-0 min-h-0 overflow-y-auto bg-[#F8FAFC]">
         <TopHeader
           currentTab={currentTab}
           onNewReviewClick={handleStartNewReview}
-          documentTitle={activeReview?.title}
+          onRefreshClick={loadAllData}
+          isRefreshing={isLoading}
           activeFindingsCount={activeReview?.summary?.unresolvedFindings}
         />
-
-        {/* Viewport View Switcher */}
-        <main className={`flex-1 bg-[#F8FAFC] ${
-          currentTab === 'review_studio' || currentTab === 'brand_intelligence' 
-            ? 'overflow-hidden flex flex-col' 
-            : 'overflow-y-auto'
-        }`}>
+        <main className="min-h-[calc(100dvh-76px)] bg-[#F8FAFC]">
           {currentTab === 'overview' && (
             <OverviewView
               overviewData={overviewData}
@@ -226,7 +222,12 @@ function AppContent() {
               initialDraftToLoad={draftToLoad}
               onNavigateToLedger={() => handleSelectTab('decision_archive')}
               onNavigateToPending={() => handleSelectTab('pending_reviews')}
+              onNavigateHome={() => handleSelectTab('overview')}
             />
+          )}
+
+          {currentTab === 'evidence_ingestion' && (
+            <EvidenceIngestionView onDataChanged={loadAllData} onNavigateToKnowledgeBase={(recordId) => { setKnowledgeFocusId(recordId); handleSelectTab('brand_intelligence'); }} />
           )}
 
           {currentTab === 'brand_intelligence' && (
@@ -236,6 +237,8 @@ function AppContent() {
               facts={facts}
               sources={sources}
               onDataChanged={loadAllData}
+              focusRecordId={knowledgeFocusId}
+              onFocusHandled={() => setKnowledgeFocusId(null)}
             />
           )}
 
