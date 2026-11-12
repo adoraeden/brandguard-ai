@@ -992,53 +992,64 @@ def record_decision(
 
     elif payload.completeDecision:
         if unresolved > 0:
-            row.updated_at = now
-            db.commit()
-
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "error": (
-                        "A final decision requires all findings to be resolved. "
-                        "Use partial approval to save reviewed changes while "
-                        f"leaving {unresolved} finding(s) pending."
-                    ),
-                    "unresolvedCount": unresolved,
-                    "acceptedCount": row.summary["acceptedSuggestions"],
-                    "rejectedCount": row.summary["rejectedSuggestions"],
-                    "editedCount": row.summary["editedSuggestions"],
-                    "totalFindings": len(active_findings(row.findings)),
-                },
-            )
-
-        row.decision_status = payload.completeDecision
-        row.status = "completed"
-        row.decision_notes = payload.decisionNotes or row.decision_notes
-        row.decided_at = now.isoformat()
-
-        if payload.reviewer:
+            # A reviewer checkpoint records the requested action without
+            # closing the review. Unresolved findings remain explicitly pending.
+            row.decision_status = "pending"
+            row.status = "in_review"
+            row.decision_notes = payload.decisionNotes or row.decision_notes
+            row.decided_at = None
             row.reviewer = actor
 
-        db.add(
-            DBDecisionAudit(
-                id=f"aud-{uuid4().hex}",
-                review_id=review_id,
-                action="complete",
-                reviewer=actor,
-                previous_value=before,
-                new_value={
-                    "decisionStatus": row.decision_status,
-                    "status": row.status,
-                    "decisionNotes": row.decision_notes,
-                    "acceptedCount": row.summary["acceptedSuggestions"],
-                    "rejectedCount": row.summary["rejectedSuggestions"],
-                    "editedCount": row.summary["editedSuggestions"],
-                    "pendingCount": unresolved,
-                    "totalFindings": len(active_findings(row.findings)),
-                },
-                created_at=now,
+            db.add(
+                DBDecisionAudit(
+                    id=f"aud-{uuid4().hex}",
+                    review_id=review_id,
+                    action="decision_checkpoint",
+                    reviewer=actor,
+                    previous_value=before,
+                    new_value={
+                        "checkpointDecision": payload.completeDecision,
+                        "decisionStatus": row.decision_status,
+                        "status": row.status,
+                        "decisionNotes": row.decision_notes,
+                        "acceptedCount": row.summary["acceptedSuggestions"],
+                        "rejectedCount": row.summary["rejectedSuggestions"],
+                        "editedCount": row.summary["editedSuggestions"],
+                        "pendingCount": unresolved,
+                        "totalFindings": len(active_findings(row.findings)),
+                    },
+                    created_at=now,
+                )
             )
-        )
+        else:
+            row.decision_status = payload.completeDecision
+            row.status = "completed"
+            row.decision_notes = payload.decisionNotes or row.decision_notes
+            row.decided_at = now.isoformat()
+
+            if payload.reviewer:
+                row.reviewer = actor
+
+            db.add(
+                DBDecisionAudit(
+                    id=f"aud-{uuid4().hex}",
+                    review_id=review_id,
+                    action="complete",
+                    reviewer=actor,
+                    previous_value=before,
+                    new_value={
+                        "decisionStatus": row.decision_status,
+                        "status": row.status,
+                        "decisionNotes": row.decision_notes,
+                        "acceptedCount": row.summary["acceptedSuggestions"],
+                        "rejectedCount": row.summary["rejectedSuggestions"],
+                        "editedCount": row.summary["editedSuggestions"],
+                        "pendingCount": unresolved,
+                        "totalFindings": len(active_findings(row.findings)),
+                    },
+                    created_at=now,
+                )
+            )
 
     elif unresolved and row.status == "completed":
         row.status = "in_review"
