@@ -78,5 +78,12 @@ class EvidenceTraceabilityTests(unittest.TestCase):
         self.assertEqual(item.sourceExcerpt, quote)
 
 
+    def test_terminology_finding_resolves_approved_policy_entry_without_claiming_fact_support(self):
+        item = finding("exact_violation", "terminology", "term-1")
+        term = SimpleNamespace(id="term-1", term="AuraCloud App", approvedReplacement="AuraCloud Workspace")
+        enrich_finding_evidence([item], [], [], terminology=[term])
+        self.assertEqual(item.evidenceStatus, "partially_supported")
+
+
 if __name__ == "__main__":
     unittest.main()
