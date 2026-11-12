@@ -1,5 +1,7 @@
 
 from datetime import datetime
+import csv
+import io
 import logging
 from uuid import uuid4
 
@@ -15,6 +17,7 @@ from database import (
     DBReviewDocument,
     DBReviewFinding,
     DBReviewSuggestion,
+    DBReviewStage,
     DBTerminology,
     get_db,
 )
@@ -26,6 +29,9 @@ from models import (
     ReviewDocumentModel,
     ReviewSummaryModel,
     FindingDecisionRequest,
+    ReviewWorkflowStageCreateRequest,
+    ReviewWorkflowStageDecisionRequest,
+    ReviewWorkflowStageModel,
 )
 from rule_engine import run_python_deterministic_checks
 from storage import (
@@ -1184,6 +1190,133 @@ def decide_finding(
     except Exception:
         db.rollback()
         raise
+
+
+
+def workflow_stage_model(row):
+    return ReviewWorkflowStageModel(
+        id=row.id, reviewId=row.review_id, order=row.stage_order,
+        name=row.name, assignedReviewer=row.assigned_reviewer,
+        status=row.status, decisionNote=row.decision_note,
+        createdBy=row.created_by, createdAt=row.created_at.isoformat() + "Z",
+        updatedAt=row.updated_at.isoformat() + "Z",
+        completedAt=row.completed_at.isoformat() + "Z" if row.completed_at else None,
+    )
+
+
+@router.get("/{review_id}/workflow", response_model=list[ReviewWorkflowStageModel])
+def get_review_workflow(review_id: str, db: Session = Depends(get_db)):
+    review = db.get(DBReviewDocument, review_id)
+    if not review:
+        raise HTTPException(404, "Review document not found")
+    rows = db.query(DBReviewStage).filter_by(review_id=review_id).order_by(DBReviewStage.stage_order.asc()).all()
+    return [workflow_stage_model(item) for item in rows]
+
+
+@router.post("/{review_id}/workflow/stages", response_model=ReviewWorkflowStageModel, status_code=201)
+def add_review_workflow_stage(review_id: str, payload: ReviewWorkflowStageCreateRequest, db: Session = Depends(get_db)):
+    review = db.get(DBReviewDocument, review_id)
+    if not review:
+        raise HTTPException(404, "Review document not found")
+    if review.status in ("completed", "archived"):
+        raise HTTPException(409, "Completed reviews cannot be reassigned")
+    name, assigned = payload.name.strip(), payload.assignedReviewer.strip()
+    if not name or not assigned:
+        raise HTTPException(422, "A stage name and assigned reviewer are required")
+    rows = db.query(DBReviewStage).filter_by(review_id=review_id).order_by(DBReviewStage.stage_order.asc()).all()
+    now = datetime.utcnow()
+    actor = (payload.reviewer or review.reviewer or "Human Brand Reviewer").strip()
+    row = DBReviewStage(
+        id=f"stage-{uuid4().hex}", review_id=review_id,
+        stage_order=(rows[-1].stage_order + 1) if rows else 1,
+        name=name, assigned_reviewer=assigned,
+        status="in_review" if not rows else "pending",
+        created_by=actor, created_at=now, updated_at=now,
+    )
+    db.add(row)
+    db.add(DBDecisionAudit(
+        id=f"aud-{uuid4().hex}", review_id=review_id,
+        action="workflow_stage_assigned", reviewer=actor,
+        previous_value=None,
+        new_value={"stageId": row.id, "order": row.stage_order, "name": name,
+                   "assignedReviewer": assigned, "status": row.status},
+        created_at=now,
+    ))
+    try:
+        db.commit()
+        db.refresh(row)
+        return workflow_stage_model(row)
+    except Exception:
+        db.rollback()
+        raise
+
+
+@router.post("/{review_id}/workflow/stages/{stage_id}/decision", response_model=list[ReviewWorkflowStageModel])
+def decide_review_workflow_stage(review_id: str, stage_id: str, payload: ReviewWorkflowStageDecisionRequest, db: Session = Depends(get_db)):
+    review = db.query(DBReviewDocument).filter(DBReviewDocument.id == review_id).with_for_update().first()
+    if not review:
+        raise HTTPException(404, "Review document not found")
+    if review.status in ("completed", "archived"):
+        raise HTTPException(409, "Completed reviews cannot be changed")
+    stages = db.query(DBReviewStage).filter_by(review_id=review_id).order_by(DBReviewStage.stage_order.asc()).all()
+    stage = next((item for item in stages if item.id == stage_id), None)
+    if not stage:
+        raise HTTPException(404, "Workflow stage not found")
+    if stage.status not in ("in_review", "returned"):
+        raise HTTPException(409, "Only the active or returned stage can receive a decision")
+    if any(item.stage_order < stage.stage_order and item.status != "approved" for item in stages):
+        raise HTTPException(409, "Earlier review stages must be approved first")
+    actor = (payload.reviewer or stage.assigned_reviewer).strip()
+    if actor.casefold() != stage.assigned_reviewer.casefold():
+        raise HTTPException(403, "Only the assigned reviewer can decide this stage")
+    now = datetime.utcnow()
+    previous = {"status": stage.status, "decisionNote": stage.decision_note}
+    stage.status = payload.decision
+    stage.decision_note = payload.note
+    stage.updated_at = now
+    stage.completed_at = now if payload.decision in ("approved", "rejected") else None
+    if payload.decision == "approved":
+        next_stage = next((item for item in stages if item.stage_order > stage.stage_order and item.status == "pending"), None)
+        if next_stage:
+            next_stage.status = "in_review"
+            next_stage.updated_at = now
+    elif payload.decision == "returned":
+        stage.completed_at = None
+    db.add(DBDecisionAudit(
+        id=f"aud-{uuid4().hex}", review_id=review_id,
+        action="workflow_stage_" + payload.decision, reviewer=actor,
+        previous_value=previous,
+        new_value={"stageId": stage.id, "stageName": stage.name,
+                   "assignedReviewer": stage.assigned_reviewer,
+                   "status": stage.status, "note": stage.decision_note},
+        created_at=now,
+    ))
+    try:
+        db.commit()
+        return [workflow_stage_model(item) for item in stages]
+    except Exception:
+        db.rollback()
+        raise
+
+
+@router.get("/{review_id}/workflow/export")
+def export_review_workflow(review_id: str, db: Session = Depends(get_db)):
+    review = db.get(DBReviewDocument, review_id)
+    if not review:
+        raise HTTPException(404, "Review document not found")
+    stages = db.query(DBReviewStage).filter_by(review_id=review_id).order_by(DBReviewStage.stage_order.asc()).all()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Review ID", "Review title", "Stage order", "Stage", "Assigned reviewer",
+                     "Status", "Decision note", "Created by", "Created at", "Updated at", "Completed at"])
+    for stage in stages:
+        writer.writerow([review.id, review.title, stage.stage_order, stage.name, stage.assigned_reviewer,
+                         stage.status, stage.decision_note or "", stage.created_by,
+                         stage.created_at.isoformat(), stage.updated_at.isoformat(),
+                         stage.completed_at.isoformat() if stage.completed_at else ""])
+    from fastapi.responses import StreamingResponse
+    return StreamingResponse(iter([output.getvalue()]), media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="review-{review_id}-workflow.csv"'})
 
 
 @router.delete("/{review_id}")

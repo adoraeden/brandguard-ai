@@ -220,6 +220,32 @@ class EvidenceCandidateDecisionRequest(BaseModel):
     reviewer: Optional[str] = None
 
 
+class ReviewWorkflowStageCreateRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=120)
+    assignedReviewer: str = Field(min_length=2, max_length=160)
+    reviewer: Optional[str] = None
+
+
+class ReviewWorkflowStageDecisionRequest(BaseModel):
+    decision: Literal['approved', 'returned', 'rejected']
+    note: Optional[str] = Field(default=None, max_length=2000)
+    reviewer: Optional[str] = None
+
+
+class ReviewWorkflowStageModel(BaseModel):
+    id: str
+    reviewId: str
+    order: int
+    name: str
+    assignedReviewer: str
+    status: Literal['pending', 'in_review', 'approved', 'returned', 'rejected']
+    decisionNote: Optional[str] = None
+    createdBy: str
+    createdAt: str
+    updatedAt: str
+    completedAt: Optional[str] = None
+
+
 class DecisionUpdateRequest(BaseModel):
     findingId: Optional[str] = None
     suggestionAction: Optional[Literal['accept', 'reject', 'edit', 'reset']] = None

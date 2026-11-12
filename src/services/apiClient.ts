@@ -4,6 +4,7 @@ import {
   ApprovedFact, 
   KnowledgeSource, 
   ReviewDocument, 
+  ReviewWorkflowStage,
   GovernanceInsights,
   IngestedDocument
 } from '../types';
@@ -233,6 +234,32 @@ export const api = {
     const res = await apiFetch(`/api/reviews/${id}`);
     if (!res.ok) throw new Error('Failed to fetch review document');
     return res.json();
+  },
+
+  async getReviewWorkflow(id: string): Promise<ReviewWorkflowStage[]> {
+    const res = await apiFetch('/api/reviews/' + id + '/workflow');
+    if (!res.ok) throw new Error(await apiError(res, 'Failed to fetch review workflow'));
+    return res.json();
+  },
+
+  async addReviewWorkflowStage(id: string, payload: { name: string; assignedReviewer: string; reviewer?: string }): Promise<ReviewWorkflowStage> {
+    const res = await apiFetch('/api/reviews/' + id + '/workflow/stages', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(await apiError(res, 'Failed to assign review stage'));
+    return res.json();
+  },
+
+  async decideReviewWorkflowStage(id: string, stageId: string, payload: { decision: 'approved' | 'returned' | 'rejected'; note?: string; reviewer?: string }): Promise<ReviewWorkflowStage[]> {
+    const res = await apiFetch('/api/reviews/' + id + '/workflow/stages/' + stageId + '/decision', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(await apiError(res, 'Failed to save workflow stage decision'));
+    return res.json();
+  },
+
+  getReviewWorkflowExportUrl(id: string): string {
+    return new URL('/api/reviews/' + id + '/workflow/export', (API_BASE_URL || window.location.origin) + '/').toString();
   },
 
   async getReviewHistory(id: string): Promise<any[]> {

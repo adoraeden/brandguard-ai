@@ -84,6 +84,20 @@ appliedEnd?: number | null;
 replacedText?: string | null;
 }
 
+export interface ReviewWorkflowStage {
+  id: string;
+  reviewId: string;
+  order: number;
+  name: string;
+  assignedReviewer: string;
+  status: 'pending' | 'in_review' | 'approved' | 'returned' | 'rejected';
+  decisionNote?: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string | null;
+}
+
 export interface ReviewDocument {
   id: string;
   title: string;
