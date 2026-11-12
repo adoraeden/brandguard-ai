@@ -122,5 +122,33 @@ class EvidenceTraceabilityTests(unittest.TestCase):
         self.assertEqual(item.evidenceStatus, "unsupported")
 
 
+    def test_uploaded_approved_fact_keeps_exact_document_provenance(self):
+        quote = "The service provides a 99.95% verified uptime SLA."
+        item = finding("direct_contradiction", "fact", "fact-uploaded", quote)
+        fact = SimpleNamespace(
+            id="fact-uploaded", sourceDocumentId="doc-uploaded",
+            sourcePageNumber=2, sourceSectionLabel="Availability",
+            sourceExcerpt=quote,
+        )
+        enrich_finding_evidence([item], [], [fact])
+        self.assertEqual(item.evidenceStatus, "conflicting")
+        self.assertEqual(item.sourceDocumentId, "doc-uploaded")
+        self.assertEqual(item.sourcePageNumber, 2)
+        self.assertEqual(item.sourceSectionLabel, "Availability")
+        self.assertEqual(item.sourceExcerpt, quote)
+
+    def test_approved_guideline_is_not_misrepresented_as_factual_proof(self):
+        item = finding("contextual_inconsistency", "guideline", "guide-uploaded", "Use measured claims.")
+        guideline = SimpleNamespace(
+            id="guide-uploaded", sourceDocumentId="doc-guide",
+            sourcePageNumber=1, sourceSectionLabel="Claims",
+            sourceExcerpt="All measurable claims must cite approved evidence.",
+        )
+        enrich_finding_evidence([item], [guideline], [])
+        self.assertEqual(item.evidenceStatus, "partially_supported")
+        self.assertEqual(item.sourceDocumentId, "doc-guide")
+        self.assertEqual(item.sourcePageNumber, 1)
+        self.assertEqual(item.sourceExcerpt, "All measurable claims must cite approved evidence.")
+
 if __name__ == "__main__":
     unittest.main()
