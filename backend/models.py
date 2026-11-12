@@ -29,7 +29,7 @@ ContentType = Literal[
 
 SuggestionStatus = Literal['pending', 'accepted', 'edited', 'rejected']
 ReviewStatus = Literal['pending_review', 'in_review', 'completed', 'archived']
-DecisionStatus = Literal['pending', 'approved_with_changes', 'approved_as_is', 'rejected']
+DecisionStatus = Literal['pending', 'partially_approved', 'approved_with_changes', 'approved_as_is', 'rejected']
 AIAnalysisStatus = Literal['completed', 'partial', 'not_configured', 'failed', 'timeout', 'service_failure', 'evidence_validation_failure', 'legacy_unknown']
 DeterministicAnalysisStatus = Literal['completed', 'failed', 'legacy_unknown']
 
