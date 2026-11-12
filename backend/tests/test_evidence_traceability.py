@@ -108,5 +108,19 @@ class EvidenceTraceabilityTests(unittest.TestCase):
         self.assertEqual(findings[0].evidenceStatus, "partially_supported")
 
 
+    def test_hardcoded_high_risk_rule_does_not_invent_approved_source(self):
+        findings = run_python_deterministic_checks(
+            "Our platform guarantees 100% zero downtime.",
+            [], [], [], "review-unlinked-claim"
+        )
+        self.assertEqual(len(findings), 1)
+        item = findings[0]
+        self.assertEqual(item.sourceRuleOrTerm, "Insufficient Evidence")
+        self.assertIn("No directly linked approved evidence", item.sourceReference)
+        self.assertIsNone(item.evidenceRecordId)
+        enrich_finding_evidence(findings, [], [])
+        self.assertEqual(item.evidenceStatus, "unsupported")
+
+
 if __name__ == "__main__":
     unittest.main()
