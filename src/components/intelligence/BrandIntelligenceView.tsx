@@ -502,23 +502,9 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
   const currentCategoryInfo = categories.find(c => c.id === selectedCategory) || categories[0];
 
   return (
-    <div className="page-content flex h-full w-full min-h-0 flex-col overflow-hidden bg-[#F8FAFC]">
+    <div className="page-content flex min-h-full w-full flex-col bg-[#F8FAFC]">
       {/* Purpose Banner & Knowledge Toolbar (Requirement 5) */}
-      <div className="bg-white border-b border-slate-200 px-6 py-2.5 flex flex-wrap items-center justify-between gap-4 shrink-0 shadow-2xs">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-sm font-bold text-slate-900 leading-none">
-              Brand Intelligence Workspace
-            </h1>
-            <span className="text-slate-300">|</span>
-            <span className="text-[11px] text-[#2457D6] font-medium font-mono">
-              Grounding Engine Active
-            </span>
-          </div>
-          <p className="text-[11px] text-slate-500 mt-1">
-            Manage the approved brand rules, terminology, verified claims and reference documents used to evaluate submitted content.
-          </p>
-        </div>
+      <div className="bg-white border-b border-slate-200 px-4 py-2 flex flex-wrap items-center justify-end gap-4 shadow-2xs">
 
         {/* Toolbar Controls */}
         <div className="flex items-center gap-2.5">
@@ -582,7 +568,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
       </div>
 
       {/* Main 3-Column Structured Layout */}
-      <div className="flex-1 min-h-0 flex overflow-hidden">
+      <div className="flex min-h-[calc(100dvh-140px)]">
         {/* 1. LEFT PANEL: Compact Vertical Category Navigation with Explanations */}
         <div className="w-60 bg-white border-r border-slate-200 p-3 flex flex-col justify-between shrink-0">
           <div className="space-y-3">
@@ -653,7 +639,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
         </div>
 
         {/* 2. CENTRE PANEL: Scrollable Tailored Data Table with Row-Level Priority (Requirement 12) */}
-        <div className="flex-1 min-h-0 flex flex-col min-w-0 bg-white overflow-hidden">
+        <div className="flex-1 min-w-0 flex flex-col bg-white">
           {/* Category description header */}
           <div className="px-5 py-2 bg-slate-50/70 border-b border-slate-200 flex items-center justify-between text-xs text-slate-600">
             <span className="font-medium">
@@ -778,7 +764,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
                           onClick={() => setSelectedRecord({ type: 'guideline', data: g })}
                           className={`cursor-pointer transition-all duration-500 hover:bg-slate-50/80 ${
                             g.id === recentlyApprovedRecord?.id && recentlyApprovedRecord.type === 'guideline'
-                              ? 'bg-emerald-50 ring-2 ring-inset ring-emerald-300'
+                              ? 'bg-violet-50 ring-2 ring-inset ring-violet-300'
                               : isSelected ? 'bg-blue-50/60 font-medium' : ''
                           }`}
                         >
@@ -789,7 +775,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
                                 title={`Severity: ${priorityStyle.label}`} 
                               />
                               <span className="font-semibold text-slate-900 truncate">{g.title}</span>
-                              {recentlyApprovedRecord?.type === 'guideline' && g.id === recentlyApprovedRecord.id && <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-bold uppercase text-emerald-800">Recently approved</span>}
+                              {recentlyApprovedRecord?.type === 'guideline' && g.id === recentlyApprovedRecord.id && <span className="ml-2 rounded-full bg-violet-100 px-2 py-0.5 text-[9px] font-bold uppercase text-violet-800">Recently approved</span>}
                             </div>
                           </td>
 
@@ -938,7 +924,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
                           <td className="p-3 pl-5 max-w-xs truncate">
                             <div className="flex items-center gap-2">
                               <span className="font-semibold text-slate-900 truncate">{f.title}</span>
-                              {f.id === recentlyApprovedFactId && <span className="shrink-0 rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-700">Recently approved</span>}
+                              {recentlyApprovedRecord?.type === 'fact' && f.id === recentlyApprovedRecord.id && <span className="shrink-0 rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-700">Recently approved</span>}
                             </div>
                           </td>
 
