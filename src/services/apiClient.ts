@@ -231,7 +231,7 @@ export const api = {
       customText?: string;
       occurrenceIndex?: number;
       targetIndex?: number;
-      completeDecision?: 'approved_with_changes' | 'approved_as_is' | 'rejected';
+      completeDecision?: 'partially_approved' | 'approved_with_changes' | 'approved_as_is' | 'rejected';
       decisionNotes?: string;
       reviewer?: string;
     }
