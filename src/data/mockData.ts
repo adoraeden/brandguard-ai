@@ -246,8 +246,7 @@ Join 45,000 Fortune 500 enterprises who switched to our cheap unlimited lifetime
     title: 'Enterprise Website Hero Copy & Value Proposition',
     contentType: 'website_copy',
     draft: `Meet AuraCloud Workspace — the intelligent workflow platform built for modern engineering and compliance teams.
-Backed by a 99.95% verified uptime SLA and SOC-2 Type II audited security, we empower governance leaders to review communications with deterministic rigor and explainable AI insights.
-Our unhackable shield guarantees regulatory immunity across every global audit.`,
+Backed by a 99.95% verified uptime SLA and SOC-2 Type II audited security, we empower governance leaders to review communications with deterministic rigor and explainable AI insights.`,
   },
 ];
 
