@@ -1398,6 +1398,12 @@ if (
               {rejectedCount}
             </span>
           </div>
+          <div className="flex items-center gap-1.5 font-mono text-amber-700">
+            <span>Pending:</span>
+            <span className="font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+              {pendingCount}
+            </span>
+          </div>
 
           {/* Prominent Unresolved Counter */}
           <div className={`flex items-center gap-1.5 font-mono px-2.5 py-0.5 rounded-full border ${
@@ -1416,9 +1422,11 @@ if (
               ? 'bg-blue-50 text-blue-800 border-blue-200'
               : activeReview.decisionStatus === 'rejected'
               ? 'bg-rose-50 text-rose-800 border-rose-200'
+              : activeReview.decisionStatus === 'partially_approved'
+              ? 'bg-indigo-50 text-indigo-800 border-indigo-200'
               : 'bg-amber-50 text-amber-800 border-amber-200'
           }`}>
-            {activeReview.decisionStatus.replace(/_/g, ' ')}
+            {activeReview.decisionStatus === 'partially_approved' ? 'partially approved · still open' : activeReview.decisionStatus.replace(/_/g, ' ')}
           </span>
 
           <button
@@ -1616,7 +1624,7 @@ if (
                   <div className="flex items-center gap-2">
                     <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
                     <span>
-                      <strong>{unresolvedCount} finding(s) unresolved:</strong> Every finding requires an explicit human decision (accept, edit, or reject) before final sign-off.
+                      <strong>{unresolvedCount} finding(s) pending:</strong> You can save the decisions already made. The remaining findings stay in the pending review queue.
                     </span>
                   </div>
                   <button
@@ -1656,22 +1664,18 @@ if (
 
                 <button
                   onClick={() => handleFinalDecision('approved_with_changes')}
-                  disabled={isCompleting || unresolvedCount > 0}
-                  title={unresolvedCount > 0 ? 'Resolve all findings before final approval' : 'Approve with Changes'}
-                  className={`px-3 py-1.5 text-white font-medium text-xs rounded-lg flex items-center gap-1 whitespace-nowrap shadow-xs transition-colors ${
-                    unresolvedCount > 0
-                      ? 'bg-slate-300 cursor-not-allowed text-slate-500'
-                      : 'bg-emerald-700 hover:bg-emerald-800 cursor-pointer'
-                  }`}
+                  disabled={isCompleting || (unresolvedCount === 0 && acceptedCount === 0 && rejectedCount === 0)}
+                  title={unresolvedCount > 0 ? 'Save reviewed decisions and keep pending findings open' : 'Approve with Changes'}
+                  className="px-3 py-1.5 text-white font-medium text-xs rounded-lg flex items-center gap-1 whitespace-nowrap shadow-xs transition-colors bg-emerald-700 hover:bg-emerald-800 cursor-pointer disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed"
                 >
                   <Check className="w-3.5 h-3.5" />
-                  <span>Approve w/ Changes</span>
+                  <span>{unresolvedCount > 0 ? 'Save Partial Approval' : 'Approve w/ Changes'}</span>
                 </button>
 
                 <button
                   onClick={() => handleFinalDecision('approved_as_is')}
                   disabled={isCompleting || unresolvedCount > 0}
-                  title={unresolvedCount > 0 ? 'Resolve all findings before final approval' : 'Approve As-Is'}
+                  title={unresolvedCount > 0 ? 'Review all findings before approving as-is' : 'Approve As-Is'}
                   className={`px-3 py-1.5 text-white font-medium text-xs rounded-lg flex items-center gap-1 whitespace-nowrap shadow-xs transition-colors ${
                     unresolvedCount > 0
                       ? 'bg-slate-300 cursor-not-allowed text-slate-500'
@@ -1684,7 +1688,7 @@ if (
                 <button
                   onClick={() => handleFinalDecision('rejected')}
                   disabled={isCompleting || unresolvedCount > 0}
-                  title={unresolvedCount > 0 ? 'Resolve all findings before rejecting review' : 'Reject Review'}
+                  title={unresolvedCount > 0 ? 'Review all findings before rejecting the entire review' : 'Reject Review'}
                   className={`px-3 py-1.5 text-white font-medium text-xs rounded-lg flex items-center gap-1 whitespace-nowrap shadow-xs transition-colors ${
                     unresolvedCount > 0
                       ? 'bg-slate-300 cursor-not-allowed text-slate-500'
