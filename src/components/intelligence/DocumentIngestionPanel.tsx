@@ -157,8 +157,17 @@ export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ 
 
   const handleUpload = async () => {
     if (!selectedFile) return;
+    if (selectedFile.size === 0) {
+      setError('The selected file is empty. Choose a non-empty PDF, DOCX or TXT file.');
+      return;
+    }
     if (selectedFile.size > 15 * 1024 * 1024) {
       setError('Files are limited to 15 MB.');
+      return;
+    }
+    const extension = selectedFile.name.split('.').pop()?.toLowerCase();
+    if (!extension || !['pdf', 'docx', 'txt'].includes(extension)) {
+      setError('Unsupported file type. Choose a PDF, DOCX or TXT file.');
       return;
     }
     setUploading(true);
@@ -257,7 +266,15 @@ export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ 
               id="brandguard-document-upload"
               type="file"
               accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
-              onChange={event => { setSelectedFile(event.target.files?.[0] || null); setError(''); setNotice(''); }}
+              onChange={event => {
+                const file = event.target.files?.[0] || null;
+                setSelectedFile(file);
+                setError('');
+                setNotice('');
+                if (file && file.size === 0) setError('The selected file is empty.');
+                else if (file && file.size > 15 * 1024 * 1024) setError('Files are limited to 15 MB.');
+                else if (file && !['pdf', 'docx', 'txt'].includes(file.name.split('.').pop()?.toLowerCase() || '')) setError('Unsupported file type. Choose a PDF, DOCX or TXT file.');
+              }}
               className="min-w-0 flex-1 text-xs text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-white file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-[#2457D6]"
             />
             <button type="button" onClick={() => void handleUpload()} disabled={!selectedFile || uploading} className="inline-flex items-center gap-1.5 rounded-lg bg-[#2457D6] px-3 py-2 text-[11px] font-semibold text-white hover:bg-[#1D4ED8] disabled:cursor-not-allowed disabled:opacity-50">
