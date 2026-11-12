@@ -37,7 +37,6 @@ export const DecisionArchiveView: React.FC<DecisionArchiveViewProps> = ({
   const [notice, setNotice] = useState<string | null>(null);
 
   const pendingCount = reviews.filter(r => ['pending', 'partially_approved'].includes(r.decisionStatus)).length;
-  const partiallyApprovedCount = reviews.filter(r => r.decisionStatus === 'partially_approved').length;
   const approvedWithChangesCount = reviews.filter(r => r.decisionStatus === 'approved_with_changes').length;
   const approvedAsIsCount = reviews.filter(r => r.decisionStatus === 'approved_as_is').length;
   const rejectedCount = reviews.filter(r => r.decisionStatus === 'rejected').length;
@@ -73,12 +72,6 @@ export const DecisionArchiveView: React.FC<DecisionArchiveViewProps> = ({
           </span>
         );
       case 'partially_approved':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-50 text-indigo-800 border border-indigo-200">
-            <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 shrink-0" />
-            Partially Approved · Open
-          </span>
-        );
       case 'rejected':
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-rose-50 text-rose-700 border border-rose-200">
@@ -116,7 +109,7 @@ export const DecisionArchiveView: React.FC<DecisionArchiveViewProps> = ({
           </div>
           {pendingCount > 0 && (
             <div className="px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-xs font-mono text-amber-800 font-semibold">
-              {pendingCount} active reviews · {partiallyApprovedCount} partially approved
+              {pendingCount} active reviews awaiting remaining decisions
             </div>
           )}
         </div>
@@ -130,7 +123,6 @@ export const DecisionArchiveView: React.FC<DecisionArchiveViewProps> = ({
           {[
             { id: 'all', label: 'All Reviews', count: reviews.length, activeColor: 'text-[#2457D6]' },
             { id: 'pending', label: 'Pending', count: reviews.filter(r => r.decisionStatus === 'pending').length, activeColor: 'text-amber-800 font-bold', highlight: pendingCount > 0 },
-            { id: 'partially_approved', label: 'Partially Approved', count: partiallyApprovedCount, activeColor: 'text-indigo-800 font-bold', highlight: partiallyApprovedCount > 0 },
             { id: 'approved_with_changes', label: 'Approved w/ Changes', count: approvedWithChangesCount, activeColor: 'text-emerald-700' },
             { id: 'approved_as_is', label: 'Approved As-Is', count: approvedAsIsCount, activeColor: 'text-teal-800' },
             { id: 'rejected', label: 'Rejected', count: rejectedCount, activeColor: 'text-rose-700' },
