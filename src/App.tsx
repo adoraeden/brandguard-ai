@@ -188,6 +188,8 @@ function AppContent() {
         <TopHeader
           currentTab={currentTab}
           onNewReviewClick={handleStartNewReview}
+          onRefreshClick={loadAllData}
+          isRefreshing={isLoading}
           documentTitle={activeReview?.title}
           activeFindingsCount={activeReview?.summary?.unresolvedFindings}
         />
