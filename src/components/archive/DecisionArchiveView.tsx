@@ -49,7 +49,9 @@ export const DecisionArchiveView: React.FC<DecisionArchiveViewProps> = ({
       r.id.toLowerCase().includes(q) ||
       r.contentType.toLowerCase().includes(q);
 
-    const matchesDecision = filterDecision === 'all' || r.decisionStatus === filterDecision;
+    const matchesDecision = filterDecision === 'all' ||
+      (filterDecision === 'pending' && ['pending', 'partially_approved'].includes(r.decisionStatus)) ||
+      r.decisionStatus === filterDecision;
 
     return matchesSearch && matchesDecision;
   });
@@ -71,7 +73,6 @@ export const DecisionArchiveView: React.FC<DecisionArchiveViewProps> = ({
             Approved As-Is
           </span>
         );
-      case 'partially_approved':
       case 'rejected':
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-rose-50 text-rose-700 border border-rose-200">
@@ -79,6 +80,7 @@ export const DecisionArchiveView: React.FC<DecisionArchiveViewProps> = ({
             Rejected
           </span>
         );
+      case 'partially_approved':
       case 'pending':
       default:
         return (
