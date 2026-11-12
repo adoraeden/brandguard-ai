@@ -143,11 +143,8 @@ export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ 
       setError('');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unable to load uploaded documents.';
-      // An older preview backend may not expose the ingestion route yet. Keep
-      // the upload/demo interface usable instead of showing a false red alert.
       if (/not found|404/i.test(message)) {
-        setDocuments([]);
-        setError('');
+        setError('The evidence-ingestion API is missing from the connected backend. Uploading and approval are unavailable until the backend deployment is updated.');
       } else {
         setError(message);
       }
@@ -178,7 +175,7 @@ export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ 
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Document upload failed.';
       if (/not found|404/i.test(message)) {
-        setNotice('The document upload API is not available in this preview yet. Your selected PDF is ready; extraction will run when the backend is connected.');
+        setError('The document-ingestion API is unavailable on the connected backend. The file was not uploaded or processed.');
       } else {
         setError(message);
       }
