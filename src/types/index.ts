@@ -24,7 +24,7 @@ export type SuggestionStatus = 'pending' | 'accepted' | 'edited' | 'rejected';
 
 export type ReviewStatus = 'pending_review' | 'in_review' | 'completed' | 'archived';
 
-export type DecisionStatus = 'pending' | 'approved_with_changes' | 'approved_as_is' | 'rejected';
+export type DecisionStatus = 'pending' | 'partially_approved' | 'approved_with_changes' | 'approved_as_is' | 'rejected';
 
 export type UserRole = 'admin' | 'reviewer';
 
