@@ -36,7 +36,8 @@ This tracker separates the CodeNexus submission rounds from the internal impleme
 - [ ] Governance insights: identify recurring violation categories and guideline gaps from review history.
 
 ## Phase 4 — Existing feature completion and bug fixes
-- [ ] Complete the remaining Review Studio checkpoint and decision-flow acceptance checks.
+- [x] Implement the Review Studio checkpoint confirmation modal and Command Center navigation.
+- [ ] Run the checkpoint and final-decision acceptance checks.
 - [ ] Verify archive, pending queue, re-analysis, and audit-history edge cases.
 - [ ] Resolve outstanding API and UI defects without removing existing behavior.
 

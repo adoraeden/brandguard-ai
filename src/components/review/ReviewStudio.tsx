@@ -51,6 +51,7 @@ interface ReviewStudioProps {
   initialDraftToLoad?: typeof SAMPLE_DOCUMENTS[0] | null;
   onNavigateToLedger?: () => void;
   onNavigateToPending?: () => void;
+  onNavigateHome?: () => void;
 }
 
 type AnalysisTone = 'success' | 'warning' | 'error' | 'neutral';
@@ -266,6 +267,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   initialDraftToLoad,
   onNavigateToLedger,
   onNavigateToPending,
+  onNavigateHome,
 }) => {
   const { currentUser } = useDemoProfile();
 
@@ -277,6 +279,11 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   // Dedicated Completion View State (Item 1)
   const [completionRecord, setCompletionRecord] = useState<{
     verdict: 'approved_with_changes' | 'approved_as_is' | 'rejected';
+    document: ReviewDocument;
+  } | null>(null);
+  const [checkpointRecord, setCheckpointRecord] = useState<{
+    decision: 'approved_as_is' | 'rejected';
+    unresolvedCount: number;
     document: ReviewDocument;
   } | null>(null);
 
@@ -566,11 +573,8 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
         setCompletionRecord(null);
         setViewMode('results');
         setDecisionNotes('');
-        setDecisionFeedback(
-          decision === 'approved_as_is'
-            ? `Checkpoint saved. ${unresolvedCount} finding(s) remain pending and have not been approved. This review will stay in the Pending queue.`
-            : `Checkpoint saved. ${unresolvedCount} finding(s) remain pending and have not been rejected. This review will stay in the Pending queue.`
-        );
+        setDecisionFeedback(null);
+        setCheckpointRecord({ decision, unresolvedCount, document: updated });
         return;
       }
 
@@ -2440,6 +2444,60 @@ const occurrencePreview = (start: number) => {
         </div>
       </div>
       {renderPinPreview()}
+      {checkpointRecord && createPortal(
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/55 p-4">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="checkpoint-dialog-title"
+            aria-describedby="checkpoint-dialog-description"
+            className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl"
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-amber-200 bg-amber-50 text-amber-700">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-amber-700">Review checkpoint saved</p>
+                <h2 id="checkpoint-dialog-title" className="mt-1 text-lg font-bold text-slate-900">
+                  This review is still pending
+                </h2>
+                <p id="checkpoint-dialog-description" className="mt-2 text-sm leading-relaxed text-slate-600">
+                  {checkpointRecord.unresolvedCount} finding{checkpointRecord.unresolvedCount === 1 ? '' : 's'} remain unresolved and have not been {checkpointRecord.decision === 'approved_as_is' ? 'approved' : 'rejected'}. The decisions already recorded are saved, but the overall review has not received final approval and remains in the Pending queue.
+                </p>
+                <p className="mt-2 text-xs text-slate-500">
+                  {checkpointRecord.document.title}
+                </p>
+              </div>
+            </div>
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setCheckpointRecord(null);
+                  setViewMode('results');
+                  onNavigateHome?.();
+                }}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                Go to Command Center
+              </button>
+              <button
+                type="button"
+                autoFocus
+                onClick={() => {
+                  setCheckpointRecord(null);
+                  setViewMode('results');
+                }}
+                className="rounded-lg bg-[#2457D6] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#1D4ED8]"
+              >
+                Continue Reviewing
+              </button>
+            </div>
+          </section>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

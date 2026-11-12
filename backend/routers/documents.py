@@ -93,9 +93,14 @@ def upload_document(
         ))
     source = DBKnowledgeSource(
         id=f"src-{uuid4().hex}", title=filename, source_type="document",
-        description="Uploaded document. Extracted passages require human confirmation before becoming approved knowledge.",
+        description=(
+            "Uploaded document. Extracted passages require human confirmation before becoming approved knowledge."
+            if candidates else
+            "Original document retained. No likely fact or guideline passages were extracted, so this source is archived and is not used as approved evidence."
+        ),
         version="1.0", effective_date=date.today().isoformat(), rule_count=len(candidates),
-        source_url=f"internal://api/documents/{document_id}/download", status="under_review",
+        source_url=f"internal://api/documents/{document_id}/download",
+        status="under_review" if candidates else "archived",
     )
     db.add(row)
     db.add(source)

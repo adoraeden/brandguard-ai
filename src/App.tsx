@@ -226,6 +226,7 @@ function AppContent() {
               initialDraftToLoad={draftToLoad}
               onNavigateToLedger={() => handleSelectTab('decision_archive')}
               onNavigateToPending={() => handleSelectTab('pending_reviews')}
+              onNavigateHome={() => handleSelectTab('overview')}
             />
           )}
 
