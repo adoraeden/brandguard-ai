@@ -481,6 +481,7 @@ def submit_review(
     )
 
     findings = deterministic + contextual_result.findings
+    enrich_finding_evidence(findings, guidelines, facts)
 
     summary = ReviewSummaryModel(
         totalFindings=len(findings),
@@ -529,6 +530,34 @@ def submit_review(
     except Exception:
         db.rollback()
         raise
+
+
+def enrich_finding_evidence(findings, guidelines, facts):
+    """Attach approved-record provenance without weakening evidence validation."""
+    guideline_by_id = {item.id: item for item in guidelines}
+    fact_by_id = {item.id: item for item in facts}
+
+    for finding in findings:
+        record = None
+        if finding.evidenceRecordType == "guideline" and finding.evidenceRecordId:
+            record = guideline_by_id.get(finding.evidenceRecordId)
+        elif finding.evidenceRecordType == "fact" and finding.evidenceRecordId:
+            record = fact_by_id.get(finding.evidenceRecordId)
+
+        if record is not None:
+            finding.sourceDocumentId = getattr(record, "sourceDocumentId", None)
+            finding.sourcePageNumber = getattr(record, "sourcePageNumber", None)
+            finding.sourceSectionLabel = getattr(record, "sourceSectionLabel", None)
+            finding.sourceExcerpt = getattr(record, "sourceExcerpt", None)
+            finding.evidenceStatus = (
+                "supported" if finding.evidenceQuote else "partially_supported"
+            )
+        elif finding.category == "unsupported_claim" and not finding.evidenceRecordId:
+            finding.evidenceStatus = "unsupported"
+        elif finding.evidenceRecordId:
+            finding.evidenceStatus = "partially_supported"
+        else:
+            finding.evidenceStatus = "not_assessed"
 
 
 def _finding_key(detection_method, category, exact_text):
@@ -627,6 +656,7 @@ def rerun_review_analysis(
         )
 
         generated = deterministic + contextual_result.findings
+        enrich_finding_evidence(generated, guidelines, facts)
 
         # Build separate keys for each analysis engine.
         deterministic_keys = {
@@ -727,6 +757,11 @@ def rerun_review_analysis(
                 evidence_record_type=finding.evidenceRecordType,
                 evidence_record_id=finding.evidenceRecordId,
                 evidence_quote=finding.evidenceQuote,
+                evidence_status=finding.evidenceStatus,
+                source_document_id=finding.sourceDocumentId,
+                source_page_number=finding.sourcePageNumber,
+                source_section_label=finding.sourceSectionLabel,
+                source_excerpt=finding.sourceExcerpt,
                 analysis_run_id=run_id,
                 lifecycle_status="active",
             )

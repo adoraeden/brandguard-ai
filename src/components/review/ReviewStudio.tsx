@@ -2248,6 +2248,25 @@ const occurrencePreview = (start: number) => {
                               Approved evidence: &ldquo;{finding.evidenceQuote}&rdquo;
                             </blockquote>
                           )}
+                          {finding.evidenceStatus && (
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${finding.evidenceStatus === 'supported' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : finding.evidenceStatus === 'unsupported' ? 'border-rose-200 bg-rose-50 text-rose-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+                                Evidence: {finding.evidenceStatus.replace(/_/g, ' ')}
+                              </span>
+                              {finding.sourcePageNumber != null && <span className="text-[10px] text-slate-500">Page {finding.sourcePageNumber}</span>}
+                              {finding.sourceSectionLabel && <span className="text-[10px] text-slate-500">Section: {finding.sourceSectionLabel}</span>}
+                            </div>
+                          )}
+                          {finding.sourceExcerpt && (
+                            <blockquote className="mt-2 rounded-md border border-slate-200 bg-white p-2 text-[11px] leading-relaxed text-slate-600">
+                              Source passage: &ldquo;{finding.sourceExcerpt}&rdquo;
+                            </blockquote>
+                          )}
+                          {finding.sourceDocumentId && (
+                            <a href={api.getDocumentDownloadUrl(finding.sourceDocumentId)} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()} className="mt-2 inline-flex text-[10px] font-semibold text-[#2457D6] underline">
+                              Open original evidence document
+                            </a>
+                          )}
                         </div>
                       )}
                     </div>

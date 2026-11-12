@@ -63,6 +63,11 @@ class ReviewFindingModel(BaseModel):
     evidenceRecordType: Optional[Literal['guideline', 'terminology', 'fact', 'knowledge_source']] = None
     evidenceRecordId: Optional[str] = None
     evidenceQuote: Optional[str] = None
+    evidenceStatus: Optional[Literal['supported', 'partially_supported', 'unsupported', 'conflicting', 'not_assessed']] = None
+    sourceDocumentId: Optional[str] = None
+    sourcePageNumber: Optional[int] = None
+    sourceSectionLabel: Optional[str] = None
+    sourceExcerpt: Optional[str] = None
     analysisRunId: Optional[str] = None
     findingDecision: Optional[Literal['accepted', 'dismissed', 'verification_required']] = None
     findingDecisionReviewer: Optional[str] = None

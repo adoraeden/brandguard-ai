@@ -172,6 +172,11 @@ class DBReviewFinding(Base):
     evidence_record_type = Column(String, nullable=True)
     evidence_record_id = Column(String, nullable=True)
     evidence_quote = Column(Text, nullable=True)
+    evidence_status = Column(String, nullable=True)
+    source_document_id = Column(String, nullable=True)
+    source_page_number = Column(Integer, nullable=True)
+    source_section_label = Column(String, nullable=True)
+    source_excerpt = Column(Text, nullable=True)
     analysis_run_id = Column(String, nullable=True, index=True)
     finding_decision = Column(String, nullable=True)
     finding_decision_reviewer = Column(String, nullable=True)
@@ -280,6 +285,11 @@ def init_db():
         connection.execute(text(
             "ALTER TABLE review_findings ADD COLUMN IF NOT EXISTS evidence_quote TEXT"
         ))
+        connection.execute(text("ALTER TABLE review_findings ADD COLUMN IF NOT EXISTS evidence_status VARCHAR"))
+        connection.execute(text("ALTER TABLE review_findings ADD COLUMN IF NOT EXISTS source_document_id VARCHAR"))
+        connection.execute(text("ALTER TABLE review_findings ADD COLUMN IF NOT EXISTS source_page_number INTEGER"))
+        connection.execute(text("ALTER TABLE review_findings ADD COLUMN IF NOT EXISTS source_section_label VARCHAR"))
+        connection.execute(text("ALTER TABLE review_findings ADD COLUMN IF NOT EXISTS source_excerpt TEXT"))
         connection.execute(text(
             "ALTER TABLE review_findings ADD COLUMN IF NOT EXISTS analysis_run_id VARCHAR"
         ))

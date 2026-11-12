@@ -68,6 +68,11 @@ export interface ReviewFinding {
   evidenceRecordType?: 'guideline' | 'terminology' | 'fact' | 'knowledge_source';
   evidenceRecordId?: string;
   evidenceQuote?: string;
+  evidenceStatus?: 'supported' | 'partially_supported' | 'unsupported' | 'conflicting' | 'not_assessed';
+  sourceDocumentId?: string;
+  sourcePageNumber?: number;
+  sourceSectionLabel?: string;
+  sourceExcerpt?: string;
   analysisRunId?: string;
   lifecycleStatus?: 'active' | 'resolved';
   findingDecision?: 'accepted' | 'dismissed' | 'verification_required';
