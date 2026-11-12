@@ -306,10 +306,11 @@ export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ 
                 <p className="text-xs text-slate-700">{approvalConfirmation.filename}</p>
                 <p className="mt-1 text-[11px] text-slate-500">{approvalConfirmation.pageNumber ? 'Page ' + approvalConfirmation.pageNumber : 'Page not recorded'}{approvalConfirmation.sectionLabel ? ' · ' + approvalConfirmation.sectionLabel : ''}</p>
                 <p className="mt-2 text-[11px] font-medium text-emerald-700">The approved entry is stored in the shared knowledge base and can be considered in future claim reviews.</p>
+                {approvalConfirmation.recordId && <p className="mt-1 text-[10px] text-slate-400">Knowledge record ID: {approvalConfirmation.recordId}</p>}
               </div>
             </div>
             <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 px-5 py-3">
-              <a href={api.getDocumentDownloadUrl(approvalConfirmation.documentId)} target="_blank" rel="noreferrer" className="inline-flex items-center rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">View source document</a>
+              <a href={api.getDocumentDownloadUrl(approvalConfirmation.documentId)} target="_blank" rel="noreferrer" className="inline-flex items-center rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Download source document</a>
               <button type="button" onClick={() => { setApprovalConfirmation(null); onNavigateToKnowledgeBase?.(); }} className="rounded-lg bg-[#2457D6] px-3 py-2 text-xs font-semibold text-white hover:bg-[#1D4ED8]">View in Brand Intelligence</button>
             </div>
           </section>
