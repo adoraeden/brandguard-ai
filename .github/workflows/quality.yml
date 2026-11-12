@@ -2,9 +2,9 @@ name: BrandGuard quality checks
 
 on:
   push:
-    branches: [phase-2-round3-improvements]
+    branches: [phase-2-round3-improvements, phase-2-1-reviewer-experience]
   pull_request:
-    branches: [phase-2-round3-improvements]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
