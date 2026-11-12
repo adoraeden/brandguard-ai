@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { 
   BookOpen, 
   Search, 
@@ -33,6 +33,8 @@ interface BrandIntelligenceViewProps {
   facts: ApprovedFact[];
   sources: KnowledgeSource[];
   onDataChanged: () => void;
+  focusRecordId?: string | null;
+  onFocusHandled?: () => void;
 }
 
 type KnowledgeCategory = 'all' | 'guidelines' | 'terminology' | 'facts' | 'sources';
@@ -44,6 +46,8 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
   facts,
   sources,
   onDataChanged,
+  focusRecordId,
+  onFocusHandled,
 }) => {
   const { currentUser, isAdmin } = useDemoProfile();
 
@@ -52,7 +56,34 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedRecord, setSelectedRecord] = useState<{ type: string; data: any } | null>(null);
+  const [recentlyApprovedFactId, setRecentlyApprovedFactId] = useState<string | null>(null);
+  const focusedFactRowRef = useRef<HTMLTableRowElement | null>(null);
   
+  useEffect(() => {
+    if (!focusRecordId) return;
+    const approvedFact = facts.find(fact => fact.id === focusRecordId);
+    if (!approvedFact) return;
+
+    setSelectedCategory('facts');
+    setSearchQuery('');
+    setStatusFilter('all');
+    setPriorityFilter('all');
+    setSelectedRecord({ type: 'fact', data: approvedFact });
+    setRecentlyApprovedFactId(approvedFact.id);
+
+    const clearHighlight = window.setTimeout(() => setRecentlyApprovedFactId(null), 9000);
+    return () => window.clearTimeout(clearHighlight);
+  }, [focusRecordId, facts]);
+
+  useEffect(() => {
+    if (!focusRecordId || selectedCategory !== 'facts' || !focusedFactRowRef.current) return;
+    const frame = window.requestAnimationFrame(() => {
+      focusedFactRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      onFocusHandled?.();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [focusRecordId, selectedCategory, filteredFacts.length, onFocusHandled]);
+
   // Modals for CRUD
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState<{ type: string; data: any } | null>(null);
@@ -887,14 +918,18 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
                       return (
                         <tr
                           key={f.id}
+                          ref={f.id === focusRecordId || f.id === recentlyApprovedFactId ? focusedFactRowRef : undefined}
                           onClick={() => setSelectedRecord({ type: 'fact', data: f })}
-                          className={`hover:bg-slate-50/80 cursor-pointer transition-colors ${
-                            isSelected ? 'bg-blue-50/60 font-medium' : ''
+                          className={`cursor-pointer transition-all duration-500 ${
+                            f.id === recentlyApprovedFactId
+                              ? 'bg-emerald-50 ring-2 ring-inset ring-emerald-300'
+                              : isSelected ? 'bg-blue-50/60 font-medium' : 'hover:bg-slate-50/80'
                           }`}
                         >
                           <td className="p-3 pl-5 max-w-xs truncate">
                             <div className="flex items-center gap-2">
                               <span className="font-semibold text-slate-900 truncate">{f.title}</span>
+                              {f.id === recentlyApprovedFactId && <span className="shrink-0 rounded-full border border-emerald-200 bg-white px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-700">Recently approved</span>}
                             </div>
                           </td>
 
