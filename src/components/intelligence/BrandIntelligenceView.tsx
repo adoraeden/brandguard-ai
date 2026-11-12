@@ -82,7 +82,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
       onFocusHandled?.();
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [focusRecordId, selectedCategory, filteredFacts.length, onFocusHandled]);
+  }, [focusRecordId, selectedCategory, facts.length, onFocusHandled]);
 
   // Modals for CRUD
   const [showAddModal, setShowAddModal] = useState(false);
