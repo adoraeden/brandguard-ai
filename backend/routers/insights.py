@@ -36,7 +36,7 @@ def get_governance_insights(db: Session = Depends(get_db)):
             elif not finding.source_rule_or_term.lower().startswith("terminology:"):
                 mismatch_sources[("guideline", finding.source_reference or "No source reference")] += 1
     total_findings = sum(categories.values())
-    completed = sum(review.decision_status != "pending" for review in reviews)
+    completed = sum(review.decision_status not in ("pending", "partially_approved") for review in reviews)
     pending = len(reviews) - completed
     repeated = [{"term": term, "count": count, "category": term_categories[term]}
                 for term, count in term_counts.most_common(8)]
