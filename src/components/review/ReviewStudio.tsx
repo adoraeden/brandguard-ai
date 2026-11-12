@@ -1412,96 +1412,19 @@ if (
   const analysisTone = getHighestAnalysisTone(deterministicStatus.tone, aiStatus.tone);
 
   return (
-    <div className="h-full min-h-0 flex flex-col overflow-hidden">
-      {/* 1. Subheader Strip with Prominent Finding Counts (Requirement 11) */}
-      <div className="bg-white border-b border-slate-200 px-6 py-4 flex flex-wrap items-center justify-between gap-4 shrink-0 z-10 shadow-sm">
-        <div className="flex items-center gap-3 min-w-0">
-          <div>
-            <div className="flex items-center gap-2 text-xs text-slate-500">
-              <span className="font-mono text-[#2457D6] font-semibold">{activeReview.id}</span>
-              <span>·</span>
-              <span className="capitalize">{activeReview.contentType.replace(/_/g, ' ')}</span>
-              <span>·</span>
-              <span>Reviewer: <strong className="text-slate-700">{activeReview.reviewer}</strong></span>
-            </div>
-            <h1 className="text-base lg:text-lg font-bold text-slate-950 truncate mt-1">
-              {activeReview.title}
-            </h1>
-          </div>
-        </div>
-
-        {/* Status Counters & Prominent Unresolved Display */}
-        <div className="flex flex-wrap items-center justify-end gap-2 text-xs">
-          <div className="flex items-center gap-1.5 font-mono text-slate-600">
-            <span>Total:</span>
-            <span className="font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded">
-              {activeReview.findings.length}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-1.5 font-mono text-emerald-700">
-            <span>Accepted:</span>
-            <span className="font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-              {acceptedCount}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-1.5 font-mono text-rose-700">
-            <span>Rejected:</span>
-            <span className="font-bold bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
-              {rejectedCount}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 font-mono text-amber-700">
-            <span>Pending:</span>
-            <span className="font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-              {pendingCount}
-            </span>
-          </div>
-
-          {/* Prominent Unresolved Counter */}
-          <div className={`flex items-center gap-1.5 font-mono px-2.5 py-0.5 rounded-full border ${
-            unresolvedCount > 0
-              ? 'bg-amber-50 text-amber-800 border-amber-300 font-bold'
-              : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-          }`}>
-            <span>Unresolved:</span>
-            <span className="underline">{unresolvedCount}</span>
-          </div>
-
-          <span className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full border uppercase ${
-            activeReview.decisionStatus === 'approved_with_changes'
-              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-              : activeReview.decisionStatus === 'approved_as_is'
-              ? 'bg-blue-50 text-blue-800 border-blue-200'
-              : activeReview.decisionStatus === 'rejected'
-              ? 'bg-rose-50 text-rose-800 border-rose-200'
-              : activeReview.decisionStatus === 'partially_approved'
-              ? 'bg-indigo-50 text-indigo-800 border-indigo-200'
-              : 'bg-amber-50 text-amber-800 border-amber-200'
-          }`}>
-            {activeReview.decisionStatus === 'partially_approved' ? 'pending · more findings' : activeReview.decisionStatus.replace(/_/g, ' ')}
-          </span>
-
-          <button
-            type="button"
-            onClick={() => setAnalysisPanelCollapsed(value => !value)}
-            aria-expanded={!analysisPanelCollapsed}
-            aria-controls="analysis-checks-panel"
-            title={analysisPanelCollapsed ? 'Show deterministic and AI analysis checks' : 'Hide analysis checks to expand both review panes'}
-            className="ml-1 px-2.5 py-1 text-xs border border-slate-200 hover:bg-slate-100 rounded-lg text-slate-700 font-medium transition-colors flex items-center gap-1 cursor-pointer"
-          >
-            {analysisPanelCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
-            <span>{analysisPanelCollapsed ? 'Show Checks' : 'Hide Checks'}</span>
-          </button>
-          <button
-            onClick={() => setViewMode('submission')}
-            className="ml-2 px-2.5 py-1 text-xs border border-slate-200 hover:bg-slate-100 rounded-lg text-slate-700 font-medium transition-colors flex items-center gap-1 cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>New Review</span>
-          </button>
-        </div>
+    <div className="min-h-full flex flex-col">
+      {/* Review summary counters; section title is provided by the shared application header. */}
+      <div className="bg-white border-b border-slate-200 px-5 py-3 flex flex-wrap items-center justify-end gap-3 shrink-0">
+        <div className="flex items-center gap-1.5 font-mono text-slate-600 text-xs"><span>Total:</span><strong className="text-slate-900 bg-slate-100 px-2 py-0.5 rounded">{activeReview.findings.length}</strong></div>
+        <div className="flex items-center gap-1.5 font-mono text-emerald-700 text-xs"><span>Accepted:</span><strong className="bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">{acceptedCount}</strong></div>
+        <div className="flex items-center gap-1.5 font-mono text-rose-700 text-xs"><span>Rejected:</span><strong className="bg-rose-50 px-2 py-0.5 rounded border border-rose-200">{rejectedCount}</strong></div>
+        <div className="flex items-center gap-1.5 font-mono text-amber-700 text-xs"><span>Pending:</span><strong className="bg-amber-50 px-2 py-0.5 rounded border border-amber-200">{pendingCount}</strong></div>
+        <div className={`flex items-center gap-1.5 font-mono px-2.5 py-0.5 rounded-full border text-xs ${unresolvedCount > 0 ? 'bg-amber-50 text-amber-800 border-amber-300 font-bold' : 'bg-emerald-50 text-emerald-800 border-emerald-200'}`}><span>Unresolved:</span><span className="underline">{unresolvedCount}</span></div>
+        <button type="button" onClick={() => setAnalysisPanelCollapsed(value => !value)} aria-expanded={!analysisPanelCollapsed} aria-controls="analysis-checks-panel" className="px-2.5 py-1 text-xs border border-slate-200 hover:bg-slate-100 rounded-lg text-slate-700 font-medium transition-colors flex items-center gap-1">
+          {analysisPanelCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+          <span>{analysisPanelCollapsed ? 'Show Checks' : 'Hide Checks'}</span>
+        </button>
+        <button onClick={() => setViewMode('submission')} className="px-2.5 py-1 text-xs border border-slate-200 hover:bg-slate-100 rounded-lg text-slate-700 font-medium transition-colors flex items-center gap-1"><Plus className="w-3.5 h-3.5" /><span>New Review</span></button>
       </div>
 
       {/* Completed Notice Banner if in read-only completed state */}
@@ -1667,7 +1590,7 @@ if (
         {/* LEFT PANEL: Document Workspace (user-resizable width) */}
         <div
           style={{ width: window.innerWidth >= 1024 ? `calc(${documentPanePercent}% - 4px)` : '100%' }}
-          className="w-full lg:w-auto min-w-0 min-h-[42vh] lg:min-h-0 border-b lg:border-b-0 lg:border-r border-slate-200 flex flex-col bg-white overflow-hidden"
+          className="w-full lg:w-auto min-w-0 min-h-[42vh] lg:min-h-[calc(100dvh-170px)] lg:max-h-[calc(100dvh-170px)] lg:sticky lg:top-0 lg:self-start border-b lg:border-b-0 lg:border-r border-slate-200 flex flex-col bg-white overflow-hidden"
         >
           {/* Document Top Bar */}
           <div className="px-6 py-2 bg-slate-50/75 border-b border-slate-200 flex items-center justify-between text-xs">
@@ -1691,7 +1614,7 @@ if (
           </div>
 
           {/* Document Text (Independent Scroll) */}
-          <div className="flex-1 p-6 overflow-y-auto font-sans text-sm leading-relaxed bg-white">
+          <div className="min-h-0 flex-1 p-6 overflow-y-auto font-sans text-sm leading-relaxed bg-white">
             <div className="max-w-4xl mx-auto w-full space-y-4">
               <div className="text-xs font-mono text-slate-400 border-b border-slate-100 pb-2 flex items-center justify-between">
                 <span>Content Type: {activeReview.contentType.replace(/_/g, ' ')}</span>
@@ -1720,7 +1643,7 @@ if (
 
           {/* Human Governance Sign-Off Bar (Requirement 2: Blocks final approval with unresolved findings) */}
           {!isCompleted && (
-            <div className="p-3.5 bg-slate-50 border-t border-slate-200 space-y-2.5 shadow-xs">
+            <div className="sticky bottom-0 z-20 shrink-0 p-3.5 bg-slate-50 border-t border-slate-200 space-y-2.5 shadow-[0_-4px_12px_rgba(15,23,42,0.06)]">
               {/* Unresolved findings warning banner */}
               {unresolvedCount > 0 && (
                 <div className="p-2.5 bg-amber-50/90 border border-amber-300 rounded-lg text-xs text-amber-900 flex items-center justify-between">
