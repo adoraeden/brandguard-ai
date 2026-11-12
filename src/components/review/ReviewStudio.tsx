@@ -314,6 +314,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   const [customEditText, setCustomEditText] = useState('');
   const [selectedOccurrences, setSelectedOccurrences] = useState<Record<string, number>>({});
 
+  const [workflowPanelCollapsed, setWorkflowPanelCollapsed] = useState(true);
   const [workflowStages, setWorkflowStages] = useState<ReviewWorkflowStage[]>([]);
   const [workflowStageName, setWorkflowStageName] = useState('');
   const [workflowAssignee, setWorkflowAssignee] = useState('');
@@ -1413,7 +1414,7 @@ if (
   return (
     <div className="h-full min-h-0 flex flex-col overflow-hidden">
       {/* 1. Subheader Strip with Prominent Finding Counts (Requirement 11) */}
-      <div className="bg-white border-b border-slate-200 px-6 py-2.5 flex flex-wrap items-center justify-between gap-4 shrink-0 z-10 shadow-2xs">
+      <div className="bg-white border-b border-slate-200 px-6 py-4 flex flex-wrap items-center justify-between gap-4 shrink-0 z-10 shadow-sm">
         <div className="flex items-center gap-3 min-w-0">
           <div>
             <div className="flex items-center gap-2 text-xs text-slate-500">
@@ -1423,7 +1424,7 @@ if (
               <span>·</span>
               <span>Reviewer: <strong className="text-slate-700">{activeReview.reviewer}</strong></span>
             </div>
-            <h1 className="text-sm font-bold text-slate-900 truncate mt-0.5">
+            <h1 className="text-base lg:text-lg font-bold text-slate-950 truncate mt-1">
               {activeReview.title}
             </h1>
           </div>
@@ -1859,10 +1860,11 @@ if (
           </div>
 
           <div className="border-b border-slate-200 bg-white px-4 py-3 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div><h3 className="text-xs font-bold text-slate-900">Collaborative review stages</h3><p className="text-[10px] text-slate-500">Assign sequential reviewers and record hand-offs.</p></div>
-              <a href={api.getReviewWorkflowExportUrl(activeReview.id)} className="text-[10px] font-semibold text-[#2457D6] underline" target="_blank" rel="noreferrer">Export workflow CSV</a>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div><h3 className="text-sm font-bold text-slate-900">Collaborative review stages</h3><p className="text-xs text-slate-500">Assign sequential reviewers and record hand-offs.</p></div>
+              <div className="flex items-center gap-3"><a href={api.getReviewWorkflowExportUrl(activeReview.id)} className="text-xs font-semibold text-[#2457D6] underline" target="_blank" rel="noreferrer">Export workflow CSV</a><button type="button" onClick={() => setWorkflowPanelCollapsed(value => !value)} aria-expanded={!workflowPanelCollapsed} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">{workflowPanelCollapsed ? "Show stages" : "Hide stages"}</button></div>
             </div>
+            {!workflowPanelCollapsed && <>
             {workflowError && <p role="alert" className="rounded-md bg-rose-50 p-2 text-[10px] text-rose-700">{workflowError}</p>}
             {workflowStages.length > 0 && <div className="space-y-2">{workflowStages.map(stage => (
               <div key={stage.id} className="rounded-lg border border-slate-200 p-2.5">
@@ -1890,6 +1892,7 @@ if (
               <button type="submit" disabled={workflowBusy || !workflowStageName.trim() || !workflowAssignee.trim() || isCompleted} className="rounded bg-[#2457D6] px-3 py-1.5 text-[10px] font-semibold text-white disabled:opacity-50">Add stage</button>
             </form>
             <p className="text-[9px] text-slate-400">Demo assignments are workflow records, not production authentication or access control.</p>
+            </>}
           </div>
 
           {/* Findings List (Independent Scroll) */}
