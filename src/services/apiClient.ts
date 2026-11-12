@@ -4,7 +4,8 @@ import {
   ApprovedFact, 
   KnowledgeSource, 
   ReviewDocument, 
-  GovernanceInsights 
+  GovernanceInsights,
+  IngestedDocument
 } from '../types';
 
 // All application APIs are served by FastAPI. Set VITE_API_BASE_URL to the
@@ -176,6 +177,48 @@ export const api = {
   async deleteSource(id: string): Promise<{ success: boolean }> {
     const res = await apiFetch(`/api/sources/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error(await apiError(res, 'Failed to delete knowledge source'));
+    return res.json();
+  },
+
+  // Uploaded source documents and human-reviewed extraction candidates.
+  async getDocuments(): Promise<IngestedDocument[]> {
+    const res = await apiFetch('/api/documents');
+    if (!res.ok) throw new Error(await apiError(res, 'Failed to fetch uploaded documents'));
+    return res.json();
+  },
+
+  getDocumentDownloadUrl(documentId: string): string {
+    return new URL(`/api/documents/${documentId}/download`, `${API_BASE_URL || window.location.origin}/`).toString();
+  },
+
+  async uploadDocument(file: File, uploadedBy: string): Promise<IngestedDocument> {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('uploaded_by', uploadedBy);
+    const res = await apiFetch('/api/documents', { method: 'POST', body: form });
+    if (!res.ok) throw new Error(await apiError(res, 'Failed to upload document'));
+    return res.json();
+  },
+
+  async decideEvidenceCandidate(
+    documentId: string,
+    candidateId: string,
+    payload: {
+      decision: 'approve' | 'reject';
+      recordType?: 'fact' | 'guideline';
+      title?: string;
+      approvedText?: string;
+      category?: string;
+      severity?: 'critical' | 'high' | 'medium' | 'low' | 'informational';
+      reviewer?: string;
+    }
+  ) {
+    const res = await apiFetch(`/api/documents/${documentId}/candidates/${candidateId}/decision`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(await apiError(res, 'Failed to save extracted evidence decision'));
     return res.json();
   },
 

@@ -26,6 +26,7 @@ import {
 import { BrandGuideline, TerminologyEntry, ApprovedFact, KnowledgeSource, FindingSeverity } from '../../types';
 import { api } from '../../services/apiClient';
 import { useDemoProfile } from '../../context/DemoProfileContext';
+import { DocumentIngestionPanel } from './DocumentIngestionPanel';
 
 interface BrandIntelligenceViewProps {
   guidelines: BrandGuideline[];
@@ -545,8 +546,10 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
         </div>
       </div>
 
+      <DocumentIngestionPanel isAdmin={isAdmin} onDataChanged={onDataChanged} />
+
       {/* Main 3-Column Structured Layout */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 min-h-0 flex overflow-hidden">
         {/* 1. LEFT PANEL: Compact Vertical Category Navigation with Explanations */}
         <div className="w-60 bg-white border-r border-slate-200 p-3 flex flex-col justify-between shrink-0">
           <div className="space-y-3">

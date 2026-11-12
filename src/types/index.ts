@@ -125,6 +125,10 @@ export interface BrandGuideline {
     approved: string;
     prohibited: string;
   };
+  sourceDocumentId?: string | null;
+  sourcePageNumber?: number | null;
+  sourceSectionLabel?: string | null;
+  sourceExcerpt?: string | null;
 }
 
 export interface TerminologyEntry {
@@ -148,6 +152,10 @@ export interface ApprovedFact {
   source: string;
   verificationStatus: 'verified' | 'provisional' | 'needs_revalidation' | 'approved' | 'pending_review' | 'under_review' | 'rejected';
   lastUpdated: string;
+  sourceDocumentId?: string | null;
+  sourcePageNumber?: number | null;
+  sourceSectionLabel?: string | null;
+  sourceExcerpt?: string | null;
 }
 
 export interface KnowledgeSource {
@@ -171,4 +179,35 @@ export interface GovernanceInsights {
   reviewStatistics?: { total: number; completed: number; pending: number; completionRate: number; totalFindings: number; unresolvedFindings: number };
   repeatedTerminology?: { term: string; count: number; category: string }[];
   referenceMismatches?: { type: 'guideline' | 'factsheet'; source: string; count: number }[];
+}
+
+export interface EvidenceCandidate {
+  id: string;
+  documentId: string;
+  candidateType: 'fact' | 'guideline';
+  title: string;
+  excerpt: string;
+  pageNumber?: number | null;
+  sectionLabel?: string | null;
+  confidence: 'low' | 'medium';
+  status: 'pending' | 'approved' | 'rejected';
+  approvedRecordType?: string | null;
+  approvedRecordId?: string | null;
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+}
+
+export interface IngestedDocument {
+  id: string;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+  sha256: string;
+  extractionStatus: 'extracted' | 'extraction_failed';
+  uploadedBy: string;
+  uploadedAt: string;
+  pageCount: number;
+  candidateCount: number;
+  pendingCandidateCount: number;
+  candidates: EvidenceCandidate[];
 }

@@ -26,6 +26,7 @@ from routers.insights import router as insights_router
 from routers.reviews import router as reviews_router
 from routers.sources import router as sources_router
 from routers.terminology import router as terminology_router
+from routers.documents import router as documents_router
 from storage import (fact_model, fact_row, guideline_model, guideline_row,
                      review_model, terminology_model, terminology_row)
 
@@ -123,7 +124,7 @@ app.add_middleware(CORSMiddleware, allow_origins=allowed_origins,
     allow_private_network=True)
 
 for route in (guidelines_router, terminology_router, facts_router, sources_router,
-              reviews_router, archive_router, insights_router):
+              reviews_router, archive_router, insights_router, documents_router):
     app.include_router(route)
 
 @app.get("/health")
