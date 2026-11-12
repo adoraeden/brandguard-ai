@@ -1858,7 +1858,11 @@ const occurrencePreview = (start: number) => {
                           {finding.severity.toUpperCase()}
                         </span>
                         <span className="text-[10px] font-mono px-2 py-0.5 bg-slate-100 text-slate-600 rounded">
-                          {finding.detectionMethod === 'deterministic_rule' ? 'RULE' : 'GEMINI'}
+                          {finding.detectionMethod === 'deterministic_rule'
+                            ? 'RULE'
+                            : finding.detectionMethod === 'fact_check'
+                            ? 'FACT CHECK'
+                            : 'GEMINI'}
                         </span>
                         {finding.analysisRunId && finding.analysisRunId === activeReview.lastAnalysisRunId && (
                           <span className="text-[10px] rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-800">NEW THIS RERUN</span>
