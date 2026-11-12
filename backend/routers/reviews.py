@@ -1278,6 +1278,17 @@ def workflow_stage_model(row):
     )
 
 
+def next_workflow_stage_status(stages):
+    """Activate a newly appended stage only when no stage is currently in progress."""
+    if not stages:
+        return "in_review"
+    if any(item.status in ("pending", "in_review", "returned") for item in stages):
+        return "pending"
+    if all(item.status == "approved" for item in stages):
+        return "in_review"
+    return "pending"
+
+
 @router.get("/{review_id}/workflow", response_model=list[ReviewWorkflowStageModel])
 def get_review_workflow(review_id: str, db: Session = Depends(get_db)):
     review = db.get(DBReviewDocument, review_id)
@@ -1304,7 +1315,7 @@ def add_review_workflow_stage(review_id: str, payload: ReviewWorkflowStageCreate
         id=f"stage-{uuid4().hex}", review_id=review_id,
         stage_order=(rows[-1].stage_order + 1) if rows else 1,
         name=name, assigned_reviewer=assigned,
-        status="in_review" if not rows else "pending",
+        status=next_workflow_stage_status(rows),
         created_by=actor, created_at=now, updated_at=now,
     )
     db.add(row)
