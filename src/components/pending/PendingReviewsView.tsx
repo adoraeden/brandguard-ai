@@ -185,7 +185,7 @@ export const PendingReviewsView: React.FC<PendingReviewsViewProps> = ({
                             ? 'border-indigo-200 bg-indigo-50 text-indigo-800'
                             : 'border-amber-200 bg-amber-50 text-amber-800'
                         }`}>
-                          {r.decisionStatus === 'partially_approved' ? 'Partially approved · open' : 'Awaiting review'}
+                          {r.decisionStatus === 'partially_approved' ? 'Pending · continue review' : 'Awaiting review'}
                         </span>
                       </td>
 
