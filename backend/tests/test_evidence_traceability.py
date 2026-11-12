@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from routers.reviews import enrich_finding_evidence
 from models import TerminologyEntryModel
 from rule_engine import run_python_deterministic_checks
+from gemini_analyzer import _approved_evidence, _retrieve_evidence, _evidence_matches_claim
 
 
 def finding(category, record_type=None, record_id=None, quote=None):
@@ -149,6 +150,74 @@ class EvidenceTraceabilityTests(unittest.TestCase):
         self.assertEqual(item.sourceDocumentId, "doc-guide")
         self.assertEqual(item.sourcePageNumber, 1)
         self.assertEqual(item.sourceExcerpt, "All measurable claims must cite approved evidence.")
+
+
+    def test_ingested_approved_fact_flows_into_review_retrieval_and_traceability(self):
+        # This mirrors the records created by documents.decide_candidate after a
+        # human approves an extracted passage as a fact.
+        approved_text = "The service provides a 99.95% verified uptime SLA."
+        fact = SimpleNamespace(
+            id="fact-ingestion-e2e",
+            title="Verified uptime SLA",
+            statement=approved_text,
+            category="product_specs",
+            source="Reliability Guide.pdf, page 2, section Availability",
+            verificationStatus="verified",
+            sourceDocumentId="doc-ingestion-e2e",
+            sourcePageNumber=2,
+            sourceSectionLabel="Availability",
+            sourceExcerpt=approved_text,
+        )
+        provisional_fact = SimpleNamespace(
+            id="fact-not-approved",
+            title="Unreviewed uptime",
+            statement="The service guarantees 100% uptime.",
+            category="product_specs",
+            source="Unreviewed upload",
+            verificationStatus="provisional",
+            sourceExcerpt="The service guarantees 100% uptime.",
+        )
+
+        # The analyzer's approved catalogue must include the approved fact,
+        # preserve its original excerpt, and exclude unapproved facts.
+        catalogue = _approved_evidence([], [], [fact, provisional_fact], [])
+        self.assertEqual([record.id for record in catalogue], ["fact-ingestion-e2e"])
+        self.assertEqual(catalogue[0].kind, "fact")
+        self.assertIn(approved_text, catalogue[0].text)
+
+        # The claim under review must retrieve the newly approved fact.
+        claim = "AuraCloud provides a 99.95% verified uptime SLA."
+        retrieved = _retrieve_evidence(catalogue, claim, "Reliability claim")
+        self.assertEqual(len(retrieved), 1)
+        evidence = retrieved[0]
+        self.assertEqual(evidence.id, fact.id)
+        self.assertTrue(_evidence_matches_claim(claim, evidence, approved_text))
+
+        # Once a finding cites that exact record and quote, enrichment must
+        # attach the original document, page, section, and excerpt.
+        item = finding("direct_contradiction", "fact", fact.id, approved_text)
+        enrich_finding_evidence([item], [], [fact])
+        self.assertEqual(item.evidenceStatus, "conflicting")
+        self.assertEqual(item.sourceDocumentId, "doc-ingestion-e2e")
+        self.assertEqual(item.sourcePageNumber, 2)
+        self.assertEqual(item.sourceSectionLabel, "Availability")
+        self.assertEqual(item.sourceExcerpt, approved_text)
+
+    def test_approved_guideline_enters_contextual_evidence_catalogue(self):
+        guideline = SimpleNamespace(
+            id="guideline-ingestion-e2e",
+            title="Evidence-backed claims",
+            description="All measurable claims must cite approved evidence.",
+            sourceReference="Brand Voice Guide.pdf, page 1, section Claims",
+            status="active",
+            category="writing_standards",
+            examples={},
+            sourceExcerpt="All measurable claims must cite approved evidence.",
+        )
+        catalogue = _approved_evidence([guideline], [], [], [])
+        self.assertEqual(len(catalogue), 1)
+        self.assertEqual(catalogue[0].kind, "guideline")
+        self.assertIn("All measurable claims must cite approved evidence.", catalogue[0].text)
 
 if __name__ == "__main__":
     unittest.main()
