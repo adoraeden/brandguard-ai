@@ -1355,10 +1355,6 @@ if (
     activeReview.findings.filter(f => !f.suggestion && f.findingDecision === 'accepted').length;
   const rejectedCount = activeReview.summary.rejectedSuggestions +
     activeReview.findings.filter(f => !f.suggestion && f.findingDecision === 'dismissed').length;
-  const hasRecordedDecisions = activeReview.findings.some(f =>
-    (f.suggestion && ['accepted', 'edited', 'rejected'].includes(f.suggestion.status)) ||
-    (!f.suggestion && ['accepted', 'dismissed'].includes(f.findingDecision || ''))
-  );
   const pendingCount = unresolvedCount;
   const isCompleted = ['approved_with_changes', 'approved_as_is', 'rejected'].includes(activeReview.decisionStatus);
   const deterministicStatus = getDeterministicStatusView(activeReview);
