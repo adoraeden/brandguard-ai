@@ -5,6 +5,8 @@ from routers.reviews import enrich_finding_evidence
 from models import TerminologyEntryModel
 from rule_engine import run_python_deterministic_checks
 from gemini_analyzer import _approved_evidence, _retrieve_evidence, _evidence_matches_claim
+from database import DBApprovedFact
+from storage import fact_model
 
 
 def finding(category, record_type=None, record_id=None, quote=None):
@@ -218,6 +220,33 @@ class EvidenceTraceabilityTests(unittest.TestCase):
         self.assertEqual(len(catalogue), 1)
         self.assertEqual(catalogue[0].kind, "guideline")
         self.assertIn("All measurable claims must cite approved evidence.", catalogue[0].text)
+
+
+    def test_database_approved_fact_mapping_preserves_ingestion_provenance_for_analyzer(self):
+        original_excerpt = "The service provides a 99.95% verified uptime SLA."
+        database_row = DBApprovedFact(
+            id="fact-db-ingestion",
+            title="Verified uptime SLA",
+            statement=original_excerpt,
+            category="product_specs",
+            source="Reliability Guide.pdf, page 2, section Availability",
+            verification_status="verified",
+            last_updated="2026-11-12",
+            source_document_id="doc-db-ingestion",
+            source_page_number=2,
+            source_section_label="Availability",
+            source_excerpt=original_excerpt,
+        )
+        mapped_fact = fact_model(database_row)
+        self.assertEqual(mapped_fact.sourceDocumentId, "doc-db-ingestion")
+        self.assertEqual(mapped_fact.sourcePageNumber, 2)
+        self.assertEqual(mapped_fact.sourceSectionLabel, "Availability")
+        self.assertEqual(mapped_fact.sourceExcerpt, original_excerpt)
+
+        catalogue = _approved_evidence([], [], [mapped_fact], [])
+        self.assertEqual(len(catalogue), 1)
+        self.assertEqual(catalogue[0].id, "fact-db-ingestion")
+        self.assertIn(original_excerpt, catalogue[0].text)
 
 if __name__ == "__main__":
     unittest.main()
