@@ -43,6 +43,9 @@ def run_python_deterministic_checks(
                 explanation=term.explanation,
                 sourceRuleOrTerm=f"Terminology: {term.preferredTerm}",
                 sourceReference=f"Approved Terminology Catalogue §{term.category}",
+                evidenceRecordType='terminology',
+                evidenceRecordId=term.id,
+                evidenceQuote=term.restrictedTerm,
                 detectionMethod='deterministic_rule',
                 confidence='high',
                 suggestion=SuggestionModel(
