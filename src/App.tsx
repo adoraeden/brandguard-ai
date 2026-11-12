@@ -184,24 +184,16 @@ function AppContent() {
         pendingReviewsCount={pendingReviewsCount}
       />
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col h-[calc(100dvh-3.5rem)] md:h-screen min-w-0 overflow-hidden">
-        {/* Top Header */}
+      {/* Main Content Area: the whole workspace scrolls; only the navigation rail stays fixed */}
+      <div className="flex-1 min-w-0 min-h-0 overflow-y-auto bg-[#F8FAFC]">
         <TopHeader
           currentTab={currentTab}
           onNewReviewClick={handleStartNewReview}
           onRefreshClick={loadAllData}
           isRefreshing={isLoading}
-          documentTitle={activeReview?.title}
           activeFindingsCount={activeReview?.summary?.unresolvedFindings}
         />
-
-        {/* Viewport View Switcher */}
-        <main className={`flex-1 bg-[#F8FAFC] ${
-          currentTab === 'review_studio' || currentTab === 'brand_intelligence' || currentTab === 'evidence_ingestion' 
-            ? 'overflow-hidden flex flex-col' 
-            : 'overflow-y-auto'
-        }`}>
+        <main className="min-h-[calc(100dvh-76px)] bg-[#F8FAFC]">
           {currentTab === 'overview' && (
             <OverviewView
               overviewData={overviewData}
