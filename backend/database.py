@@ -124,7 +124,12 @@ class DBReviewFinding(Base):
     finding_decision_at = Column(String, nullable=True)
     finding_decision_note = Column(Text, nullable=True)
     suggestion = relationship("DBReviewSuggestion", uselist=False, cascade="all, delete-orphan")
-
+    lifecycle_status = Column(
+    String,
+    nullable=False,
+    default="active",
+    server_default="active",
+)
 
 class DBReviewSuggestion(Base):
     __tablename__ = "review_suggestions"
@@ -223,6 +228,11 @@ def init_db():
         connection.execute(text(
             "ALTER TABLE review_findings ADD COLUMN IF NOT EXISTS finding_decision_note TEXT"
         ))
+        connection.execute(text("""
+    ALTER TABLE review_findings
+    ADD COLUMN IF NOT EXISTS lifecycle_status
+    VARCHAR NOT NULL DEFAULT 'active'
+"""))
         connection.execute(text(
             "ALTER TABLE review_suggestions ADD COLUMN IF NOT EXISTS applied_start INTEGER"
         ))

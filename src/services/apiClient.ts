@@ -15,14 +15,24 @@ const apiFetch = (input: RequestInfo | URL, init?: RequestInit) =>
   fetch(new URL(input.toString(), `${API_BASE_URL || window.location.origin}/`), init);
 const newEntryId = (prefix: string) => `${prefix}-${globalThis.crypto.randomUUID()}`;
 const apiError = async (res: Response, fallback: string) => {
-  const body = await res.json().catch(() => ({}));
+  const raw = await res.text().catch(() => '');
+  let body: any = {};
+  if (raw) {
+    try {
+      body = JSON.parse(raw);
+    } catch {
+      const text = raw.trim();
+      if (text && !text.startsWith('<')) return text;
+      return `${fallback} (HTTP ${res.status})`;
+    }
+  }
   if (typeof body.detail === 'string') return body.detail;
   if (typeof body.error === 'string') return body.error;
   if (Array.isArray(body.detail)) return body.detail.map((item: any) => item.msg || item.message || 'Invalid field').join('. ');
   if (body.detail && typeof body.detail === 'object') {
     return body.detail.message || body.detail.error || JSON.stringify(body.detail);
   }
-  return fallback;
+  return `${fallback} (HTTP ${res.status})`;
 };
 
 export const api = {

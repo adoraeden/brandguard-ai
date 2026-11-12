@@ -56,6 +56,8 @@ function AppContent() {
     try {
       if (review?.id) {
         localStorage.setItem('brandguard_active_review_id', review.id);
+      } else {
+        localStorage.removeItem('brandguard_active_review_id');
       }
     } catch {
       // Ignore
@@ -153,6 +155,7 @@ function AppContent() {
 
   const handleReviewCreated = (doc: ReviewDocument) => {
     handleSetActiveReview(doc);
+    setDraftToLoad(null);
     loadAllData();
   };
 
@@ -209,8 +212,7 @@ function AppContent() {
             <PendingReviewsView
               reviews={reviews}
               onOpenReview={(r) => {
-                handleSetActiveReview(r);
-                handleSelectTab('review_studio');
+                handleSelectReview(r.id);
               }}
               onStartNewReview={handleStartNewReview}
             />
@@ -241,8 +243,7 @@ function AppContent() {
             <DecisionArchiveView
               reviews={reviews}
               onOpenReview={(r) => {
-                handleSetActiveReview(r);
-                handleSelectTab('review_studio');
+                handleSelectReview(r.id);
               }}
             />
           )}

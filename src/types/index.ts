@@ -69,6 +69,7 @@ export interface ReviewFinding {
   evidenceRecordId?: string;
   evidenceQuote?: string;
   analysisRunId?: string;
+  lifecycleStatus?: 'active' | 'resolved';
   findingDecision?: 'accepted' | 'dismissed' | 'verification_required';
   findingDecisionReviewer?: string;
   findingDecisionAt?: string;

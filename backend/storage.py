@@ -74,6 +74,7 @@ def review_model(row):
     for item in row.findings:
         suggestion = item.suggestion
         findings.append(ReviewFindingModel(
+            lifecycleStatus=item.lifecycle_status or "active",
             id=item.id, reviewId=item.review_id, title=item.title,
             category=item.category, severity=item.severity, exactText=item.exact_text,
             startIndex=item.start_index, endIndex=item.end_index,
@@ -125,6 +126,7 @@ def add_review(session, document):
         updated_at=datetime.fromisoformat(document.updatedAt.replace("Z", "+00:00")).replace(tzinfo=None))
     for position, finding in enumerate(document.findings):
         finding_row = DBReviewFinding(
+            lifecycle_status=finding.lifecycleStatus or "active",
             id=finding.id, review_id=document.id, position=position,
             title=finding.title, category=finding.category, severity=finding.severity,
             exact_text=finding.exactText, start_index=finding.startIndex, end_index=finding.endIndex,

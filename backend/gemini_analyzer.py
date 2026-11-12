@@ -5,8 +5,9 @@ import logging
 import os
 import re
 import time
+from collections import Counter
 from dataclasses import dataclass
-from typing import List, Literal, Optional
+from typing import Dict, List, Literal, Optional, Set
 
 from models import (ApprovedFactModel, BrandGuidelineModel, KnowledgeSourceModel,
                     ReviewFindingModel, SuggestionModel, TerminologyEntryModel)
@@ -22,6 +23,25 @@ GEMINI_RETRYABLE_STATUS_CODES = {408, 429, 500, 502, 503, 504}
 GEMINI_RETRYABLE_TRANSPORT_ERRORS = {
     'ConnectError', 'ConnectTimeout', 'PoolTimeout', 'ReadTimeout',
     'RemoteProtocolError', 'TimeoutException', 'WriteTimeout',
+}
+MAX_RETRIEVED_EVIDENCE = 24
+ALLOWED_EVIDENCE_KINDS = {
+    'direct_contradiction': {'fact', 'knowledge_source', 'guideline'},
+    'contextual_inconsistency': {'guideline', 'terminology', 'knowledge_source'},
+    'unsupported_claim': {'fact', 'knowledge_source'},
+    'potential_issue': {'guideline', 'terminology'},
+}
+EVIDENCE_REASON_LABELS = {
+    'exact_text_not_in_draft': 'flagged text not found in the draft',
+    'missing_reference': 'missing required evidence reference',
+    'unexpected_quote': 'evidence quote without a reference',
+    'unknown_reference': 'unknown or unavailable evidence reference',
+    'type_mismatch': 'evidence type mismatch',
+    'category_mismatch': 'evidence type not permitted for the finding category',
+    'missing_quote': 'missing evidence quote',
+    'quote_not_found': 'quote not found in the approved record',
+    'irrelevant': 'cited evidence not relevant to the flagged text',
+    'relevant_evidence_available': 'unsupported claim with directly relevant evidence available',
 }
 
 
@@ -73,6 +93,7 @@ class ApprovedEvidence:
     title: str
     reference: str
     text: str
+    category: str = ''
 
 
 def _approved_evidence(guidelines, terminology, facts, sources):
@@ -82,24 +103,26 @@ def _approved_evidence(guidelines, terminology, facts, sources):
             text = '\n'.join(filter(None, [item.description,
                 (item.examples or {}).get('approved'), (item.examples or {}).get('prohibited')]))
             records.append(ApprovedEvidence(item.id, 'guideline', item.title,
-                item.sourceReference, text))
+                item.sourceReference, text, item.category))
     for item in terminology:
         if item.status == 'active':
             text = '\n'.join(filter(None, [item.preferredTerm, item.restrictedTerm,
                 item.approvedAlternative, item.explanation]))
             records.append(ApprovedEvidence(item.id, 'terminology', item.preferredTerm,
-                f'Approved terminology entry {item.id} ({item.category})', text))
+                f'Approved terminology entry {item.id} ({item.category})', text,
+                item.category))
     for item in facts:
         if item.verificationStatus in ('verified', 'approved'):
             records.append(ApprovedEvidence(item.id, 'fact', item.title,
-                f'{item.source} [approved fact {item.id}]', item.statement))
+                f'{item.source} [approved fact {item.id}]', item.statement,
+                item.category))
     for item in sources:
         if item.status == 'active':
             reference = f'Knowledge source {item.id}: {item.title} ({item.type}, version {item.version})'
             if item.url:
                 reference += f' — {item.url}'
             records.append(ApprovedEvidence(item.id, 'knowledge_source', item.title,
-                reference, item.description))
+                reference, item.description, item.type))
     return records
 
 
@@ -173,16 +196,157 @@ def _is_non_claim_label(exact_text: str, title: str, draft: str) -> bool:
     return False
 
 
-def _evidence_is_relevant(exact_text: str, quote: str) -> bool:
-    # Require at least one meaningful shared token between the flagged passage
-    # and the exact quote; this rejects unrelated-but-real records such as SOC-2
-    # evidence being cited for an uptime claim.
-    stop_words = {'the', 'and', 'for', 'with', 'from', 'that', 'this', 'our', 'your',
-                  'are', 'was', 'were', 'has', 'have', 'had', 'will', 'can', 'all',
-                  'not', 'but', 'into', 'about', 'than', 'then', 'they', 'their'}
-    tokens = lambda text: {token for token in re.findall(r'[a-z0-9%]+', text.casefold())
-                           if token not in stop_words and len(token) > 1}
-    return bool(tokens(exact_text) & tokens(quote))
+_TOKEN_PATTERN = re.compile(r'[a-z0-9]+(?:[.\-][a-z0-9]+)*%?')
+_EVIDENCE_STOP_WORDS = {
+    'the', 'and', 'for', 'with', 'from', 'that', 'this', 'these', 'those',
+    'our', 'your', 'you', 'their', 'its', 'are', 'is', 'was', 'were', 'has',
+    'have', 'had', 'will', 'would', 'can', 'could', 'should', 'may', 'might',
+    'must', 'not', 'but', 'into', 'about', 'than', 'then', 'they', 'them',
+    'there', 'here', 'all', 'any', 'each', 'every', 'some', 'more', 'most',
+    'other', 'such', 'only', 'also', 'very', 'just', 'been', 'being', 'does',
+    'did', 'doing', 'what', 'when', 'where', 'who', 'how', 'why', 'per', 'via',
+    'using', 'use', 'used', 'new', 'including', 'include', 'includes', 'across',
+    'over', 'under', 'off', 'out', 'up', 'down', 'one', 'two', 'three',
+    'platform', 'platforms', 'service', 'services', 'product', 'products',
+    'customer', 'customers', 'company', 'companies', 'business', 'experience',
+    'solution', 'solutions', 'offer', 'offers', 'provide', 'provides', 'deliver',
+    'delivers', 'help', 'helps', 'make', 'makes', 'like', 'able', 'well',
+    'best', 'good', 'great', 'ensure', 'ensures', 'support', 'supports',
+    'based', 'within', 'without', 'through', 'between', 'during', 'before',
+    'after', 'same', 'own', 'get', 'gets', 'please', 'guarantee', 'guarantees',
+    'guaranteed', 'claim', 'claims', 'statement', 'statements', 'language',
+}
+_STANDARD_PATTERN = re.compile(
+    r'\b(?:soc[- ]?2|iso[- ]?\d{4,5}|hipaa|gdpr|nist|fedramp|pci(?:[- ]dss)?)\b',
+    re.IGNORECASE,
+)
+_POLICY_SIGNAL_TERMS = {
+    'hyperbole': {
+        '100%', 'zero', 'uninterrupted', 'forever', 'never', 'always', 'fully',
+        'every', 'all', 'unlimited', 'perfect', 'perfectly', 'instantly',
+        'instant', 'ultimate', 'absolute', 'exaggerated', 'exaggeration',
+        'hyperbole', 'guaranteed', 'guarantee', 'no.1', 'number',
+    },
+    'workforce': {
+        'employee', 'employees', 'workforce', 'staff', 'team', 'teams',
+        'replace', 'replacement', 'replacing', 'autonomous', 'human', 'humans',
+        'augment', 'augmentation', 'agent', 'agents', 'job', 'jobs',
+    },
+    'naming': {
+        'app', 'application', 'workspace', 'suite', 'cloud', 'name', 'naming',
+        'trademark', 'brand', 'product',
+    },
+    'security': {
+        'security', 'secure', 'soc', 'soc2', 'iso', 'hipaa', 'gdpr', 'nist',
+        'fedramp', 'pci', 'audit', 'audited', 'encryption', 'encrypted',
+        'compliance', 'certified', 'certification',
+    },
+    'performance': {
+        'uptime', 'downtime', 'availability', 'sla', 'reliable', 'reliability',
+        'failover', 'latency', 'performance', 'accuracy', 'accurate', 'speed',
+        'fast',
+    },
+    'tone': {
+        'tone', 'slang', 'aggressive', 'informal', 'formal', 'friendly',
+        'professional', 'clear', 'helpful', 'hyperbolic',
+    },
+    'sustainability': {
+        'sustainable', 'sustainability', 'carbon', 'environment', 'green',
+        'emissions', 'recycled',
+    },
+    'pricing': {
+        'price', 'pricing', 'cost', 'free', 'lifetime', 'subscription',
+        'license', 'licensing', 'discount',
+    },
+    'legal': {
+        'legal', 'liability', 'immunity', 'regulatory', 'law', 'compliance',
+    },
+}
+
+
+def _meaningful_tokens(value: str) -> Set[str]:
+    return {
+        token for token in _TOKEN_PATTERN.findall((value or '').casefold())
+        if token not in _EVIDENCE_STOP_WORDS and len(token) > 1
+    }
+
+
+def _anchor_tokens(value: str) -> Set[str]:
+    anchors = {
+        token for token in _meaningful_tokens(value)
+        if any(character.isdigit() for character in token)
+    }
+    anchors.update(
+        re.sub(r'[\s-]+', '', match.casefold())
+        for match in _STANDARD_PATTERN.findall(value or '')
+    )
+    return anchors
+
+
+def _policy_signals(value: str) -> Set[str]:
+    tokens = _meaningful_tokens(value)
+    return {
+        signal for signal, terms in _POLICY_SIGNAL_TERMS.items()
+        if tokens & terms
+    }
+
+
+def _direct_evidence_is_relevant(exact_text: str, evidence_text: str) -> bool:
+    claim_tokens = _meaningful_tokens(exact_text)
+    evidence_tokens = _meaningful_tokens(evidence_text)
+    if not claim_tokens or not evidence_tokens:
+        return False
+    if _anchor_tokens(exact_text) & _anchor_tokens(evidence_text):
+        return True
+    return bool(claim_tokens & evidence_tokens)
+
+
+def _policy_evidence_is_relevant(exact_text: str, evidence: ApprovedEvidence) -> bool:
+    evidence_text = f'{evidence.title}\n{evidence.text}'
+    if _direct_evidence_is_relevant(exact_text, evidence_text):
+        return True
+    return bool(_policy_signals(exact_text) & _policy_signals(evidence_text))
+
+
+def _evidence_matches_claim(
+    exact_text: str,
+    evidence: ApprovedEvidence,
+    evidence_quote: str,
+) -> bool:
+    if evidence.kind in ('guideline', 'terminology'):
+        return _policy_evidence_is_relevant(exact_text, evidence)
+    return _direct_evidence_is_relevant(exact_text, evidence_quote)
+
+
+def _retrieval_score(content: str, title: str, record: ApprovedEvidence) -> int:
+    corpus = f'{title}\n{content}'
+    evidence_text = f'{record.title}\n{record.text}'
+    anchors = _anchor_tokens(corpus) & _anchor_tokens(evidence_text)
+    shared = _meaningful_tokens(corpus) & _meaningful_tokens(evidence_text)
+    signals = _policy_signals(corpus) & _policy_signals(evidence_text)
+    return (len(anchors) * 4) + (len(shared) * 2) + (len(signals) * 3)
+
+
+def _retrieve_evidence(
+    records: List[ApprovedEvidence],
+    content: str,
+    title: str,
+) -> List[ApprovedEvidence]:
+    scored = [
+        (_retrieval_score(content, title, record), index, record)
+        for index, record in enumerate(records)
+    ]
+    scored.sort(key=lambda item: (-item[0], item[1]))
+    selected = [record for score, _index, record in scored if score > 0]
+    selected = selected[:MAX_RETRIEVED_EVIDENCE]
+    selected_ids = {(record.kind, record.id) for record in selected}
+    for record in records:
+        if len(selected) >= MAX_RETRIEVED_EVIDENCE:
+            break
+        if (record.kind, record.id) not in selected_ids:
+            selected.append(record)
+            selected_ids.add((record.kind, record.id))
+    return selected
 
 
 def _suggestion_adds_unapproved_claim(suggestion: str, draft: str, evidence_quote: str) -> bool:
@@ -231,14 +395,16 @@ def run_gemini_contextual_analysis(
                 ),
             ),
         )
-        evidence_records = _approved_evidence(guidelines, terminology or [], facts, sources or [])
+        approved_records = _approved_evidence(guidelines, terminology or [], facts, sources or [])
+        evidence_records = _retrieve_evidence(approved_records, content, title)
         evidence_payload = [{"id": record.id, "type": record.kind, "title": record.title,
-                             "reference": record.reference, "approvedText": record.text}
+                             "category": record.category, "reference": record.reference,
+                             "approvedText": record.text}
                             for record in evidence_records]
         evidence_by_id = {(record.kind, record.id): record for record in evidence_records}
 
         prompt = f"""You are the contextual brand governance review engine for AuraCloud Technologies.
-Analyze the supplied communication only against this approved evidence catalog. IDs and text below are the only valid evidence.
+Analyze the supplied communication only against this retrieved approved evidence catalog. IDs and text below are the only valid evidence.
 APPROVED EVIDENCE CATALOG (JSON):
 {json.dumps(evidence_payload, ensure_ascii=False)}
 
@@ -256,8 +422,8 @@ INSTRUCTIONS:
 2. Extract actual factual and measurable statements from the body, including concentrations, timed outcome claims, testing claims, and suitability claims. Evaluate each statement separately. For example, distinguish a product name like "GlowPure Vitamin C Brightening Serum" from claims such as "15% Vitamin C concentration", "Visibly brighter-looking skin in 7 days", "Dermatologically tested", and "Suitable for all skin types".
 3. Distinguish a direct contradiction with verified evidence (direct_contradiction), a material claim with no direct approved evidence (unsupported_claim), and misleading/exaggerated language grounded in a specific guideline (potential_issue or contextual_inconsistency).
 4. Every finding must cite one evidence catalog item by exact evidenceRecordId and evidenceRecordType, plus an exact evidenceQuote copied from that record's approvedText. Do not invent titles, references, IDs, standards, or certifications.
-5. Only use a fact when its statement directly relates to the claim. SOC-2/security evidence cannot support unrelated accuracy, performance, uptime, or certification claims.
-6. If there is no directly relevant approved evidence for a material claim, return category unsupported_claim, evidenceRecordId null, evidenceRecordType null, and evidenceQuote empty. These findings will be labeled Insufficient Evidence, not false.
+5. Cite the evidence type appropriate to the category: direct_contradiction may use fact, knowledge_source, or guideline; contextual_inconsistency may use guideline, terminology, or knowledge_source; potential_issue may use guideline or terminology; unsupported_claim may use fact or knowledge_source. Only use a fact or source when its text directly relates to the claim. SOC-2/security evidence cannot support unrelated accuracy, performance, uptime, or certification claims.
+6. If there is no directly relevant approved evidence for a material claim, return category unsupported_claim, evidenceRecordId null, evidenceRecordType null, and evidenceQuote empty. These findings will be labeled Insufficient Evidence, not false. Do not attach unrelated evidence merely to avoid a null reference.
 7. Do not repeat items already detected by deterministic or previous findings.
 8. Provide the exact draft text and a possible intent-preserving correction. Do not add facts, numbers, certifications, document titles, or standards absent from the draft and cited evidence.
 9. Return only a JSON array. Valid category values: direct_contradiction, contextual_inconsistency, unsupported_claim, potential_issue. Severity values: critical, high, medium, low, informational. Confidence values: high, medium, low.
@@ -303,7 +469,15 @@ If no supported issues or material unsupported claims are found, return an empty
         severities = {'critical', 'high', 'medium', 'low', 'informational'}
         confidences = {'high', 'medium', 'low'}
         additional_findings: List[ReviewFindingModel] = []
-        evidence_errors = 0
+        withheld_reasons: Counter[str] = Counter()
+        evidence_by_any_id: Dict[str, List[ApprovedEvidence]] = {}
+        for record in evidence_records:
+            evidence_by_any_id.setdefault(str(record.id), []).append(record)
+
+        def withhold(reason: str) -> None:
+            withheld_reasons[reason] += 1
+            logger.warning('Gemini finding withheld review_id=%s reason=%s', review_id, reason)
+
         for item in data:
             if not isinstance(item, dict):
                 raise ValueError('Gemini response contained an invalid finding')
@@ -314,8 +488,7 @@ If no supported issues or material unsupported claims are found, return an empty
                 logger.info('Gemini non-claim label withheld review_id=%s', review_id)
                 continue
             if _normalized_text(exact_text) not in _normalized_text(content):
-                evidence_errors += 1
-                logger.warning('Gemini finding withheld review_id=%s reason=quoted_text_not_in_draft', review_id)
+                withhold('exact_text_not_in_draft')
                 continue
             if any(exact_text.casefold() in finding.exactText.casefold() or
                    finding.exactText.casefold() in exact_text.casefold()
@@ -333,11 +506,19 @@ If no supported issues or material unsupported claims are found, return an empty
             evidence_quote = str(item.get('evidenceQuote') or '').strip()
             evidence = evidence_by_id.get((str(evidence_type), str(evidence_id))) if evidence_id else None
             if not evidence_id:
-                if (category != 'unsupported_claim' or evidence_quote
-                        or any(_evidence_is_relevant(exact_text, record.text)
-                               for record in evidence_records)):
-                    evidence_errors += 1
-                    logger.warning('Gemini finding withheld review_id=%s reason=missing_direct_evidence', review_id)
+                if category != 'unsupported_claim':
+                    withhold('missing_reference')
+                    continue
+                if evidence_quote:
+                    withhold('unexpected_quote')
+                    continue
+                related_factual_records = [
+                    record for record in evidence_records
+                    if record.kind in ('fact', 'knowledge_source')
+                    and _direct_evidence_is_relevant(exact_text, record.text)
+                ]
+                if related_factual_records:
+                    withhold('relevant_evidence_available')
                     continue
                 finding_title = 'Insufficient Evidence'
                 source_rule = 'Insufficient Evidence'
@@ -350,13 +531,28 @@ If no supported issues or material unsupported claims are found, return an empty
                 evidence_id = None
                 evidence_type = None
                 evidence_quote = None
-            elif (not evidence or evidence.kind != evidence_type or not evidence_quote
-                  or _normalized_text(evidence_quote) not in _normalized_text(evidence.text)
-                  or not _evidence_is_relevant(exact_text, evidence_quote)):
-                evidence_errors += 1
-                logger.warning('Gemini finding withheld review_id=%s reason=unverified_or_mismatched_evidence', review_id)
-                continue
             else:
+                if not evidence:
+                    if evidence_by_any_id.get(str(evidence_id)):
+                        withhold('type_mismatch')
+                    else:
+                        withhold('unknown_reference')
+                    continue
+                if evidence.kind != evidence_type:
+                    withhold('type_mismatch')
+                    continue
+                if evidence.kind not in ALLOWED_EVIDENCE_KINDS[category]:
+                    withhold('category_mismatch')
+                    continue
+                if not evidence_quote:
+                    withhold('missing_quote')
+                    continue
+                if _normalized_text(evidence_quote) not in _normalized_text(evidence.text):
+                    withhold('quote_not_found')
+                    continue
+                if not _evidence_matches_claim(exact_text, evidence, evidence_quote):
+                    withhold('irrelevant')
+                    continue
                 finding_title = {
                     'direct_contradiction': 'Direct Evidence Contradiction',
                     'contextual_inconsistency': 'Contextual Inconsistency',
@@ -394,12 +590,17 @@ If no supported issues or material unsupported claims are found, return an empty
                     rationale=suggestion_rationale,
                     authorIntentPreserved=str(item.get('authorIntentPreserved') or 'Preserves the original communication intent.'),
                     status='pending') if suggestion_text else None))
-        logger.info('Gemini analysis completed review_id=%s finding_count=%s',
-                    review_id, len(additional_findings))
-        if evidence_errors:
+        logger.info('Gemini analysis completed review_id=%s finding_count=%s withheld=%s',
+                    review_id, len(additional_findings), dict(withheld_reasons))
+        if withheld_reasons:
             evidence_status = 'partial' if additional_findings else 'evidence_validation_failure'
+            withheld_count = sum(withheld_reasons.values())
+            details = ', '.join(
+                f'{count} {EVIDENCE_REASON_LABELS.get(reason, reason)}'
+                for reason, count in withheld_reasons.items()
+            )
             return GeminiAnalysisResult(additional_findings, evidence_status,
-                f'Gemini evidence validation withheld {evidence_errors} finding(s) with missing, mismatched, or unapproved evidence. ' +
+                f'Gemini evidence validation withheld {withheld_count} finding(s): {details}. ' +
                 ('Validated findings and deterministic checks remain available.' if additional_findings else 'No Gemini findings passed evidence validation; deterministic checks remain available.'))
         return GeminiAnalysisResult(additional_findings, 'completed')
     except Exception as error:

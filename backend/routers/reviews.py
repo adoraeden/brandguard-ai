@@ -81,6 +81,13 @@ def get_review_history(review_id: str, db: Session = Depends(get_db)):
 
 
 def is_finding_unresolved(finding) -> bool:
+    lifecycle_status = getattr(finding, "lifecycle_status", None) or getattr(
+        finding, "lifecycleStatus", None
+    ) or "active"
+
+    if lifecycle_status == "resolved":
+        return False
+
     suggestion = getattr(finding, "suggestion", None)
 
     if suggestion:
@@ -95,6 +102,18 @@ def is_finding_unresolved(finding) -> bool:
 
 def count_unresolved_findings(findings) -> int:
     return sum(1 for finding in findings if is_finding_unresolved(finding))
+
+
+def active_findings(findings):
+    return [
+        finding
+        for finding in findings
+        if (
+            getattr(finding, "lifecycle_status", None)
+            or getattr(finding, "lifecycleStatus", None)
+            or "active"
+        ) == "active"
+    ]
 
 
 def apply_suggestion_action(
@@ -129,7 +148,6 @@ def apply_suggestion_action(
         )
     ]
 
-    # Reject incomplete tracking rather than risking an incorrect edit.
     for other in all_other_suggestions:
         if (
             other.applied_start is None
@@ -186,7 +204,6 @@ def apply_suggestion_action(
         if replacement_text is None:
             raise HTTPException(422, "Suggestion has no replacement text")
 
-        # Re-applying or editing an already-applied suggestion.
         has_tracking = (
             suggestion.applied_start is not None
             or suggestion.applied_end is not None
@@ -254,7 +271,6 @@ def apply_suggestion_action(
                     "Finding has no exactText to locate in document.",
                 )
 
-            # Find every non-overlapping literal occurrence.
             matches = []
             pos = 0
 
@@ -612,13 +628,66 @@ def rerun_review_analysis(
 
         generated = deterministic + contextual_result.findings
 
-        known = {
+        # Build separate keys for each analysis engine.
+        deterministic_keys = {
+            _finding_key(
+                item.detectionMethod,
+                item.category,
+                item.exactText,
+            )
+            for item in deterministic
+        }
+
+        gemini_keys = {
+            _finding_key(
+                item.detectionMethod,
+                item.category,
+                item.exactText,
+            )
+            for item in contextual_result.findings
+        }
+
+        # Resolve old findings only when their own engine completed successfully.
+        resolved_count = 0
+
+        for old in row.findings:
+            old.lifecycle_status = old.lifecycle_status or "active"
+
+            old_key = _finding_key(
+                old.detection_method,
+                old.category,
+                old.exact_text,
+            )
+
+            is_deterministic = old.detection_method in (
+                "deterministic_rule",
+                "fact_check",
+            )
+            is_gemini = old.detection_method == "gemini_contextual"
+
+            should_resolve = (
+                is_deterministic
+                and deterministic_status == "completed"
+                and old_key not in deterministic_keys
+            ) or (
+                is_gemini
+                and contextual_result.status == "completed"
+                and old_key not in gemini_keys
+            )
+
+            if old.lifecycle_status == "active" and should_resolve:
+                old.lifecycle_status = "resolved"
+                resolved_count += 1
+
+        # Only active findings prevent a new occurrence from being recorded.
+        known_active = {
             _finding_key(
                 item.detection_method,
                 item.category,
                 item.exact_text,
             )
             for item in row.findings
+            if (item.lifecycle_status or "active") == "active"
         }
 
         added_count = 0
@@ -630,10 +699,10 @@ def rerun_review_analysis(
                 finding.exactText,
             )
 
-            if not key[2] or key in known:
+            if not key[2] or key in known_active:
                 continue
 
-            known.add(key)
+            known_active.add(key)
 
             finding_id = f"finding-{uuid4().hex}"
             finding.id = finding_id
@@ -659,6 +728,7 @@ def rerun_review_analysis(
                 evidence_record_id=finding.evidenceRecordId,
                 evidence_quote=finding.evidenceQuote,
                 analysis_run_id=run_id,
+                lifecycle_status="active",
             )
 
             if finding.suggestion:
@@ -676,23 +746,25 @@ def rerun_review_analysis(
             added_count += 1
 
         all_findings = row.findings
+        current_findings = active_findings(all_findings)
 
         counts = {
-            "totalFindings": len(all_findings),
+            "totalFindings": len(current_findings),
             "exactViolations": sum(
-                f.category == "exact_violation" for f in all_findings
+                f.category == "exact_violation" for f in current_findings
             ),
             "directContradictions": sum(
-                f.category == "direct_contradiction" for f in all_findings
+                f.category == "direct_contradiction" for f in current_findings
             ),
             "contextualInconsistencies": sum(
-                f.category == "contextual_inconsistency" for f in all_findings
+                f.category == "contextual_inconsistency"
+                for f in current_findings
             ),
             "unsupportedClaims": sum(
-                f.category == "unsupported_claim" for f in all_findings
+                f.category == "unsupported_claim" for f in current_findings
             ),
             "potentialIssues": sum(
-                f.category == "potential_issue" for f in all_findings
+                f.category == "potential_issue" for f in current_findings
             ),
             "acceptedSuggestions": sum(
                 bool(f.suggestion and f.suggestion.status == "accepted")
@@ -745,7 +817,9 @@ def rerun_review_analysis(
                     "deterministicAnalysisMessage": deterministic_message,
                     "analysisRunId": run_id,
                     "newFindingCount": added_count,
+                    "resolvedFindingCount": resolved_count,
                     "totalFindingCount": len(all_findings),
+                    "activeFindingCount": len(current_findings),
                     "reviewStatus": row.status,
                 },
                 created_at=now,
@@ -900,7 +974,7 @@ def record_decision(
                     "acceptedCount": row.summary["acceptedSuggestions"],
                     "rejectedCount": row.summary["rejectedSuggestions"],
                     "editedCount": row.summary["editedSuggestions"],
-                    "totalFindings": len(row.findings),
+                    "totalFindings": len(active_findings(row.findings)),
                 },
             )
 

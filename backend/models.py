@@ -58,6 +58,7 @@ class ReviewFindingModel(BaseModel):
     sourceReference: str
     detectionMethod: Literal['deterministic_rule', 'gemini_contextual', 'fact_check']
     confidence: Literal['high', 'medium', 'low']
+    lifecycleStatus: Optional[Literal['active', 'resolved']] = None
     suggestion: Optional[SuggestionModel] = None
     evidenceRecordType: Optional[Literal['guideline', 'terminology', 'fact', 'knowledge_source']] = None
     evidenceRecordId: Optional[str] = None
