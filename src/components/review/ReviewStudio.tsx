@@ -18,7 +18,9 @@ import {
   UserCheck, 
   Pin, 
   Link2, 
-  ChevronRight, 
+  ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Cpu, 
   ArrowLeft,
   ArrowRight,
@@ -293,6 +295,10 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   const [documentPanePercent, setDocumentPanePercent] = useState(62);
   const workspaceRef = useRef<HTMLDivElement | null>(null);
   const resizingWorkspace = useRef(false);
+  const [analysisPanelHeight, setAnalysisPanelHeight] = useState(122);
+  const [analysisPanelCollapsed, setAnalysisPanelCollapsed] = useState(false);
+  const analysisPanelRef = useRef<HTMLDivElement | null>(null);
+  const resizingAnalysisPanel = useRef(false);
   const [showOriginalDiff, setShowOriginalDiff] = useState(false);
   
   // Custom edit state for finding suggestion
@@ -1467,8 +1473,34 @@ if (
         </div>
       )}
 
-      <div className={`mx-4 mt-2 rounded-lg border px-3 py-2 text-[11px] shadow-2xs ${ANALYSIS_PANEL_TONE_STYLES[analysisTone]}`}>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div
+        ref={analysisPanelRef}
+        style={{ height: analysisPanelCollapsed ? 42 : analysisPanelHeight }}
+        className={`mx-4 mt-2 shrink-0 rounded-lg border px-3 py-2 text-[11px] shadow-2xs overflow-hidden transition-[height] duration-150 ${ANALYSIS_PANEL_TONE_STYLES[analysisTone]}`}
+      >
+        {analysisPanelCollapsed ? (
+          <div className="flex h-full items-center justify-between gap-3">
+            <span className="font-semibold text-slate-700">Analysis checks hidden · document workspace expanded</span>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setAnalysisPanelCollapsed(false)}
+                className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                <ChevronDown className="h-3 w-3" /> Show checks
+              </button>
+              <button
+                type="button"
+                onClick={handleRerunAnalysis}
+                disabled={isRerunningAnalysis}
+                className="inline-flex items-center gap-1 rounded-md border border-[#2457D6] bg-[#2457D6] px-2 py-1 text-[10px] font-semibold text-white hover:bg-[#1946B8] disabled:opacity-60"
+              >
+                <RotateCcw className="h-3 w-3" /> Re-run
+              </button>
+            </div>
+          </div>
+        ) : (
+        <div className="flex h-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0 flex-1 space-y-1.5">
             <div role="status" aria-live="polite" className="grid grid-cols-1 lg:grid-cols-2 gap-x-4 gap-y-1">
               {[
@@ -1536,22 +1568,62 @@ if (
             </details>
           </div>
 
-          <button
-            type="button"
-            onClick={handleRerunAnalysis}
-            disabled={isRerunningAnalysis}
-            aria-busy={isRerunningAnalysis}
-            className="inline-flex shrink-0 items-center justify-center gap-1.5 self-start rounded-lg border border-[#2457D6] bg-[#2457D6] px-3 py-2 text-xs font-bold text-white shadow-sm transition-all hover:bg-[#1946B8] disabled:cursor-wait disabled:opacity-70 sm:self-auto"
-          >
-            {isRerunningAnalysis ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RotateCcw className="h-4 w-4" />
-            )}
-            {isRerunningAnalysis ? 'Re-running...' : 'Re-run Analysis'}
-          </button>
+          <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
+            <button
+              type="button"
+              onClick={() => setAnalysisPanelCollapsed(true)}
+              className="inline-flex items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-[10px] font-semibold text-slate-700 hover:bg-slate-50"
+              title="Hide analysis checks to give more space to the document and pins"
+            >
+              <ChevronUp className="h-3 w-3" /> Hide checks
+            </button>
+            <button
+              type="button"
+              onClick={handleRerunAnalysis}
+              disabled={isRerunningAnalysis}
+              aria-busy={isRerunningAnalysis}
+              className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[#2457D6] bg-[#2457D6] px-3 py-2 text-xs font-bold text-white shadow-sm transition-all hover:bg-[#1946B8] disabled:cursor-wait disabled:opacity-70"
+            >
+              {isRerunningAnalysis ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RotateCcw className="h-4 w-4" />
+              )}
+              {isRerunningAnalysis ? 'Re-running...' : 'Re-run Analysis'}
+            </button>
+          </div>
         </div>
+        )}
       </div>
+      {!analysisPanelCollapsed && (
+        <div
+          role="separator"
+          aria-label="Resize analysis checks panel vertically"
+          aria-orientation="horizontal"
+          aria-valuemin={76}
+          aria-valuemax={240}
+          aria-valuenow={analysisPanelHeight}
+          tabIndex={0}
+          onPointerDown={(event) => {
+            resizingAnalysisPanel.current = true;
+            event.currentTarget.setPointerCapture(event.pointerId);
+          }}
+          onPointerMove={(event) => {
+            if (!resizingAnalysisPanel.current || !analysisPanelRef.current) return;
+            const top = analysisPanelRef.current.getBoundingClientRect().top;
+            setAnalysisPanelHeight(Math.max(76, Math.min(240, event.clientY - top)));
+          }}
+          onPointerUp={() => { resizingAnalysisPanel.current = false; }}
+          onPointerCancel={() => { resizingAnalysisPanel.current = false; }}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowUp') setAnalysisPanelHeight(value => Math.max(76, value - 8));
+            if (event.key === 'ArrowDown') setAnalysisPanelHeight(value => Math.min(240, value + 8));
+          }}
+          className="mx-4 flex h-2 shrink-0 touch-none cursor-row-resize items-center justify-center rounded-b-md bg-slate-200/70 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+        >
+          <span className="h-0.5 w-12 rounded-full bg-slate-400" />
+        </div>
+      )}
       {rerunFeedback && <div
         role={rerunFeedback.kind === 'error' ? 'alert' : 'status'}
         className={`mx-4 mt-2 rounded-lg border px-3 py-2 text-xs ${
