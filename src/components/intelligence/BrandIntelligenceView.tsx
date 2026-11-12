@@ -56,33 +56,38 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedRecord, setSelectedRecord] = useState<{ type: string; data: any } | null>(null);
-  const [recentlyApprovedFactId, setRecentlyApprovedFactId] = useState<string | null>(null);
-  const focusedFactRowRef = useRef<HTMLTableRowElement | null>(null);
+  const [recentlyApprovedRecord, setRecentlyApprovedRecord] = useState<{ id: string; type: 'fact' | 'guideline' } | null>(null);
+  const focusedKnowledgeRowRef = useRef<HTMLTableRowElement | null>(null);
   
   useEffect(() => {
     if (!focusRecordId) return;
     const approvedFact = facts.find(fact => fact.id === focusRecordId);
-    if (!approvedFact) return;
+    const approvedGuideline = guidelines.find(guideline => guideline.id === focusRecordId);
+    if (!approvedFact && !approvedGuideline) return;
 
-    setSelectedCategory('facts');
+    const type = approvedFact ? 'fact' : 'guideline';
+    const record = approvedFact || approvedGuideline!;
+    setSelectedCategory(type === 'fact' ? 'facts' : 'guidelines');
     setSearchQuery('');
     setStatusFilter('all');
     setPriorityFilter('all');
-    setSelectedRecord({ type: 'fact', data: approvedFact });
-    setRecentlyApprovedFactId(approvedFact.id);
+    setSelectedRecord({ type, data: record });
+    setRecentlyApprovedRecord({ id: record.id, type });
 
-    const clearHighlight = window.setTimeout(() => setRecentlyApprovedFactId(null), 9000);
+    const clearHighlight = window.setTimeout(() => setRecentlyApprovedRecord(null), 9000);
     return () => window.clearTimeout(clearHighlight);
-  }, [focusRecordId, facts]);
+  }, [focusRecordId, facts, guidelines]);
 
   useEffect(() => {
-    if (!focusRecordId || selectedCategory !== 'facts' || !focusedFactRowRef.current) return;
+    if (!focusRecordId || !recentlyApprovedRecord || !focusedKnowledgeRowRef.current) return;
+    const expectedCategory = recentlyApprovedRecord.type === 'fact' ? 'facts' : 'guidelines';
+    if (selectedCategory !== expectedCategory) return;
     const frame = window.requestAnimationFrame(() => {
-      focusedFactRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      focusedKnowledgeRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       onFocusHandled?.();
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [focusRecordId, selectedCategory, facts.length, onFocusHandled]);
+  }, [focusRecordId, selectedCategory, facts.length, guidelines.length, recentlyApprovedRecord, onFocusHandled]);
 
   // Modals for CRUD
   const [showAddModal, setShowAddModal] = useState(false);
@@ -769,9 +774,12 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
                       return (
                         <tr
                           key={g.id}
+                          ref={g.id === focusRecordId || (recentlyApprovedRecord?.type === 'guideline' && g.id === recentlyApprovedRecord.id) ? focusedKnowledgeRowRef : undefined}
                           onClick={() => setSelectedRecord({ type: 'guideline', data: g })}
-                          className={`hover:bg-slate-50/80 cursor-pointer transition-colors ${
-                            isSelected ? 'bg-blue-50/60 font-medium' : ''
+                          className={`cursor-pointer transition-all duration-500 hover:bg-slate-50/80 ${
+                            g.id === recentlyApprovedRecord?.id && recentlyApprovedRecord.type === 'guideline'
+                              ? 'bg-emerald-50 ring-2 ring-inset ring-emerald-300'
+                              : isSelected ? 'bg-blue-50/60 font-medium' : ''
                           }`}
                         >
                           <td className="p-3 pl-5 max-w-xs truncate">
@@ -781,6 +789,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
                                 title={`Severity: ${priorityStyle.label}`} 
                               />
                               <span className="font-semibold text-slate-900 truncate">{g.title}</span>
+                              {recentlyApprovedRecord?.type === 'guideline' && g.id === recentlyApprovedRecord.id && <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-bold uppercase text-emerald-800">Recently approved</span>}
                             </div>
                           </td>
 
@@ -918,10 +927,10 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
                       return (
                         <tr
                           key={f.id}
-                          ref={f.id === focusRecordId || f.id === recentlyApprovedFactId ? focusedFactRowRef : undefined}
+                          ref={f.id === focusRecordId || (recentlyApprovedRecord?.type === 'fact' && f.id === recentlyApprovedRecord.id) ? focusedKnowledgeRowRef : undefined}
                           onClick={() => setSelectedRecord({ type: 'fact', data: f })}
                           className={`cursor-pointer transition-all duration-500 ${
-                            f.id === recentlyApprovedFactId
+                            f.id === recentlyApprovedRecord?.id
                               ? 'bg-emerald-50 ring-2 ring-inset ring-emerald-300'
                               : isSelected ? 'bg-blue-50/60 font-medium' : 'hover:bg-slate-50/80'
                           }`}
