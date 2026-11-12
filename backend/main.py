@@ -147,8 +147,14 @@ def get_overview(db: Session = Depends(get_db)):
     facts_count = db.query(DBApprovedFact).count()
     rows = db.query(DBReviewDocument).order_by(DBReviewDocument.created_at.desc()).all()
     docs = [review_model(row) for row in rows]
-    pending = [review for review in docs if review.decisionStatus == "pending"]
-    decisions = [review for review in docs if review.decisionStatus != "pending"]
+    pending = [
+        review for review in docs
+        if review.decisionStatus in ("pending", "partially_approved")
+    ]
+    decisions = [
+        review for review in docs
+        if review.decisionStatus in ("approved_with_changes", "approved_as_is", "rejected")
+    ]
     severity = {key: 0 for key in ("critical", "high", "medium", "low", "informational")}
     for doc in docs:
         for finding in doc.findings:
@@ -162,11 +168,13 @@ def get_overview(db: Session = Depends(get_db)):
         "pendingReviewsCount": len(pending)},
         "reviewStatistics": {"total": len(docs), "completed": len(decisions), "pending": len(pending),
             "approved": sum(item.decisionStatus in ("approved_with_changes", "approved_as_is") for item in docs),
+            "partiallyApproved": sum(item.decisionStatus == "partially_approved" for item in docs),
             "rejected": sum(item.decisionStatus == "rejected" for item in docs)},
         "severityDistribution": severity,
         "pendingReviews": [{"id": item.id, "title": item.title, "contentType": item.contentType,
             "reviewer": item.reviewer, "updatedAt": item.updatedAt,
-            "unresolvedFindings": item.summary.unresolvedFindings} for item in pending],
+            "unresolvedFindings": item.summary.unresolvedFindings,
+            "decisionStatus": item.decisionStatus} for item in pending],
         "recentReviews": [item.model_dump(by_alias=True) for item in docs[:5]],
         "recentDecisions": [{"reviewId": item.id, "title": item.title,
             "decisionStatus": item.decisionStatus, "reviewer": item.reviewer,
