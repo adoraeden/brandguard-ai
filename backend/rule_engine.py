@@ -117,8 +117,8 @@ def run_python_deterministic_checks(
             'category': 'unsupported_claim',
             'severity': 'high',
             'suggested': '99.95% verified uptime SLA',
-            'explanation': 'Contradicts verified engineering SLA of 99.95% with multi-region failover.',
-            'source': 'Engineering Operational SLA Agreement v4.2, 2026'
+            'explanation': 'This absolute availability claim requires direct support from a current approved SLA. No linked approved fact is attached to this deterministic rule, so verify the claim before publication.',
+            'source': 'No directly linked approved evidence in the current evidence registry'
         },
         {
             'pattern': re.compile(r'(military-grade|unhackable\s*shield|bulletproof\s*security)', re.IGNORECASE),
@@ -126,8 +126,8 @@ def run_python_deterministic_checks(
             'category': 'unsupported_claim',
             'severity': 'high',
             'suggested': 'SOC-2 Type II certified and AES-256 encrypted',
-            'explanation': 'AuraCloud relies on SOC-2 Type II audited controls and AES-256 encryption at rest, not colloquial military-grade claims.',
-            'source': 'Independent Security Audit Report (Grant Thornton, Aug 2026)'
+            'explanation': 'This security superlative requires direct support from a current approved security source. No linked approved fact is attached to this deterministic rule, so verify the claim before publication.',
+            'source': 'No directly linked approved evidence in the current evidence registry'
         },
         {
             'pattern': re.compile(r'(guaranteed\s*regulatory\s*immunity|100%\s*legal\s*immunity)', re.IGNORECASE),
@@ -135,8 +135,8 @@ def run_python_deterministic_checks(
             'category': 'unsupported_claim',
             'severity': 'critical',
             'suggested': 'HIPAA and GDPR compliance support',
-            'explanation': 'Legal violation: platform software cannot confer legal immunity from regulatory audits.',
-            'source': 'Legal & Risk Communications Manual 2026, §5.1'
+            'explanation': 'A claim of guaranteed legal or regulatory immunity is high risk and requires review against approved legal guidance. No linked approved source is attached to this deterministic rule.',
+            'source': 'No directly linked approved evidence in the current evidence registry'
         },
         {
             'pattern': re.compile(r'(cheap\s*unlimited\s*lifetime\s*access|free\s*forever\s*unlimited)', re.IGNORECASE),
@@ -144,8 +144,8 @@ def run_python_deterministic_checks(
             'category': 'exact_violation',
             'severity': 'medium',
             'suggested': 'custom enterprise annual licensing',
-            'explanation': 'Commercial policy dictates annual seat subscriptions. Lifetime tiers do not exist.',
-            'source': 'Commercial Licensing Directory 2026'
+            'explanation': 'This pricing and licensing claim must be checked against the current approved commercial policy. No linked approved fact is attached to this deterministic rule.',
+            'source': 'No directly linked approved evidence in the current evidence registry'
         },
         {
             'pattern': re.compile(r'\bexplainable\s+AI\s+insights\b', re.IGNORECASE),
@@ -189,8 +189,6 @@ def run_python_deterministic_checks(
                 explanation=f_rule['explanation'],
                 sourceRuleOrTerm=(
                     "Insufficient Evidence"
-                    if not f_rule.get('suggested')
-                    else f"Factsheet: {f_rule['title']}"
                 ),
                 sourceReference=f_rule['source'],
                 detectionMethod='fact_check',
