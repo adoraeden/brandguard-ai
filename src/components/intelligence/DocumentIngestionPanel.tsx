@@ -125,7 +125,7 @@ const buildDemoPdfFile = (sample: DemoEvidenceDocument): File => {
     pdf += String(offset).padStart(10, '0') + ' 00000 n \n';
   });
   const demoId = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(value => value.toString(16).padStart(2, '0')).join('');
-  pdf += 'trailer\\n<< /Size ' + (objects.length + 1) + ' /Root 1 0 R /ID [<' + demoId + '><' + demoId + '>] >>\\nstartxref\\n' + xrefOffset + '\\n%%EOF';
+  pdf += 'trailer\n<< /Size ' + (objects.length + 1) + ' /Root 1 0 R /ID [<' + demoId + '><' + demoId + '>] >>\nstartxref\n' + xrefOffset + '\n%%EOF';
   return new File([encoder.encode(pdf) as unknown as BlobPart], sample.filename, { type: 'application/pdf' });
 };
 
