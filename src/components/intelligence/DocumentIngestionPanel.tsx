@@ -7,7 +7,20 @@ import { useDemoProfile } from '../../context/DemoProfileContext';
 interface DocumentIngestionPanelProps {
   isAdmin: boolean;
   onDataChanged: () => void;
+  onNavigateToKnowledgeBase?: () => void;
+  standalone?: boolean;
 }
+
+type ApprovalConfirmation = {
+  recordType: 'fact' | 'guideline';
+  title: string;
+  approvedText: string;
+  filename: string;
+  pageNumber?: number | null;
+  sectionLabel?: string | null;
+  documentId: string;
+  recordId: string;
+};
 
 type CandidateDraft = { title: string; approvedText: string };
 type DemoEvidenceDocument = {
@@ -115,7 +128,7 @@ const buildDemoPdfFile = (sample: DemoEvidenceDocument): File => {
   return new File([encoder.encode(pdf) as unknown as BlobPart], sample.filename, { type: 'application/pdf' });
 };
 
-export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ isAdmin, onDataChanged }) => {
+export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ isAdmin, onDataChanged, onNavigateToKnowledgeBase, standalone = false }) => {
   const { currentUser } = useDemoProfile();
   const [documents, setDocuments] = useState<IngestedDocument[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -126,6 +139,7 @@ export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ 
   const [busyCandidate, setBusyCandidate] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [approvalConfirmation, setApprovalConfirmation] = useState<ApprovalConfirmation | null>(null);
 
   const loadDocuments = useCallback(async () => {
     if (!isAdmin) return;
@@ -204,7 +218,7 @@ export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ 
     setError('');
     setNotice('');
     try {
-      await api.decideEvidenceCandidate(documentId, candidate.id, {
+      const savedCandidate = await api.decideEvidenceCandidate(documentId, candidate.id, {
         decision,
         recordType,
         title: draft.title,
@@ -213,9 +227,21 @@ export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ 
         severity: 'medium',
         reviewer: currentUser.name,
       });
-      setNotice(decision === 'reject'
-        ? 'Extracted passage rejected. It was not added to approved knowledge.'
-        : 'Passage approved as a ' + recordType + '. It is now available in the brand knowledge base.');
+      if (decision === 'approve' && recordType) {
+        const sourceDocument = documents.find(item => item.id === documentId);
+        setApprovalConfirmation({
+          recordType,
+          title: draft.title.trim(),
+          approvedText: draft.approvedText.trim(),
+          filename: sourceDocument?.filename || 'Uploaded source document',
+          pageNumber: candidate.pageNumber,
+          sectionLabel: candidate.sectionLabel,
+          documentId,
+          recordId: savedCandidate.approvedRecordId || '',
+        });
+      } else {
+        setNotice('Extracted passage rejected. It was not added to approved knowledge.');
+      }
       await loadDocuments();
       onDataChanged();
     } catch (err) {
@@ -236,7 +262,7 @@ export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ 
   const pendingCount = documents.reduce((sum, item) => sum + item.pendingCandidateCount, 0);
 
   return (
-    <section className="mx-4 mt-2 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs">
+    <section className={(standalone ? 'mx-4 mt-4 mb-4 ' : 'mx-4 mt-2 ') + 'shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs'}>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-2.5">
         <div className="flex min-w-0 items-center gap-2">
           <div className="rounded-lg bg-blue-50 p-2 text-[#2457D6]"><FileText className="h-4 w-4" /></div>
@@ -258,8 +284,39 @@ export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ 
         </div>
       </div>
 
+      {approvalConfirmation && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm" onMouseDown={event => { if (event.target === event.currentTarget) setApprovalConfirmation(null); }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="evidence-approval-title" className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-start gap-3 border-b border-slate-100 bg-emerald-50/70 px-5 py-4">
+              <div className="rounded-full bg-emerald-100 p-2 text-emerald-700"><Check className="h-5 w-5" /></div>
+              <div className="min-w-0 flex-1">
+                <h2 id="evidence-approval-title" className="text-base font-bold text-slate-900">{approvalConfirmation.recordType === 'fact' ? 'Fact approved successfully' : 'Guideline approved successfully'}</h2>
+                <p className="mt-1 text-xs text-slate-600">Your reviewed entry has been saved to {approvalConfirmation.recordType === 'fact' ? 'Approved Facts' : 'Brand Guidelines'}.</p>
+              </div>
+              <button type="button" onClick={() => setApprovalConfirmation(null)} aria-label="Close confirmation" className="rounded-lg p-1.5 text-slate-500 hover:bg-white"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="space-y-3 px-5 py-4">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Approved entry</div>
+                <h3 className="mt-1 text-sm font-semibold text-slate-900">{approvalConfirmation.title}</h3>
+                <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-slate-700">{approvalConfirmation.approvedText}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-slate-800"><FileText className="h-4 w-4 text-blue-600" /> Source provenance</div>
+                <p className="text-xs text-slate-700">{approvalConfirmation.filename}</p>
+                <p className="mt-1 text-[11px] text-slate-500">{approvalConfirmation.pageNumber ? 'Page ' + approvalConfirmation.pageNumber : 'Page not recorded'}{approvalConfirmation.sectionLabel ? ' · ' + approvalConfirmation.sectionLabel : ''}</p>
+                <p className="mt-2 text-[11px] font-medium text-emerald-700">The approved entry is stored in the shared knowledge base and can be considered in future claim reviews.</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 px-5 py-3">
+              <a href={api.getDocumentDownloadUrl(approvalConfirmation.documentId)} target="_blank" rel="noreferrer" className="inline-flex items-center rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">View source document</a>
+              <button type="button" onClick={() => { setApprovalConfirmation(null); onNavigateToKnowledgeBase?.(); }} className="rounded-lg bg-[#2457D6] px-3 py-2 text-xs font-semibold text-white hover:bg-[#1D4ED8]">View in Brand Intelligence</button>
+            </div>
+          </section>
+        </div>
+      )}
       {expanded && (
-        <div className={'space-y-3 p-3 ' + (documents.length > 0 ? 'max-h-[36vh] overflow-y-auto' : '')}>
+        <div className={'space-y-3 p-3 ' + (documents.length > 0 && !standalone ? 'max-h-[36vh] overflow-y-auto' : standalone ? 'max-h-[calc(100dvh-15rem)] overflow-y-auto' : '')}>
           <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-blue-200 bg-blue-50/50 p-3">
             <label htmlFor="brandguard-document-upload" className="text-[10px] font-semibold uppercase tracking-wide text-slate-600">Upload PDF, DOCX or TXT</label>
             <input
