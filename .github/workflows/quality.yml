@@ -5,6 +5,7 @@ on:
     branches: [phase-2-round3-improvements]
   pull_request:
     branches: [phase-2-round3-improvements]
+  workflow_dispatch:
 
 permissions:
   contents: read

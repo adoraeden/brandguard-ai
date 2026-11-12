@@ -20,7 +20,7 @@ This tracker separates the CodeNexus submission rounds from the internal impleme
 - [x] Preserve exact evidence quotes and source document/page/section provenance.
 - [x] Distinguish supported, partially supported, unsupported, and conflicting findings conservatively.
 - [ ] Verify source links and evidence status across uploaded PDFs, facts, guidelines, and legacy records.
-- [ ] Add regression coverage for conflicting and missing evidence cases.
+- [x] Add regression coverage for conflicting and missing evidence cases.
 
 ### 2.3 Collaborative staged review workflow
 - [x] Assign ordered review stages and named reviewers.
@@ -52,7 +52,7 @@ This tracker separates the CodeNexus submission rounds from the internal impleme
 - [ ] Make demo permissions and limitations explicit.
 
 ## Phase 7 — Reliability and robustness
-- [ ] Add CI for backend tests, frontend type-check, and production build.
+- [x] Add CI workflow for backend tests, frontend type-check, and production build.
 - [ ] Validate database migrations and recovery procedures before deployment.
 - [ ] Verify upload limits, duplicate detection, failure handling, and API health.
 - [ ] Review authentication, authorization, CORS, rate limits, and secret handling.
