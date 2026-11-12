@@ -56,5 +56,34 @@ class ReviewLifecycleSerializationTests(unittest.TestCase):
         self.assertEqual(review_model(row).findings[0].lifecycleStatus, 'resolved')
 
 
+    def test_evidence_provenance_round_trips_through_storage(self):
+        document = make_document()
+        finding = document.findings[0]
+        finding.evidenceRecordType = 'fact'
+        finding.evidenceRecordId = 'fact-source-test'
+        finding.evidenceQuote = 'The verified service availability is 99.95%.'
+        finding.evidenceStatus = 'supported'
+        finding.sourceDocumentId = 'doc-source-test'
+        finding.sourcePageNumber = 4
+        finding.sourceSectionLabel = 'Availability'
+        finding.sourceExcerpt = 'The verified service availability is 99.95%.'
+
+        row = add_review(RecordingSession(), document)
+        stored = row.findings[0]
+        self.assertEqual(stored.evidence_status, 'supported')
+        self.assertEqual(stored.source_document_id, 'doc-source-test')
+        self.assertEqual(stored.source_page_number, 4)
+        self.assertEqual(stored.source_section_label, 'Availability')
+        self.assertEqual(stored.source_excerpt, 'The verified service availability is 99.95%.')
+
+        restored = review_model(row).findings[0]
+        self.assertEqual(restored.evidenceStatus, 'supported')
+        self.assertEqual(restored.sourceDocumentId, 'doc-source-test')
+        self.assertEqual(restored.sourcePageNumber, 4)
+        self.assertEqual(restored.sourceSectionLabel, 'Availability')
+        self.assertEqual(restored.sourceExcerpt, 'The verified service availability is 99.95%.')
+
+
+
 if __name__ == '__main__':
     unittest.main()
