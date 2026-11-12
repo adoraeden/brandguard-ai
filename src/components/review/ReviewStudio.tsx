@@ -317,6 +317,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
     pinNumber: number;
     left: number;
     top: number;
+    placement: 'above' | 'below';
   } | null>(null);
 
   useEffect(() => {
@@ -344,9 +345,20 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
     const preview = pinPreviewRef.current;
     if (!pinPreview || !preview) return;
 
-    const padding = 12;
-    const maxTop = window.innerHeight - preview.offsetHeight - padding;
-    const nextTop = Math.max(padding, Math.min(pinPreview.top, maxTop));
+    const padding = 16;
+    const rect = preview.getBoundingClientRect();
+    let nextTop = pinPreview.top;
+
+    if (rect.bottom > window.innerHeight - padding) {
+      nextTop = pinPreview.placement === 'above'
+        ? Math.max(padding + rect.height, pinPreview.top)
+        : Math.max(padding, window.innerHeight - rect.height - padding);
+    }
+    if (rect.top < padding) {
+      nextTop = pinPreview.placement === 'above'
+        ? Math.min(window.innerHeight - padding, pinPreview.top + (padding - rect.top))
+        : padding;
+    }
 
     if (Math.abs(nextTop - pinPreview.top) > 1) {
       setPinPreview(current => current ? { ...current, top: nextTop } : current);
@@ -679,17 +691,20 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
     if (!target) return;
 
     const rect = target.getBoundingClientRect();
-    const width = Math.min(320, window.innerWidth - 24);
+    const width = 320;
     const left = Math.min(
-      Math.max(12, rect.left),
-      Math.max(12, window.innerWidth - width - 12)
+      Math.max(16, rect.left),
+      Math.max(16, window.innerWidth - width - 16)
     );
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const placement = spaceBelow >= 300 || spaceBelow >= rect.top ? 'below' : 'above';
 
     setPinPreview({
       finding,
       pinNumber,
       left,
-      top: rect.bottom + 8,
+      top: placement === 'below' ? rect.bottom + 10 : rect.top - 10,
+      placement,
     });
   };
 
@@ -890,7 +905,10 @@ if (
         style={{
           left: pinPreview.left,
           top: pinPreview.top,
-          width: 'min(20rem, calc(100vw - 1.5rem))',
+          width: '20rem',
+          maxHeight: 'calc(100vh - 2rem)',
+          overflowY: 'auto',
+          transform: pinPreview.placement === 'above' ? 'translateY(-100%)' : undefined,
         }}
         className="pointer-events-none fixed z-[100] rounded-xl border border-slate-300 bg-white p-3 text-left shadow-2xl"
       >
@@ -914,6 +932,15 @@ if (
           <div className="mt-0.5 break-words font-mono text-xs font-semibold leading-relaxed text-rose-950">
             &ldquo;{finding.exactText}&rdquo;
           </div>
+        </div>
+
+        <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-2">
+          <div className="text-[9px] font-bold uppercase tracking-wide text-slate-700">
+            Why this was flagged
+          </div>
+          <p className="mt-1 whitespace-pre-wrap break-words text-[11px] leading-relaxed text-slate-700">
+            {finding.explanation}
+          </p>
         </div>
 
         <p className="mt-2 text-[11px] leading-relaxed text-slate-600">
