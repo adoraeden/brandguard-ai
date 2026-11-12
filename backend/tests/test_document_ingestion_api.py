@@ -92,10 +92,7 @@ class DocumentIngestionApiTests(unittest.TestCase):
             self.assertEqual(source.description, fact_candidate["excerpt"])
 
     def test_document_with_no_candidates_is_archived_not_left_under_review(self):
-        content = (
-            "This is a general introductory paragraph without product facts, "
-            "measurements, approved terminology, or required marketing rules."
-        )
+        content = "A short introductory passage describing the company background and its audience in general terms."
         _, uploaded = self.upload_text(content, "empty-evidence")
         self.assertEqual(uploaded.status_code, 201, uploaded.text)
         document = uploaded.json()
