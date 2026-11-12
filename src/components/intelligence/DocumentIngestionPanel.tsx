@@ -7,7 +7,7 @@ import { useDemoProfile } from '../../context/DemoProfileContext';
 interface DocumentIngestionPanelProps {
   isAdmin: boolean;
   onDataChanged: () => void;
-  onNavigateToKnowledgeBase?: () => void;
+  onNavigateToKnowledgeBase?: (recordId: string) => void;
   standalone?: boolean;
 }
 
@@ -262,13 +262,13 @@ export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ 
   const pendingCount = documents.reduce((sum, item) => sum + item.pendingCandidateCount, 0);
 
   return (
-    <section className={(standalone ? 'mx-4 mt-4 mb-4 ' : 'mx-4 mt-2 ') + 'shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs'}>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-2.5">
+    <section className={(standalone ? 'h-full min-h-0 ' : 'mx-4 mt-2 ') + 'flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs'}>
+      <div className="sticky top-0 z-20 flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-white px-4 py-2">
         <div className="flex min-w-0 items-center gap-2">
           <div className="rounded-lg bg-blue-50 p-2 text-[#2457D6]"><FileText className="h-4 w-4" /></div>
           <div>
-            <h2 className="text-xs font-bold text-slate-900">Automated Evidence Ingestion</h2>
-            <p className="text-[10px] text-slate-500">Choose a demo PDF or upload your own, then review every extracted passage before approval.</p>
+            <h2 className="text-xs font-bold text-slate-900">Evidence workspace</h2>
+            <p className="text-[10px] text-slate-500">Upload a source, review extracted passages, and approve verified knowledge.</p>
           </div>
           <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
             {pendingCount} awaiting confirmation
@@ -311,15 +311,15 @@ export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ 
             </div>
             <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 px-5 py-3">
               <a href={api.getDocumentDownloadUrl(approvalConfirmation.documentId)} target="_blank" rel="noreferrer" className="inline-flex items-center rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Download source document</a>
-              <button type="button" onClick={() => { setApprovalConfirmation(null); onNavigateToKnowledgeBase?.(); }} className="rounded-lg bg-[#2457D6] px-3 py-2 text-xs font-semibold text-white hover:bg-[#1D4ED8]">View in Brand Intelligence</button>
+              <button type="button" onClick={() => { setApprovalConfirmation(null); onNavigateToKnowledgeBase?.(approvalConfirmation.recordId); }} className="rounded-lg bg-[#2457D6] px-3 py-2 text-xs font-semibold text-white hover:bg-[#1D4ED8]">View in Brand Intelligence</button>
             </div>
           </section>
         </div>
       )}
       {expanded && (
-        <div className={'space-y-3 p-3 ' + (documents.length > 0 && !standalone ? 'max-h-[36vh] overflow-y-auto' : standalone ? 'max-h-[calc(100dvh-15rem)] overflow-y-auto' : '')}>
-          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-blue-200 bg-blue-50/50 p-3">
-            <label htmlFor="brandguard-document-upload" className="text-[10px] font-semibold uppercase tracking-wide text-slate-600">Upload PDF, DOCX or TXT</label>
+        <div className={'min-h-0 flex-1 space-y-4 overflow-y-auto p-4 md:p-5 ' + (!standalone && documents.length > 0 ? 'max-h-[36vh]' : '')}>
+          <div className="grid gap-3 rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50/80 to-white p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:p-5">
+            <div className="min-w-0"><label htmlFor="brandguard-document-upload" className="block text-sm font-bold text-slate-900">Upload a source document</label><p className="mt-1 text-xs text-slate-500">Choose a PDF, Word document or plain text file to extract reviewable evidence.</p></div>
             <input
               id="brandguard-document-upload"
               type="file"
@@ -333,22 +333,22 @@ export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ 
                 else if (file && file.size > 15 * 1024 * 1024) setError('Files are limited to 15 MB.');
                 else if (file && !['pdf', 'docx', 'txt'].includes(file.name.split('.').pop()?.toLowerCase() || '')) setError('Unsupported file type. Choose a PDF, DOCX or TXT file.');
               }}
-              className="min-w-0 flex-1 text-xs text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-white file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-[#2457D6]"
+              className="min-w-0 w-full text-xs text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-white file:px-4 file:py-2 file:text-xs file:font-semibold file:text-[#2457D6]"
             />
-            <button type="button" onClick={() => void handleUpload()} disabled={!selectedFile || uploading} className="inline-flex items-center gap-1.5 rounded-lg bg-[#2457D6] px-3 py-2 text-[11px] font-semibold text-white hover:bg-[#1D4ED8] disabled:cursor-not-allowed disabled:opacity-50">
+            <button type="button" onClick={() => void handleUpload()} disabled={!selectedFile || uploading} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#2457D6] px-5 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-[#1D4ED8] disabled:cursor-not-allowed disabled:opacity-50">
               {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
               {uploading ? 'Extracting…' : 'Upload & Extract'}
             </button>
             {selectedFile && <span className="w-full truncate text-[10px] font-medium text-blue-700">Selected: {selectedFile.name}</span>}
-            <span className="w-full text-[10px] text-slate-500">Maximum 15 MB. Text-based PDFs are supported; scanned image-only PDFs need OCR.</span>
+            <span className="text-[11px] text-slate-500">Maximum 15 MB · Text-based PDFs supported · Scanned PDFs require OCR</span>
           </div>
 
           <div>
             <div className="mb-2 flex items-center justify-between gap-2">
-              <h3 className="text-[10px] font-bold uppercase tracking-wide text-slate-600">Ready-to-use demo PDFs</h3>
-              <span className="text-[10px] text-slate-400">3 sample documents</span>
+              <div><h3 className="text-sm font-bold text-slate-900">Try a sample document</h3><p className="mt-0.5 text-xs text-slate-500">Select a sample to load it, then click Upload & Extract.</p></div>
+              <span className="text-[11px] text-slate-400">3 ready-to-use samples</span>
             </div>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               {DEMO_EVIDENCE_DOCUMENTS.map(sample => (
                 <button
                   key={sample.id}
@@ -358,14 +358,14 @@ export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ 
                     setError('');
                     setNotice(sample.title + ' PDF is ready. Click Upload & Extract to process it.');
                   }}
-                  className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left transition-colors hover:border-blue-300 hover:bg-blue-50/50"
+                  className="flex min-h-[88px] min-w-0 items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:border-blue-300 hover:bg-blue-50/50"
                 >
-                  <FileText className="h-4 w-4 shrink-0 text-[#2457D6]" />
+                  <div className="rounded-lg bg-blue-50 p-2"><FileText className="h-4 w-4 shrink-0 text-[#2457D6]" /></div>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[10px] font-semibold text-slate-800">{sample.title}</span>
-                    <span className="mt-0.5 block text-[9px] leading-snug text-slate-500">{sample.description}</span>
+                    <span className="block text-xs font-semibold text-slate-800">{sample.title}</span>
+                    <span className="mt-1 block text-[11px] leading-snug text-slate-500">{sample.description}</span>
                   </span>
-                  <span className="shrink-0 text-[9px] font-semibold text-[#2457D6]">Use PDF</span>
+                  <span className="shrink-0 text-[10px] font-semibold text-[#2457D6]">Use PDF</span>
                 </button>
               ))}
             </div>
