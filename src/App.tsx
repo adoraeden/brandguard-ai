@@ -4,6 +4,7 @@ import { TopHeader } from './components/layout/TopHeader';
 import { OverviewView } from './components/overview/OverviewView';
 import { ReviewStudio } from './components/review/ReviewStudio';
 import { BrandIntelligenceView } from './components/intelligence/BrandIntelligenceView';
+import { EvidenceIngestionView } from './components/intelligence/EvidenceIngestionView';
 import { DecisionArchiveView } from './components/archive/DecisionArchiveView';
 import { GovernanceInsightsView } from './components/insights/GovernanceInsightsView';
 import { PendingReviewsView } from './components/pending/PendingReviewsView';
@@ -230,6 +231,10 @@ function AppContent() {
               onNavigateToPending={() => handleSelectTab('pending_reviews')}
               onNavigateHome={() => handleSelectTab('overview')}
             />
+          )}
+
+          {currentTab === 'evidence_ingestion' && (
+            <EvidenceIngestionView isAdmin={true} onDataChanged={loadAllData} onNavigateToKnowledgeBase={() => handleSelectTab('brand_intelligence')} />
           )}
 
           {currentTab === 'brand_intelligence' && (
