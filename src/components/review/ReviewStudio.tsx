@@ -290,6 +290,9 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   // Review Results State (State B)
   const [selectedFindingId, setSelectedFindingId] = useState<string | null>(null);
   const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [documentPanePercent, setDocumentPanePercent] = useState(58);
+  const workspaceRef = useRef<HTMLDivElement | null>(null);
+  const resizingWorkspace = useRef(false);
   const [showOriginalDiff, setShowOriginalDiff] = useState(false);
   
   // Custom edit state for finding suggestion
@@ -491,13 +494,17 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
     if (!activeReview) return;
 
     const unresolvedCount = activeReview.summary.unresolvedFindings;
-    
-    // Strict block: do not allow reviewer to finalise with unresolved findings
-    if (unresolvedCount > 0) {
+
+    if (decision === 'approved_as_is' && unresolvedCount > 0) {
       setValidationError(
-        `Finalization blocked: ${unresolvedCount} finding(s) remain unresolved. Every finding must receive an explicit human decision (accept, edit, or reject) before final sign-off.`
+        `Cannot approve as-is while ${unresolvedCount} finding(s) are pending. Use Approve w/ Changes to save the reviewed work and keep those findings pending.`
       );
       return;
+    }
+
+    if (decision === 'approved_with_changes' && unresolvedCount > 0) {
+      // A partial approval is a checkpoint, not final completion.
+      decision = 'partially_approved' as any;
     }
 
     setIsCompleting(true);
@@ -511,7 +518,15 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
       });
       onDecisionUpdated(updated);
       
-      // Navigate to dedicated completion view
+      // Partial approval is a saved checkpoint: keep the review open and its
+      // unresolved findings actionable instead of showing the final completion screen.
+      if (decision === 'partially_approved') {
+        setCompletionRecord(null);
+        setViewMode('results');
+        setDecisionNotes('');
+        return;
+      }
+
       setCompletionRecord({
         verdict: decision,
         document: updated,
@@ -1336,7 +1351,8 @@ if (
   const unresolvedCount = activeReview.summary.unresolvedFindings;
   const acceptedCount = activeReview.summary.acceptedSuggestions;
   const rejectedCount = activeReview.summary.rejectedSuggestions;
-  const isCompleted = activeReview.decisionStatus !== 'pending';
+  const pendingCount = unresolvedCount;
+  const isCompleted = ['approved_with_changes', 'approved_as_is', 'rejected'].includes(activeReview.decisionStatus);
   const deterministicStatus = getDeterministicStatusView(activeReview);
   const aiStatus = getAiStatusView(activeReview);
   const analysisTone = getHighestAnalysisTone(deterministicStatus.tone, aiStatus.tone);
@@ -1436,10 +1452,10 @@ if (
         </div>
       )}
 
-      <div className={`mx-4 mt-3 rounded-xl border px-4 py-3 text-xs shadow-2xs ${ANALYSIS_PANEL_TONE_STYLES[analysisTone]}`}>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0 flex-1 space-y-3">
-            <div role="status" aria-live="polite" className="space-y-3">
+      <div className={`mx-4 mt-2 rounded-lg border px-3 py-2 text-[11px] shadow-2xs ${ANALYSIS_PANEL_TONE_STYLES[analysisTone]}`}>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <div role="status" aria-live="polite" className="grid grid-cols-1 lg:grid-cols-2 gap-x-4 gap-y-1">
               {[
                 {
                   title: 'Deterministic checks',
@@ -1474,7 +1490,7 @@ if (
               ))}
             </div>
 
-            <details className="rounded-lg border border-slate-200/80 bg-white/75 px-3 py-2">
+            <details className="rounded-lg border border-slate-200/80 bg-white/75 px-2.5 py-1.5">
               <summary className="cursor-pointer text-[11px] font-semibold text-slate-700">
                 Technical details
               </summary>
@@ -1510,7 +1526,7 @@ if (
             onClick={handleRerunAnalysis}
             disabled={isRerunningAnalysis}
             aria-busy={isRerunningAnalysis}
-            className="inline-flex shrink-0 items-center justify-center gap-2 self-start rounded-xl border-2 border-[#2457D6] bg-[#2457D6] px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:bg-[#1946B8] hover:shadow-lg disabled:cursor-wait disabled:opacity-70 sm:self-auto"
+            className="inline-flex shrink-0 items-center justify-center gap-1.5 self-start rounded-lg border border-[#2457D6] bg-[#2457D6] px-3 py-2 text-xs font-bold text-white shadow-sm transition-all hover:bg-[#1946B8] disabled:cursor-wait disabled:opacity-70 sm:self-auto"
           >
             {isRerunningAnalysis ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -1533,9 +1549,15 @@ if (
       >{rerunFeedback.message}</div>}
 
       {/* 2. Side-by-Side Review Panels: Left Document vs Right Findings */}
-      <div className="flex-1 flex flex-col md:flex-row overflow-visible md:overflow-hidden">
-        {/* LEFT PANEL: Document Workspace (56% width) */}
-        <div className="w-full md:w-[56%] min-h-[55vh] md:min-h-0 border-b md:border-b-0 md:border-r border-slate-200 flex flex-col bg-white overflow-hidden">
+      <div
+        ref={workspaceRef}
+        className="flex-1 flex flex-col md:flex-row overflow-visible md:overflow-hidden"
+      >
+        {/* LEFT PANEL: Document Workspace (user-resizable width) */}
+        <div
+          style={{ width: `calc(${documentPanePercent}% - 5px)` }}
+          className="w-full md:w-auto min-w-0 min-h-[55vh] md:min-h-0 border-b md:border-b-0 md:border-r border-slate-200 flex flex-col bg-white overflow-hidden"
+        >
           {/* Document Top Bar */}
           <div className="px-6 py-2 bg-slate-50/75 border-b border-slate-200 flex items-center justify-between text-xs">
             <div className="flex items-center gap-2 text-slate-600">
@@ -1677,8 +1699,40 @@ if (
           )}
         </div>
 
-        {/* RIGHT PANEL: Findings List & Evidence Actions (44% width) */}
-        <div className="w-full md:w-[44%] min-h-[55vh] md:min-h-0 flex flex-col bg-slate-50/50 overflow-hidden">
+        <div
+          role="separator"
+          aria-label="Resize document and findings panels"
+          aria-orientation="vertical"
+          aria-valuemin={35}
+          aria-valuemax={70}
+          aria-valuenow={documentPanePercent}
+          tabIndex={0}
+          onPointerDown={(event) => {
+            if (window.innerWidth < 768) return;
+            resizingWorkspace.current = true;
+            event.currentTarget.setPointerCapture(event.pointerId);
+          }}
+          onPointerMove={(event) => {
+            if (!resizingWorkspace.current || !workspaceRef.current) return;
+            const bounds = workspaceRef.current.getBoundingClientRect();
+            const next = Math.round(((event.clientX - bounds.left) / bounds.width) * 100);
+            setDocumentPanePercent(Math.max(35, Math.min(70, next)));
+          }}
+          onPointerUp={() => { resizingWorkspace.current = false; }}
+          onPointerCancel={() => { resizingWorkspace.current = false; }}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowLeft') setDocumentPanePercent(value => Math.max(35, value - 2));
+            if (event.key === 'ArrowRight') setDocumentPanePercent(value => Math.min(70, value + 2));
+          }}
+          className="hidden md:flex w-2 shrink-0 cursor-col-resize items-center justify-center bg-slate-100 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+        >
+          <span className="h-10 w-0.5 rounded-full bg-slate-400" />
+        </div>
+        {/* RIGHT PANEL: Findings List & Evidence Actions */}
+        <div
+          style={{ width: `calc(${100 - documentPanePercent}% - 5px)` }}
+          className="w-full md:w-auto min-w-0 min-h-[55vh] md:min-h-0 flex flex-col bg-slate-50/50 overflow-hidden"
+        >
           {/* Findings Filter Bar */}
           <div className="px-4 py-2 bg-white border-b border-slate-200 flex items-center justify-between text-xs">
             <div className="flex items-center gap-1.5 font-semibold text-slate-800">
