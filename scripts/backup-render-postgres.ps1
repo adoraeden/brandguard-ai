@@ -25,6 +25,15 @@ else {
     $pgRestorePath = $pgRestoreCommand.Source
 }
 
+$pgDumpVersion = & $pgDumpPath --version
+if ($pgDumpVersion -notmatch "\\s(\d+)\\.") {
+    throw "Could not determine the pg_dump version: $pgDumpVersion"
+}
+if ([int]$Matches[1] -lt 18) {
+    throw "The Render database is PostgreSQL 18. Install/use pg_dump 18 or newer. Detected: $pgDumpVersion"
+}
+
+Write-Host "Using $pgDumpVersion"
 Write-Host "This creates a read-only backup. It does not change the Render database."
 $secureUrl = Read-Host "Paste the Render EXTERNAL database URL (input is hidden)" -AsSecureString
 $bstr = [IntPtr]::Zero
