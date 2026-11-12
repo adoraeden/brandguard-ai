@@ -1,10 +1,12 @@
 import React from 'react';
-import { Plus, AlertTriangle, ChevronRight } from 'lucide-react';
+import { Plus, AlertTriangle, ChevronRight, RefreshCw } from 'lucide-react';
 import { NavTab } from './NavigationRail';
 
 interface TopHeaderProps {
   currentTab: NavTab;
   onNewReviewClick: () => void;
+  onRefreshClick: () => void;
+  isRefreshing?: boolean;
   documentTitle?: string;
   activeFindingsCount?: number;
 }
@@ -12,6 +14,8 @@ interface TopHeaderProps {
 export const TopHeader: React.FC<TopHeaderProps> = ({
   currentTab,
   onNewReviewClick,
+  onRefreshClick,
+  isRefreshing = false,
   documentTitle,
   activeFindingsCount,
 }) => {
@@ -40,6 +44,10 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           </span>
         )}
       </div>
+      <div className="flex shrink-0 items-center gap-2">
+      <button type="button" onClick={onRefreshClick} disabled={isRefreshing} aria-label="Refresh workspace data" title="Refresh workspace data" className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 hover:text-blue-700 disabled:cursor-wait disabled:opacity-60">
+        <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+      </button>
       <button
         type="button"
         onClick={onNewReviewClick}
@@ -49,6 +57,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         <span className="hidden sm:inline">New content review</span>
         <span className="sm:hidden">New review</span>
       </button>
+      </div>
     </header>
   );
 };
