@@ -100,7 +100,7 @@ class ReviewLifecycleSerializationTests(unittest.TestCase):
             sourceSectionLabel='Availability',
             sourceExcerpt='The service provides a verified 99.95% monthly uptime SLA.',
         )
-        supported = ReviewFindingModel(
+        conflicting = ReviewFindingModel(
             id='finding-supported',
             reviewId='review-evidence-test',
             title='Availability claim',
@@ -130,13 +130,13 @@ class ReviewLifecycleSerializationTests(unittest.TestCase):
             confidence='low',
         )
 
-        enrich_finding_evidence([supported, unsupported], [], [fact])
+        enrich_finding_evidence([conflicting, unsupported], [], [fact])
 
-        self.assertEqual(supported.evidenceStatus, 'supported')
-        self.assertEqual(supported.sourceDocumentId, 'doc-source-test')
-        self.assertEqual(supported.sourcePageNumber, 4)
-        self.assertEqual(supported.sourceSectionLabel, 'Availability')
-        self.assertEqual(supported.sourceExcerpt, fact.sourceExcerpt)
+        self.assertEqual(conflicting.evidenceStatus, 'conflicting')
+        self.assertEqual(conflicting.sourceDocumentId, 'doc-source-test')
+        self.assertEqual(conflicting.sourcePageNumber, 4)
+        self.assertEqual(conflicting.sourceSectionLabel, 'Availability')
+        self.assertEqual(conflicting.sourceExcerpt, fact.sourceExcerpt)
         self.assertEqual(unsupported.evidenceStatus, 'unsupported')
         self.assertIsNone(unsupported.sourceDocumentId)
 
