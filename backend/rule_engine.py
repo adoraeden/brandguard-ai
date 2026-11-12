@@ -143,6 +143,15 @@ def run_python_deterministic_checks(
             'suggested': 'custom enterprise annual licensing',
             'explanation': 'Commercial policy dictates annual seat subscriptions. Lifetime tiers do not exist.',
             'source': 'Commercial Licensing Directory 2026'
+        },
+        {
+            'pattern': re.compile(r'\bexplainable\s+AI\s+insights\b', re.IGNORECASE),
+            'title': 'Unsubstantiated AI Explainability Claim',
+            'category': 'unsupported_claim',
+            'severity': 'medium',
+            'suggested': None,
+            'explanation': 'The current approved AuraCloud evidence registry does not describe the explainability mechanism, validation trail, or controls behind this claim. Provide approved technical evidence or reword the statement before publication.',
+            'source': 'No directly relevant approved source in the current AuraCloud evidence registry'
         }
     ]
 
@@ -155,6 +164,16 @@ def run_python_deterministic_checks(
             if any(abs((f.startIndex or -1) - start_idx) < 5 for f in findings):
                 continue
 
+            suggestion = None
+            if f_rule.get('suggested'):
+                suggestion = SuggestionModel(
+                    id=f"sug-det-{review_id}-{finding_counter}",
+                    suggestedText=f_rule['suggested'],
+                    rationale=f"Align with verified facts: {f_rule['explanation']}",
+                    authorIntentPreserved="Preserves value proposition grounded in audited facts.",
+                    status='pending'
+                )
+
             finding = ReviewFindingModel(
                 id=f"det-{review_id}-{finding_counter}",
                 reviewId=review_id,
@@ -165,17 +184,15 @@ def run_python_deterministic_checks(
                 startIndex=start_idx,
                 endIndex=end_idx,
                 explanation=f_rule['explanation'],
-                sourceRuleOrTerm=f"Factsheet: {f_rule['title']}",
+                sourceRuleOrTerm=(
+                    "Insufficient Evidence"
+                    if not f_rule.get('suggested')
+                    else f"Factsheet: {f_rule['title']}"
+                ),
                 sourceReference=f_rule['source'],
                 detectionMethod='fact_check',
                 confidence='high',
-                suggestion=SuggestionModel(
-                    id=f"sug-det-{review_id}-{finding_counter}",
-                    suggestedText=f_rule['suggested'],
-                    rationale=f"Align with verified facts: {f_rule['explanation']}",
-                    authorIntentPreserved="Preserves value proposition grounded in audited facts.",
-                    status='pending'
-                )
+                suggestion=suggestion
             )
             finding_counter += 1
             findings.append(finding)
