@@ -24,6 +24,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
     review_studio: 'Review Studio',
     pending_reviews: 'Pending Reviews',
     brand_intelligence: 'Brand Intelligence',
+    evidence_ingestion: 'Evidence Ingestion',
     decision_archive: 'Decision Ledger',
     governance_insights: 'Governance Insights',
   };
