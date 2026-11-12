@@ -15,6 +15,7 @@ from database import (
     DBDecisionAudit,
     DBKnowledgeSource,
     DBReviewDocument,
+    DBIngestedDocument,
     DBReviewFinding,
     DBReviewSuggestion,
     DBReviewStage,
@@ -487,7 +488,7 @@ def submit_review(
     )
 
     findings = deterministic + contextual_result.findings
-    enrich_finding_evidence(findings, guidelines, facts)
+    enrich_finding_evidence(findings, guidelines, facts, sources, db)
 
     summary = ReviewSummaryModel(
         totalFindings=len(findings),
@@ -538,30 +539,78 @@ def submit_review(
         raise
 
 
-def enrich_finding_evidence(findings, guidelines, facts):
-    """Attach approved-record provenance without weakening evidence validation."""
+def _normalise_evidence_text(value):
+    return " ".join(str(value or "").casefold().split())
+
+
+def _uploaded_document_id(source_url):
+    prefix = "internal://api/documents/"
+    if not isinstance(source_url, str) or not source_url.startswith(prefix):
+        return None
+    remainder = source_url[len(prefix):]
+    document_id = remainder.split("/", 1)[0].strip()
+    return document_id or None
+
+
+def enrich_finding_evidence(findings, guidelines, facts, sources=None, db=None):
+    """Attach auditable source provenance and conservative claim/evidence statuses."""
     guideline_by_id = {item.id: item for item in guidelines}
     fact_by_id = {item.id: item for item in facts}
+    source_by_id = {item.id: item for item in (sources or [])}
 
     for finding in findings:
         record = None
-        if finding.evidenceRecordType == "guideline" and finding.evidenceRecordId:
-            record = guideline_by_id.get(finding.evidenceRecordId)
-        elif finding.evidenceRecordType == "fact" and finding.evidenceRecordId:
-            record = fact_by_id.get(finding.evidenceRecordId)
+        record_type = finding.evidenceRecordType
+        record_id = finding.evidenceRecordId
+
+        if record_type == "guideline" and record_id:
+            record = guideline_by_id.get(record_id)
+        elif record_type == "fact" and record_id:
+            record = fact_by_id.get(record_id)
+        elif record_type == "knowledge_source" and record_id:
+            record = source_by_id.get(record_id)
 
         if record is not None:
             finding.sourceDocumentId = getattr(record, "sourceDocumentId", None)
             finding.sourcePageNumber = getattr(record, "sourcePageNumber", None)
             finding.sourceSectionLabel = getattr(record, "sourceSectionLabel", None)
             finding.sourceExcerpt = getattr(record, "sourceExcerpt", None)
-            finding.evidenceStatus = (
-                "supported" if finding.evidenceQuote else "partially_supported"
-            )
-        elif finding.category == "unsupported_claim" and not finding.evidenceRecordId:
+
+            # Uploaded source documents are represented in the approved catalogue
+            # by a KnowledgeSource record. Resolve its internal URL back to the
+            # stored original and locate the exact cited passage on its source page.
+            if record_type == "knowledge_source":
+                document_id = _uploaded_document_id(getattr(record, "url", None))
+                if document_id:
+                    finding.sourceDocumentId = document_id
+                    if db is not None and finding.evidenceQuote:
+                        document = db.get(DBIngestedDocument, document_id)
+                        quote = _normalise_evidence_text(finding.evidenceQuote)
+                        for page in (getattr(document, "extracted_pages", None) or []):
+                            page_text = _normalise_evidence_text(page.get("text", ""))
+                            if quote and quote in page_text:
+                                finding.sourcePageNumber = page.get("pageNumber")
+                                finding.sourceSectionLabel = page.get("sectionLabel")
+                                finding.sourceExcerpt = finding.evidenceQuote
+                                break
+
+        # A validated contradiction is conflicting. A policy citation is partial
+        # support, not proof that a factual claim itself is true.
+        if finding.category == "direct_contradiction" and record is not None and finding.evidenceQuote:
+            finding.evidenceStatus = "conflicting"
+        elif finding.category == "unsupported_claim" and not record_id:
             finding.evidenceStatus = "unsupported"
-        elif finding.evidenceRecordId:
+        elif record is not None and finding.evidenceQuote:
+            if record_type in ("guideline", "terminology") or finding.category in (
+                "contextual_inconsistency", "potential_issue"
+            ):
+                finding.evidenceStatus = "partially_supported"
+            else:
+                finding.evidenceStatus = "supported"
+        elif record_id and finding.evidenceQuote:
             finding.evidenceStatus = "partially_supported"
+        elif finding.category == "unsupported_claim":
+            finding.evidenceStatus = "unsupported"
         else:
             finding.evidenceStatus = "not_assessed"
 
@@ -662,7 +711,7 @@ def rerun_review_analysis(
         )
 
         generated = deterministic + contextual_result.findings
-        enrich_finding_evidence(generated, guidelines, facts)
+        enrich_finding_evidence(generated, guidelines, facts, sources, db)
 
         # Build separate keys for each analysis engine.
         deterministic_keys = {

@@ -2329,7 +2329,7 @@ const occurrencePreview = (start: number) => {
                           )}
                           {finding.evidenceStatus && (
                             <div className="mt-2 flex flex-wrap items-center gap-2">
-                              <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${finding.evidenceStatus === 'supported' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : finding.evidenceStatus === 'unsupported' ? 'border-rose-200 bg-rose-50 text-rose-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+                              <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${finding.evidenceStatus === 'supported' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : (finding.evidenceStatus === 'unsupported' || finding.evidenceStatus === 'conflicting') ? 'border-rose-200 bg-rose-50 text-rose-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
                                 Evidence: {finding.evidenceStatus.replace(/_/g, ' ')}
                               </span>
                               {finding.sourcePageNumber != null && <span className="text-[10px] text-slate-500">Page {finding.sourcePageNumber}</span>}
