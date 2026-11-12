@@ -2,6 +2,8 @@ import unittest
 from types import SimpleNamespace
 
 from routers.reviews import enrich_finding_evidence
+from models import TerminologyEntryModel
+from rule_engine import run_python_deterministic_checks
 
 
 def finding(category, record_type=None, record_id=None, quote=None):
@@ -83,6 +85,27 @@ class EvidenceTraceabilityTests(unittest.TestCase):
         term = SimpleNamespace(id="term-1", term="AuraCloud App", approvedReplacement="AuraCloud Workspace")
         enrich_finding_evidence([item], [], [], terminology=[term])
         self.assertEqual(item.evidenceStatus, "partially_supported")
+
+
+    def test_real_deterministic_terminology_match_links_catalogue_and_is_not_mislabelled_unassessed(self):
+        term = TerminologyEntryModel(
+            id="term-aura-app",
+            preferredTerm="AuraCloud Workspace",
+            restrictedTerm="AuraCloud App",
+            explanation="Use the approved product name.",
+            approvedAlternative="AuraCloud Workspace",
+            category="product_naming",
+            createdAt="2026-11-12",
+        )
+        findings = run_python_deterministic_checks(
+            "Meet the AuraCloud App team.", [term], [], [], "review-term-test"
+        )
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].evidenceRecordType, "terminology")
+        self.assertEqual(findings[0].evidenceRecordId, term.id)
+        self.assertEqual(findings[0].evidenceQuote, "AuraCloud App")
+        enrich_finding_evidence(findings, [], [], terminology=[term])
+        self.assertEqual(findings[0].evidenceStatus, "partially_supported")
 
 
 if __name__ == "__main__":
