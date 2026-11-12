@@ -263,8 +263,8 @@ export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ 
   const pendingCount = documents.reduce((sum, item) => sum + item.pendingCandidateCount, 0);
 
   return (
-    <section className={(standalone ? 'h-full min-h-0 ' : 'mx-4 mt-2 ') + 'flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs'}>
-      <div className="sticky top-0 z-20 flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-white px-4 py-2">
+    <section className={(standalone ? 'w-full ' : 'mx-4 mt-2 ') + 'flex flex-col rounded-xl border border-slate-200 bg-white shadow-xs'}>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-white px-4 py-2">
         <div className="flex min-w-0 items-center gap-2">
           <div className="rounded-lg bg-blue-50 p-2 text-[#2457D6]"><FileText className="h-4 w-4" /></div>
           <div>
@@ -318,7 +318,7 @@ export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ 
         </div>
       )}
       {expanded && (
-        <div className={'min-h-0 flex-1 space-y-4 overflow-y-auto p-4 md:p-5 ' + (!standalone && documents.length > 0 ? 'max-h-[36vh]' : '')}>
+        <div className="space-y-4 p-4 md:p-5">
           <div className="grid gap-3 rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50/80 to-white p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:p-5">
             <div className="min-w-0"><label htmlFor="brandguard-document-upload" className="block text-sm font-bold text-slate-900">Upload a source document</label><p className="mt-1 text-xs text-slate-500">Choose a PDF, Word document or plain text file to extract reviewable evidence.</p></div>
             <input
