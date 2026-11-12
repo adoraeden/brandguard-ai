@@ -3,7 +3,7 @@ from datetime import datetime
 from types import SimpleNamespace
 from fastapi import HTTPException
 
-from routers.reviews import apply_workflow_stage_decision, workflow_stage_model
+from routers.reviews import apply_workflow_stage_decision, workflow_stage_model, next_workflow_stage_status
 
 
 def stage(order, status, name):
@@ -56,6 +56,23 @@ class ReviewWorkflowTests(unittest.TestCase):
         self.assertEqual(result.assignedReviewer, "Reviewer 1")
         self.assertEqual(result.status, "in_review")
 
+
+    def test_new_stage_starts_immediately_when_all_previous_stages_are_approved(self):
+        completed = [
+            stage(1, "approved", "Brand review"),
+            stage(2, "approved", "Legal review"),
+        ]
+        self.assertEqual(next_workflow_stage_status(completed), "in_review")
+
+    def test_new_stage_waits_when_an_existing_stage_is_still_open(self):
+        existing = [
+            stage(1, "approved", "Brand review"),
+            stage(2, "in_review", "Legal review"),
+        ]
+        self.assertEqual(next_workflow_stage_status(existing), "pending")
+
+    def test_first_stage_starts_in_review(self):
+        self.assertEqual(next_workflow_stage_status([]), "in_review")
 
 if __name__ == "__main__":
     unittest.main()
