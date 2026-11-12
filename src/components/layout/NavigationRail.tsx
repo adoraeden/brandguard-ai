@@ -10,6 +10,7 @@ export type NavTab =
   | 'pending_reviews'
   | 'review_studio'
   | 'brand_intelligence'
+  | 'evidence_ingestion'
   | 'decision_archive'
   | 'governance_insights';
 
@@ -34,6 +35,7 @@ export const NavigationRail: React.FC<NavigationRailProps> = ({
     { id: 'review_studio' as NavTab, label: 'Review Studio', icon: FileSearch, badge: unresolvedCount, suffix: 'open' },
   ];
   const secondaryNav = [
+    { id: 'evidence_ingestion' as NavTab, label: 'Evidence Ingestion', icon: FileSearch },
     { id: 'brand_intelligence' as NavTab, label: 'Brand Intelligence', icon: BookOpen },
     { id: 'decision_archive' as NavTab, label: 'Decision Ledger', icon: ClipboardList },
     { id: 'governance_insights' as NavTab, label: 'Governance Insights', icon: BarChart3 },
