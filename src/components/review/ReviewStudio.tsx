@@ -300,7 +300,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   // Review Results State (State B)
   const [selectedFindingId, setSelectedFindingId] = useState<string | null>(null);
   const [filterCategory, setFilterCategory] = useState<string>('all');
-  const [documentPanePercent, setDocumentPanePercent] = useState(62);
+  const [documentPanePercent, setDocumentPanePercent] = useState(52);
   const workspaceRef = useRef<HTMLDivElement | null>(null);
   const resizingWorkspace = useRef(false);
   const [analysisPanelHeight, setAnalysisPanelHeight] = useState(122);
@@ -1667,7 +1667,7 @@ if (
         {/* LEFT PANEL: Document Workspace (user-resizable width) */}
         <div
           style={{ width: window.innerWidth >= 768 ? `calc(${documentPanePercent}% - 4px)` : '100%' }}
-          className="w-full md:w-auto min-w-0 min-h-[55vh] md:min-h-0 border-b md:border-b-0 md:border-r border-slate-200 flex flex-col bg-white overflow-hidden"
+          className="w-full md:w-auto min-w-0 min-h-[42vh] md:min-h-0 border-b md:border-b-0 md:border-r border-slate-200 flex flex-col bg-white overflow-hidden"
         >
           {/* Document Top Bar */}
           <div className="px-6 py-2 bg-slate-50/75 border-b border-slate-200 flex items-center justify-between text-xs">
