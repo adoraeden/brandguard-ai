@@ -300,7 +300,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   // Review Results State (State B)
   const [selectedFindingId, setSelectedFindingId] = useState<string | null>(null);
   const [filterCategory, setFilterCategory] = useState<string>('all');
-  const [documentPanePercent, setDocumentPanePercent] = useState(52);
+  const [documentPanePercent, setDocumentPanePercent] = useState(56);
   const workspaceRef = useRef<HTMLDivElement | null>(null);
   const resizingWorkspace = useRef(false);
   const [analysisPanelHeight, setAnalysisPanelHeight] = useState(122);
@@ -1662,12 +1662,12 @@ if (
       {/* 2. Side-by-Side Review Panels: Left Document vs Right Findings */}
       <div
         ref={workspaceRef}
-        className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden"
+        className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden"
       >
         {/* LEFT PANEL: Document Workspace (user-resizable width) */}
         <div
-          style={{ width: window.innerWidth >= 768 ? `calc(${documentPanePercent}% - 4px)` : '100%' }}
-          className="w-full md:w-auto min-w-0 min-h-[42vh] md:min-h-0 border-b md:border-b-0 md:border-r border-slate-200 flex flex-col bg-white overflow-hidden"
+          style={{ width: window.innerWidth >= 1024 ? `calc(${documentPanePercent}% - 4px)` : '100%' }}
+          className="w-full lg:w-auto min-w-0 min-h-[42vh] lg:min-h-0 border-b lg:border-b-0 lg:border-r border-slate-200 flex flex-col bg-white overflow-hidden"
         >
           {/* Document Top Bar */}
           <div className="px-6 py-2 bg-slate-50/75 border-b border-slate-200 flex items-center justify-between text-xs">
@@ -1804,7 +1804,7 @@ if (
           aria-valuenow={documentPanePercent}
           tabIndex={0}
           onPointerDown={(event) => {
-            if (window.innerWidth < 768) return;
+            if (window.innerWidth < 1024) return;
             resizingWorkspace.current = true;
             event.currentTarget.setPointerCapture(event.pointerId);
           }}
@@ -1820,14 +1820,14 @@ if (
             if (event.key === 'ArrowLeft') setDocumentPanePercent(value => Math.max(35, value - 2));
             if (event.key === 'ArrowRight') setDocumentPanePercent(value => Math.min(70, value + 2));
           }}
-          className="hidden md:flex w-2 shrink-0 cursor-col-resize touch-none items-center justify-center bg-slate-100 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+          className="hidden lg:flex w-2 shrink-0 cursor-col-resize touch-none items-center justify-center bg-slate-100 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
         >
           <span className="h-10 w-0.5 rounded-full bg-slate-400" />
         </div>
         {/* RIGHT PANEL: Findings List & Evidence Actions */}
         <div
           style={{ width: window.innerWidth >= 768 ? `calc(${100 - documentPanePercent}% - 4px)` : '100%' }}
-          className="w-full md:w-auto min-w-0 min-h-[55vh] md:min-h-0 flex flex-col bg-slate-50/50 overflow-hidden"
+          className="w-full lg:w-auto min-w-0 min-h-[55vh] lg:min-h-0 flex flex-col bg-slate-50/50 overflow-hidden"
         >
           {/* Findings Filter Bar */}
           <div className="px-4 py-2 bg-white border-b border-slate-200 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2 text-xs">
