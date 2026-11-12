@@ -37,7 +37,8 @@ import {
   ReviewFinding, 
   ContentType, 
   FindingCategory, 
-  FindingSeverity 
+  FindingSeverity,
+  ReviewWorkflowStage
 } from '../../types';
 import { SAMPLE_DOCUMENTS } from '../../data/mockData';
 import { api } from '../../services/apiClient';
@@ -296,7 +297,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   const workspaceRef = useRef<HTMLDivElement | null>(null);
   const resizingWorkspace = useRef(false);
   const [analysisPanelHeight, setAnalysisPanelHeight] = useState(122);
-  const [analysisPanelCollapsed, setAnalysisPanelCollapsed] = useState(false);
+  const [analysisPanelCollapsed, setAnalysisPanelCollapsed] = useState(true);
   const analysisPanelRef = useRef<HTMLDivElement | null>(null);
   const resizingAnalysisPanel = useRef(false);
   const [showOriginalDiff, setShowOriginalDiff] = useState(false);
@@ -305,6 +306,13 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   const [editingFindingId, setEditingFindingId] = useState<string | null>(null);
   const [customEditText, setCustomEditText] = useState('');
   const [selectedOccurrences, setSelectedOccurrences] = useState<Record<string, number>>({});
+
+  const [workflowStages, setWorkflowStages] = useState<ReviewWorkflowStage[]>([]);
+  const [workflowStageName, setWorkflowStageName] = useState('');
+  const [workflowAssignee, setWorkflowAssignee] = useState('');
+  const [workflowNote, setWorkflowNote] = useState('');
+  const [workflowError, setWorkflowError] = useState<string | null>(null);
+  const [workflowBusy, setWorkflowBusy] = useState(false);
 
   // Human Final Decision State
   const [decisionNotes, setDecisionNotes] = useState('');
@@ -392,6 +400,43 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
       setValidationError(null);
     }
   }, [activeReview?.id]);
+
+  useEffect(() => {
+    if (!activeReview?.id) { setWorkflowStages([]); return; }
+    let cancelled = false;
+    api.getReviewWorkflow(activeReview.id)
+      .then(stages => { if (!cancelled) { setWorkflowStages(stages); setWorkflowError(null); } })
+      .catch(error => { if (!cancelled) setWorkflowError(error?.message || 'Could not load the staged review workflow.'); });
+    return () => { cancelled = true; };
+  }, [activeReview?.id]);
+
+  const handleAddWorkflowStage = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!activeReview || !workflowStageName.trim() || !workflowAssignee.trim()) return;
+    setWorkflowBusy(true); setWorkflowError(null);
+    try {
+      const created = await api.addReviewWorkflowStage(activeReview.id, {
+        name: workflowStageName.trim(), assignedReviewer: workflowAssignee.trim(), reviewer: currentUser.name,
+      });
+      setWorkflowStages(previous => [...previous, created]);
+      setWorkflowStageName(''); setWorkflowAssignee('');
+    } catch (error: any) {
+      setWorkflowError(error?.message || 'Could not assign this review stage.');
+    } finally { setWorkflowBusy(false); }
+  };
+
+  const handleWorkflowDecision = async (stage: ReviewWorkflowStage, decision: 'approved' | 'returned' | 'rejected') => {
+    if (!activeReview) return;
+    setWorkflowBusy(true); setWorkflowError(null);
+    try {
+      const updated = await api.decideReviewWorkflowStage(activeReview.id, stage.id, {
+        decision, note: workflowNote.trim() || undefined, reviewer: currentUser.name,
+      });
+      setWorkflowStages(updated); setWorkflowNote('');
+    } catch (error: any) {
+      setWorkflowError(error?.message || 'Could not save the stage decision.');
+    } finally { setWorkflowBusy(false); }
+  };
 
   // Load sample draft when provided, unless an existing review is active.
   useEffect(() => {
@@ -1807,6 +1852,40 @@ if (
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className="border-b border-slate-200 bg-white px-4 py-3 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div><h3 className="text-xs font-bold text-slate-900">Collaborative review stages</h3><p className="text-[10px] text-slate-500">Assign sequential reviewers and record hand-offs.</p></div>
+              <a href={api.getReviewWorkflowExportUrl(activeReview.id)} className="text-[10px] font-semibold text-[#2457D6] underline" target="_blank" rel="noreferrer">Export workflow CSV</a>
+            </div>
+            {workflowError && <p role="alert" className="rounded-md bg-rose-50 p-2 text-[10px] text-rose-700">{workflowError}</p>}
+            {workflowStages.length > 0 && <div className="space-y-2">{workflowStages.map(stage => (
+              <div key={stage.id} className="rounded-lg border border-slate-200 p-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-[11px] font-semibold text-slate-800">{stage.order}. {stage.name}</div>
+                  <span className={"rounded-full px-2 py-0.5 text-[9px] font-semibold " + (stage.status === 'approved' ? 'bg-emerald-50 text-emerald-700' : stage.status === 'rejected' ? 'bg-rose-50 text-rose-700' : stage.status === 'in_review' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700')}>{stage.status.replace(/_/g, ' ')}</span>
+                </div>
+                <p className="mt-1 text-[10px] text-slate-500">Assigned to {stage.assignedReviewer}</p>
+                {stage.decisionNote && <p className="mt-1 text-[10px] text-slate-600">Note: {stage.decisionNote}</p>}
+                {stage.assignedReviewer.toLowerCase() === currentUser.name.toLowerCase() && (stage.status === 'in_review' || stage.status === 'returned') && (
+                  <div className="mt-2 space-y-2">
+                    <input value={workflowNote} onChange={event => setWorkflowNote(event.target.value)} placeholder="Decision note (optional)" className="w-full rounded border border-slate-200 px-2 py-1.5 text-[10px]" />
+                    <div className="flex flex-wrap gap-1.5">
+                      <button type="button" disabled={workflowBusy} onClick={() => void handleWorkflowDecision(stage, 'approved')} className="rounded bg-emerald-700 px-2 py-1 text-[10px] font-semibold text-white disabled:opacity-50">Approve stage &amp; hand off</button>
+                      <button type="button" disabled={workflowBusy} onClick={() => void handleWorkflowDecision(stage, 'returned')} className="rounded border border-amber-300 px-2 py-1 text-[10px] font-semibold text-amber-800 disabled:opacity-50">Return for changes</button>
+                      <button type="button" disabled={workflowBusy} onClick={() => void handleWorkflowDecision(stage, 'rejected')} className="rounded border border-rose-200 px-2 py-1 text-[10px] font-semibold text-rose-700 disabled:opacity-50">Reject stage</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}</div>}
+            <form onSubmit={handleAddWorkflowStage} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2">
+              <input value={workflowStageName} onChange={event => setWorkflowStageName(event.target.value)} placeholder="Stage name (e.g. Legal review)" className="min-w-0 rounded border border-slate-200 px-2 py-1.5 text-[10px]" />
+              <input value={workflowAssignee} onChange={event => setWorkflowAssignee(event.target.value)} placeholder="Assign reviewer name" className="min-w-0 rounded border border-slate-200 px-2 py-1.5 text-[10px]" />
+              <button type="submit" disabled={workflowBusy || !workflowStageName.trim() || !workflowAssignee.trim() || isCompleted} className="rounded bg-[#2457D6] px-3 py-1.5 text-[10px] font-semibold text-white disabled:opacity-50">Add stage</button>
+            </form>
+            <p className="text-[9px] text-slate-400">Demo assignments are workflow records, not production authentication or access control.</p>
           </div>
 
           {/* Findings List (Independent Scroll) */}

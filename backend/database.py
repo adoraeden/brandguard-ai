@@ -151,6 +151,22 @@ class DBReviewDocument(Base):
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     findings = relationship("DBReviewFinding", cascade="all, delete-orphan", order_by="DBReviewFinding.position")
     audit_history = relationship("DBDecisionAudit", cascade="all, delete-orphan", order_by="DBDecisionAudit.created_at")
+    workflow_stages = relationship("DBReviewStage", cascade="all, delete-orphan", order_by="DBReviewStage.stage_order")
+
+
+class DBReviewStage(Base):
+    __tablename__ = "review_workflow_stages"
+    id = Column(String, primary_key=True)
+    review_id = Column(String, ForeignKey("review_documents.id", ondelete="CASCADE"), nullable=False, index=True)
+    stage_order = Column(Integer, nullable=False)
+    name = Column(String, nullable=False)
+    assigned_reviewer = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="pending")
+    decision_note = Column(Text, nullable=True)
+    created_by = Column(String, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)
 
 
 class DBReviewFinding(Base):

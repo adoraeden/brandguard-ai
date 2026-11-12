@@ -467,7 +467,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
   const currentCategoryInfo = categories.find(c => c.id === selectedCategory) || categories[0];
 
   return (
-    <div className="page-content flex flex-col h-[calc(100vh-3rem)] min-h-0 overflow-hidden bg-[#F8FAFC]">
+    <div className="page-content flex h-full w-full min-h-0 flex-col overflow-hidden bg-[#F8FAFC]">
       {/* Purpose Banner & Knowledge Toolbar (Requirement 5) */}
       <div className="bg-white border-b border-slate-200 px-6 py-2.5 flex flex-wrap items-center justify-between gap-4 shrink-0 shadow-2xs">
         <div>
@@ -620,7 +620,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
         </div>
 
         {/* 2. CENTRE PANEL: Scrollable Tailored Data Table with Row-Level Priority (Requirement 12) */}
-        <div className="flex-1 flex flex-col min-w-0 bg-white overflow-hidden">
+        <div className="flex-1 min-h-0 flex flex-col min-w-0 bg-white overflow-hidden">
           {/* Category description header */}
           <div className="px-5 py-2 bg-slate-50/70 border-b border-slate-200 flex items-center justify-between text-xs text-slate-600">
             <span className="font-medium">
@@ -631,7 +631,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
             </span>
           </div>
 
-          <div className="flex-1 min-w-0 overflow-auto">
+          <div className="flex-1 min-h-0 min-w-0 overflow-auto">
             {/* ALL KNOWLEDGE CONSOLIDATED TABLE */}
             {selectedCategory === 'all' && (
               <table className="app-table min-w-[1000px] w-full text-left text-xs border-collapse">
