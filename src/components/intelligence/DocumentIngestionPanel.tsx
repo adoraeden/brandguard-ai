@@ -342,7 +342,7 @@ export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ 
 
           <div>
             <div className="mb-2 flex items-center justify-between gap-2">
-              <div><h3 className="text-sm font-bold text-slate-900">Try a sample document</h3><p className="mt-0.5 text-xs text-slate-500">Select a Round 3 sample to load it, then click Upload & Extract. Each sample can be uploaded once per shared workspace.</p></div>
+              <div><h3 className="text-sm font-bold text-slate-900">Try a sample document</h3><p className="mt-0.5 text-xs text-slate-500">Select a Round 3 sample to load it, then click Upload & Extract. You can upload the same sample again; each upload creates a separate record.</p></div>
               <span className="text-[11px] text-slate-400">3 ready-to-use samples</span>
             </div>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -352,20 +352,19 @@ export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ 
                   <button
                     key={sample.id}
                     type="button"
-                    disabled={alreadyUploaded}
                     onClick={() => {
                       setSelectedFile(buildDemoPdfFile(sample));
                       setError('');
                       setNotice(sample.title + ' PDF is ready. Click Upload & Extract to process it.');
                     }}
-                    className={`flex min-h-[88px] min-w-0 items-start gap-3 rounded-xl border p-4 text-left transition-colors ${alreadyUploaded ? 'cursor-not-allowed border-emerald-200 bg-emerald-50/50 opacity-80' : 'border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/50'}`}
+                    className="flex min-h-[88px] min-w-0 items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:border-blue-300 hover:bg-blue-50/50"
                   >
-                    <div className={`rounded-lg p-2 ${alreadyUploaded ? 'bg-emerald-100' : 'bg-blue-50'}`}><FileText className={`h-4 w-4 shrink-0 ${alreadyUploaded ? 'text-emerald-700' : 'text-[#2457D6]'}`} /></div>
+                    <div className="rounded-lg bg-blue-50 p-2"><FileText className="h-4 w-4 shrink-0 text-[#2457D6]" /></div>
                     <span className="min-w-0 flex-1">
                       <span className="block text-xs font-semibold text-slate-800">{sample.title}</span>
                       <span className="mt-1 block text-[11px] leading-snug text-slate-500">{sample.description}</span>
                     </span>
-                    <span className={`shrink-0 text-[10px] font-semibold ${alreadyUploaded ? 'text-emerald-700' : 'text-[#2457D6]'}`}>{alreadyUploaded ? 'Uploaded' : 'Use PDF'}</span>
+                    <span className={`shrink-0 text-[10px] font-semibold ${alreadyUploaded ? 'text-emerald-700' : 'text-[#2457D6]'}`}>{alreadyUploaded ? 'Upload again' : 'Use PDF'}</span>
                   </button>
                 );
               })}
