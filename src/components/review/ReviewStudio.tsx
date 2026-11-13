@@ -602,6 +602,10 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
 
   const handleFinalDecision = async (decision: 'approved_as_is' | 'rejected') => {
     if (!activeReview) return;
+    if (decision === 'approved_as_is' && workflowStages.some(stage => stage.status !== 'approved')) {
+      setValidationError('Approve every collaborative review stage before giving the document final approval.');
+      return;
+    }
 
     const unresolvedCount = activeReview.summary.unresolvedFindings;
     const isCheckpoint = unresolvedCount > 0;
@@ -1454,6 +1458,7 @@ if (
   const rejectedCount = activeReview.summary.rejectedSuggestions +
     activeReview.findings.filter(f => !f.suggestion && f.findingDecision === 'dismissed').length;
   const pendingCount = unresolvedCount;
+  const hasIncompleteWorkflow = workflowStages.length > 0 && workflowStages.some(stage => stage.status !== 'approved');
   const isCompleted = ['approved_with_changes', 'approved_as_is', 'rejected'].includes(activeReview.decisionStatus);
   const deterministicStatus = getDeterministicStatusView(activeReview);
   const aiStatus = getAiStatusView(activeReview);
@@ -1718,6 +1723,12 @@ if (
           {/* Human Governance Sign-Off Bar (Requirement 2: Blocks final approval with unresolved findings) */}
           {!isCompleted && (
             <div className="sticky bottom-0 z-20 shrink-0 p-3.5 bg-slate-50 border-t border-slate-200 space-y-2.5 shadow-[0_-4px_12px_rgba(15,23,42,0.06)]">
+              {hasIncompleteWorkflow && (
+                <div className="rounded-lg border border-blue-200 bg-blue-50 p-2.5 text-xs text-blue-900">
+                  <strong>Collaborative stages still in progress:</strong> Final approval is locked until every assigned review stage is approved.
+                </div>
+              )}
+
               {/* Unresolved findings warning banner */}
               {unresolvedCount > 0 && (
                 <div className="p-2.5 bg-amber-50/90 border border-amber-300 rounded-lg text-xs text-amber-900 flex items-center justify-between">
@@ -1770,8 +1781,8 @@ if (
 
                 <button
                   onClick={() => handleFinalDecision('approved_as_is')}
-                  disabled={isCompleting}
-                  title={unresolvedCount > 0 ? 'Save this checkpoint; the remaining findings will stay pending' : 'Approve As-Is'}
+                  disabled={isCompleting || hasIncompleteWorkflow}
+                  title={hasIncompleteWorkflow ? 'Approve all collaborative stages first' : unresolvedCount > 0 ? 'Save this checkpoint; the remaining findings will stay pending' : 'Approve As-Is'}
                   className="px-3 py-1.5 text-white font-medium text-xs rounded-lg flex items-center gap-1 whitespace-nowrap shadow-xs transition-colors bg-slate-800 hover:bg-slate-900 cursor-pointer disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed"
                 >
                   <Check className="w-3.5 h-3.5" />
