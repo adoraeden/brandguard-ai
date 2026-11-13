@@ -415,10 +415,20 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
     if (!activeReview?.id) { setWorkflowStages([]); return; }
     let cancelled = false;
     api.getReviewWorkflow(activeReview.id)
-      .then(stages => { if (!cancelled) { setWorkflowStages(stages); setWorkflowError(null); } })
+      .then(stages => {
+        if (cancelled) return;
+        setWorkflowStages(stages);
+        setWorkflowError(null);
+        const identity = currentUser.name.trim().toLowerCase();
+        const hasActionForThisPersona = stages.some(stage =>
+          (stage.assignedReviewer.trim().toLowerCase() === identity && stage.status === 'in_review') ||
+          (stage.createdBy.trim().toLowerCase() === identity && stage.status === 'returned')
+        );
+        if (hasActionForThisPersona) setWorkflowModalOpen(true);
+      })
       .catch(error => { if (!cancelled) setWorkflowError(error?.message || 'Could not load the staged review workflow.'); });
     return () => { cancelled = true; };
-  }, [activeReview?.id]);
+  }, [activeReview?.id, currentUser.name]);
 
   const handleAddWorkflowStage = async (event: React.FormEvent) => {
     event.preventDefault();
