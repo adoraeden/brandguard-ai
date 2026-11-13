@@ -1115,14 +1115,19 @@ def record_decision(
         for finding in active_findings(row.findings):
             if not is_finding_unresolved(finding) or not is_evidence_gap_finding(finding):
                 continue
-            if finding.suggestion and finding.suggestion.status == "pending":
-                continue
-
             previous_finding_state = {
                 "lifecycleStatus": finding.lifecycle_status,
                 "findingDecision": finding.finding_decision,
                 "findingDecisionNote": finding.finding_decision_note,
+                "suggestionStatus": finding.suggestion.status if finding.suggestion else None,
             }
+            # A suggestion attached to an evidence-gap finding is not a
+            # grounded correction. Explicit Approve As-Is closes the gap and
+            # dismisses that unapplied suggestion; ordinary pending corrections
+            # on non-gap findings still block final approval below.
+            if finding.suggestion and finding.suggestion.status == "pending":
+                finding.suggestion.status = "rejected"
+
             finding.lifecycle_status = "resolved"
             finding.finding_decision = "accepted"
             finding.finding_decision_reviewer = actor
@@ -1130,7 +1135,9 @@ def record_decision(
             finding.finding_decision_note = (
                 "Approved as-is by " + actor +
                 ". No directly relevant approved source was available; this evidence gap "
-                "remains visible and the claim is not treated as verified evidence."
+                "remains visible and the claim is not treated as verified evidence. "
+                "Any unapplied correction suggestion without approved supporting evidence "
+                "was dismissed and was not applied."
             )
             db.add(
                 DBDecisionAudit(
@@ -1146,6 +1153,7 @@ def record_decision(
                         "findingDecisionNote": finding.finding_decision_note,
                         "evidenceStatus": finding.evidence_status,
                         "evidenceRecordId": finding.evidence_record_id,
+                        "suggestionStatus": finding.suggestion.status if finding.suggestion else None,
                     },
                     created_at=now,
                 )
