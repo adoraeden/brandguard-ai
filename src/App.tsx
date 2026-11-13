@@ -18,6 +18,7 @@ import {
   ApprovedFact,
   KnowledgeSource,
   ReviewDocument,
+  ReviewWorkflowStage,
   GovernanceInsights
 } from './types';
 import { SAMPLE_DOCUMENTS } from './data/mockData';
@@ -41,6 +42,7 @@ function AppContent() {
   const [facts, setFacts] = useState<ApprovedFact[]>([]);
   const [sources, setSources] = useState<KnowledgeSource[]>([]);
   const [reviews, setReviews] = useState<ReviewDocument[]>([]);
+  const [reviewWorkflows, setReviewWorkflows] = useState<Record<string, ReviewWorkflowStage[]>>({});
   const [insights, setInsights] = useState<GovernanceInsights | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(true);
   const [insightsError, setInsightsError] = useState<string | null>(null);
@@ -55,8 +57,14 @@ function AppContent() {
   const visibleReviews = useMemo(() => {
     if (currentUser.role === 'admin') return reviews;
     const identity = currentUser.name.trim().toLowerCase();
-    return reviews.filter(review => (review.reviewer || '').toLowerCase().includes(identity));
-  }, [reviews, currentUser]);
+    return reviews.filter(review => {
+      const createdByOrAssignedReviewer = (review.reviewer || '').toLowerCase().includes(identity);
+      const assignedToStage = (reviewWorkflows[review.id] || []).some(stage =>
+        stage.assignedReviewer.trim().toLowerCase() === identity
+      );
+      return createdByOrAssignedReviewer || assignedToStage;
+    });
+  }, [reviews, reviewWorkflows, currentUser]);
 
   const visibleOverviewData = useMemo(() => {
     const sorted = [...visibleReviews].sort((a, b) =>
@@ -152,6 +160,13 @@ function AppContent() {
     handleSetActiveReview(null);
     setDraftToLoad(null);
     handleSelectTab('overview');
+    void loadAllData();
+  };
+
+  const handleEntryProfileChange = (userId: string) => {
+    selectDemoProfile(userId);
+    handleSetActiveReview(null);
+    setDraftToLoad(null);
   };
 
   const handleSwitchDemo = () => {
@@ -189,23 +204,28 @@ function AppContent() {
         const fetchedReviews = rev.value as ReviewDocument[];
         setReviews(fetchedReviews);
 
-        // Restore the last active review where possible.
+        // Load reviewer assignments so each demo persona can see stages assigned to them.
+        const workflowResults = await Promise.allSettled(
+          fetchedReviews.map(review => api.getReviewWorkflow(review.id))
+        );
+        const nextWorkflows: Record<string, ReviewWorkflowStage[]> = {};
+        workflowResults.forEach((result, index) => {
+          if (result.status === 'fulfilled') {
+            nextWorkflows[fetchedReviews[index].id] = result.value;
+          }
+        });
+        setReviewWorkflows(nextWorkflows);
+
+        // Restore only an explicitly selected review; never open another persona's record by default.
         const savedReviewId = localStorage.getItem('brandguard_active_review_id');
         if (savedReviewId) {
           const match = fetchedReviews.find(r => r.id === savedReviewId);
-          if (match) {
-            setActiveReview(match);
-          } else {
-            setActiveReview(prev => {
-              if (!prev) return fetchedReviews[0] || null;
-              return fetchedReviews.find((r: ReviewDocument) => r.id === prev.id) || prev;
-            });
-          }
+          setActiveReview(match || null);
         } else {
-          setActiveReview(prev => {
-            if (!prev) return fetchedReviews[0] || null;
-            return fetchedReviews.find((r: ReviewDocument) => r.id === prev.id) || prev;
-          });
+          setActiveReview(prev => prev
+            ? fetchedReviews.find(r => r.id === prev.id) || null
+            : null
+          );
         }
       }
     } catch (err) {
@@ -289,7 +309,7 @@ function AppContent() {
     return (
       <DemoEntryScreen
         selectedUser={currentUser}
-        onSelectUser={handleProfileChange}
+        onSelectUser={handleEntryProfileChange}
         onEnter={enterDemo}
       />
     );
