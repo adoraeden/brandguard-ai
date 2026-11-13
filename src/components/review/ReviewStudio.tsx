@@ -433,7 +433,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
     } finally { setWorkflowBusy(false); }
   };
 
-  const handleWorkflowDecision = async (stage: ReviewWorkflowStage, decision: 'approved' | 'returned' | 'rejected') => {
+  const handleWorkflowDecision = async (stage: ReviewWorkflowStage, decision: 'approved' | 'returned' | 'rejected' | 'resubmitted') => {
     if (!activeReview) return;
     setWorkflowBusy(true); setWorkflowError(null);
     try {
@@ -1798,14 +1798,23 @@ if (
                       <div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-xs text-slate-800">{stage.order}. {stage.name}</strong><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-700">{stage.status.replace(/_/g, ' ')}</span></div>
                       <p className="mt-1 text-[11px] text-slate-500">Assigned to {stage.assignedReviewer}</p>
                       {stage.decisionNote && <p className="mt-1 text-[11px] text-slate-600">Note: {stage.decisionNote}</p>}
-                      {!isCompleted && stage.assignedReviewer.toLowerCase() === currentUser.name.toLowerCase() && (stage.status === 'in_review' || stage.status === 'returned') && <div className="mt-2 space-y-2">
-                        <input value={workflowNote} onChange={event => setWorkflowNote(event.target.value)} placeholder="Decision note (optional)" className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs" />
+                      {!isCompleted && stage.assignedReviewer.trim().toLowerCase() === currentUser.name.trim().toLowerCase() && stage.status === 'in_review' && <div className="mt-3 space-y-2 rounded-lg border border-blue-200 bg-blue-50/70 p-3">
+                        <p className="text-[11px] font-semibold text-blue-900">Your turn: review this draft and its findings.</p>
+                        <input value={workflowNote} onChange={event => setWorkflowNote(event.target.value)} placeholder="Add a decision note (recommended)" className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
                         <div className="flex flex-wrap gap-2">
                           <button type="button" disabled={workflowBusy} onClick={() => void handleWorkflowDecision(stage, 'approved')} className="rounded bg-emerald-700 px-3 py-2 text-[11px] font-semibold text-white disabled:opacity-50">Approve &amp; hand off</button>
-                          <button type="button" disabled={workflowBusy} onClick={() => void handleWorkflowDecision(stage, 'returned')} className="rounded border border-amber-300 px-3 py-2 text-[11px] font-semibold text-amber-800 disabled:opacity-50">Return for changes</button>
-                          <button type="button" disabled={workflowBusy} onClick={() => void handleWorkflowDecision(stage, 'rejected')} className="rounded border border-rose-200 px-3 py-2 text-[11px] font-semibold text-rose-700 disabled:opacity-50">Reject stage</button>
+                          <button type="button" disabled={workflowBusy || !workflowNote.trim()} onClick={() => void handleWorkflowDecision(stage, 'returned')} className="rounded border border-amber-300 bg-white px-3 py-2 text-[11px] font-semibold text-amber-800 disabled:opacity-50">Return for changes</button>
+                          <button type="button" disabled={workflowBusy || !workflowNote.trim()} onClick={() => void handleWorkflowDecision(stage, 'rejected')} className="rounded border border-rose-200 bg-white px-3 py-2 text-[11px] font-semibold text-rose-700 disabled:opacity-50">Reject stage</button>
                         </div>
                       </div>}
+                      {!isCompleted && stage.status === 'returned' && stage.createdBy.trim().toLowerCase() === currentUser.name.trim().toLowerCase() && <div className="mt-3 space-y-2 rounded-lg border border-amber-200 bg-amber-50/70 p-3">
+                        <p className="text-[11px] font-semibold text-amber-900">Returned to you for changes.</p>
+                        <p className="text-[11px] leading-5 text-amber-800">Review the return note, update the draft in the main Review Studio editor, then send it back to {stage.assignedReviewer}.</p>
+                        <input value={workflowNote} onChange={event => setWorkflowNote(event.target.value)} placeholder="Optional resubmission note" className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
+                        <button type="button" disabled={workflowBusy} onClick={() => void handleWorkflowDecision(stage, 'resubmitted')} className="rounded bg-blue-700 px-3 py-2 text-[11px] font-semibold text-white disabled:opacity-50">Resubmit to {stage.assignedReviewer}</button>
+                      </div>}
+                      {!isCompleted && stage.status === 'returned' && stage.assignedReviewer.trim().toLowerCase() === currentUser.name.trim().toLowerCase() && <p className="mt-2 rounded-lg bg-slate-50 p-2 text-[11px] text-slate-500">Waiting for {stage.createdBy} to update and resubmit this draft.</p>}
+                      {!isCompleted && stage.status === 'pending' && <p className="mt-2 text-[11px] text-slate-500">Waiting for the previous review stage to be approved.</p>}
                     </div>
                   ))}</div> : <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-xs text-slate-500">No review stages have been assigned yet.</div>}
                   {isCompleted ? <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3"><p className="text-xs font-semibold text-amber-900">This review is signed off and read-only.</p><p className="mt-1 text-[11px] text-amber-800">Workflow stages can only be added while a review is pending.</p></div> : <form onSubmit={handleAddWorkflowStage} className="grid grid-cols-1 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[1fr_1fr_auto]">
