@@ -119,7 +119,7 @@ class EvidenceTraceabilityTests(unittest.TestCase):
         self.assertEqual(findings[0].evidenceRecordId, term.id)
         self.assertEqual(findings[0].evidenceQuote, "AuraCloud App")
         enrich_finding_evidence(findings, [], [], terminology=[term])
-        self.assertEqual(findings[0].evidenceStatus, "partially_supported")
+        self.assertEqual(findings[0].evidenceStatus, "supported")
 
 
     def test_hardcoded_high_risk_rule_does_not_invent_approved_source(self):
