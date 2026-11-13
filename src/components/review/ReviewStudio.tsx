@@ -1797,7 +1797,7 @@ if (
             <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/45 p-3 sm:p-6" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setWorkflowModalOpen(false); }}>
               <section role="dialog" aria-modal="true" aria-labelledby="workflow-dialog-title" className="flex max-h-[90dvh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
                 <header className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
-                  <div><h2 id="workflow-dialog-title" className="text-base font-extrabold text-slate-950">Collaborative review stages</h2><p className="mt-1 text-xs text-slate-500">Assign sequential reviewers, record decisions, and export the workflow.</p></div>
+                  <div><h2 id="workflow-dialog-title" className="text-base font-extrabold text-slate-950">Collaborative review stages</h2><p className="mt-1 max-w-xl text-xs leading-5 text-slate-500">Assign the first stage to Marcus and the next to Devon. Approve to hand off, return to send the draft back to the stage creator, then resubmit after making changes. Final document approval is recorded separately.</p></div>
                   <div className="flex shrink-0 items-center gap-2">
                     <a href={api.getReviewWorkflowExportUrl(activeReview.id)} className="rounded-lg border border-blue-200 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50" target="_blank" rel="noreferrer">Export CSV</a>
                     <button type="button" onClick={() => setWorkflowModalOpen(false)} aria-label="Close collaborative review stages" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">Close</button>
@@ -1828,7 +1828,17 @@ if (
                       {!isCompleted && stage.status === 'returned' && stage.assignedReviewer.trim().toLowerCase() === currentUser.name.trim().toLowerCase() && <p className="mt-2 rounded-lg bg-slate-50 p-2 text-[11px] text-slate-500">Waiting for {stage.createdBy} to update and resubmit this draft.</p>}
                       {!isCompleted && stage.status === 'pending' && <p className="mt-2 text-[11px] text-slate-500">Waiting for the previous review stage to be approved.</p>}
                     </div>
-                  ))}</div> : <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-xs text-slate-500">No review stages have been assigned yet.</div>}
+                  ))}</div> : <div className="rounded-xl border border-dashed border-blue-200 bg-blue-50/50 p-5 text-left">
+                    <p className="text-xs font-bold text-slate-800">Start a collaborative hand-off</p>
+                    <ol className="mt-2 list-decimal space-y-1 pl-4 text-[11px] leading-5 text-slate-600">
+                      <li>Add Brand &amp; Messaging Review and assign it to Marcus Chen.</li>
+                      <li>Add Legal &amp; Compliance Review and assign it to Devon Price.</li>
+                      <li>Switch to Marcus. The assigned task will appear on the Command Centre and open this workflow automatically.</li>
+                    </ol>
+                  </div>}
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-[11px] leading-5 text-slate-600">
+                    <strong className="text-slate-800">Important:</strong> approving every workflow stage completes the hand-off sequence, not the document review itself. Any unresolved findings (including partially supported claims) must still be addressed before a final approval can be recorded.
+                  </div>
                   {isCompleted ? <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3"><p className="text-xs font-semibold text-amber-900">This review is signed off and read-only.</p><p className="mt-1 text-[11px] text-amber-800">Workflow stages can only be added while a review is pending.</p></div> : <form onSubmit={handleAddWorkflowStage} className="grid grid-cols-1 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[1fr_1fr_auto]">
                     <select required value={workflowStageName} onChange={event => setWorkflowStageName(event.target.value)} aria-label="Choose review stage" className="min-w-0 rounded border border-slate-200 bg-white px-2 py-2 text-xs">
                       <option value="">Choose a stage…</option><option value="Brand & Messaging Review">Brand &amp; Messaging Review</option><option value="Legal & Compliance Review">Legal &amp; Compliance Review</option><option value="Final Approval">Final Approval</option>
