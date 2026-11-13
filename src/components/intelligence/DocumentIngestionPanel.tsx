@@ -5,7 +5,6 @@ import { api } from '../../services/apiClient';
 import { useDemoProfile } from '../../context/DemoProfileContext';
 
 interface DocumentIngestionPanelProps {
-  isAdmin: boolean;
   onDataChanged: () => void;
   onNavigateToKnowledgeBase?: (recordId: string) => void;
   standalone?: boolean;
@@ -129,7 +128,7 @@ const buildDemoPdfFile = (sample: DemoEvidenceDocument): File => {
   return new File([encoder.encode(pdf) as unknown as BlobPart], sample.filename, { type: 'application/pdf' });
 };
 
-export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ isAdmin, onDataChanged, onNavigateToKnowledgeBase, standalone = false }) => {
+export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ onDataChanged, onNavigateToKnowledgeBase, standalone = false }) => {
   const { currentUser } = useDemoProfile();
   const [documents, setDocuments] = useState<IngestedDocument[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -143,7 +142,6 @@ export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ 
   const [approvalConfirmation, setApprovalConfirmation] = useState<ApprovalConfirmation | null>(null);
 
   const loadDocuments = useCallback(async () => {
-    if (!isAdmin) return;
     setLoading(true);
     try {
       const rows = await api.getDocuments();
@@ -166,7 +164,7 @@ export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ 
     } finally {
       setLoading(false);
     }
-  }, [isAdmin]);
+  }, []);
 
   useEffect(() => { void loadDocuments(); }, [loadDocuments]);
 
@@ -251,14 +249,6 @@ export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ 
       setBusyCandidate(null);
     }
   };
-
-  if (!isAdmin) {
-    return (
-      <section className="mx-4 mt-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
-        <strong>Document ingestion is restricted to the Admin profile.</strong> Select the admin demo profile to upload documents and confirm extracted evidence.
-      </section>
-    );
-  }
 
   const pendingCount = documents.reduce((sum, item) => sum + item.pendingCandidateCount, 0);
 
