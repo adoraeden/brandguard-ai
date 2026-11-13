@@ -289,7 +289,7 @@ function AppContent() {
     return (
       <DemoEntryScreen
         selectedUser={currentUser}
-        onSelectUser={selectDemoProfile}
+        onSelectUser={handleProfileChange}
         onEnter={enterDemo}
       />
     );
