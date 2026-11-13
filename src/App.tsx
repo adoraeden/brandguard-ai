@@ -169,6 +169,10 @@ function AppContent() {
   };
 
   const handleDeleteReview = async (review: ReviewDocument) => {
+    if (!['pending', 'partially_approved'].includes(review.decisionStatus)) {
+      window.alert('Only pending reviews can be permanently deleted from Pending Reviews.');
+      return;
+    }
     const confirmed = window.confirm(
       `Permanently delete "${review.title}"? This also deletes its findings, suggestions, workflow stages and audit history. This cannot be undone.`
     );
@@ -263,7 +267,6 @@ function AppContent() {
               onOpenReview={(r) => {
                 handleSelectReview(r.id);
               }}
-              onDeleteReview={handleDeleteReview}
             />
           )}
 
