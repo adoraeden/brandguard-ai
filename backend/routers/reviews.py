@@ -1394,7 +1394,11 @@ def decide_review_workflow_stage(review_id: str, stage_id: str, payload: ReviewW
         previous = {"status": stage.status, "decisionNote": stage.decision_note}
         stage.status = "in_review"
         if payload.note:
-            stage.decision_note = payload.note
+            prior_note = stage.decision_note or ""
+            stage.decision_note = (
+                f"{prior_note}\nResubmission note: {payload.note}"
+                if prior_note else payload.note
+            )
         stage.updated_at = now
         stage.completed_at = None
     else:
