@@ -1412,9 +1412,9 @@ if (
   const analysisTone = getHighestAnalysisTone(deterministicStatus.tone, aiStatus.tone);
 
   return (
-    <div className="min-h-full flex flex-col">
+    <div className="h-full min-h-0 flex flex-col overflow-hidden">
       {/* Review summary counters; section title is provided by the shared application header. */}
-      <div className="bg-white border-b border-slate-200 px-5 py-3 flex flex-wrap items-center justify-end gap-3 shrink-0">
+      <div className="bg-white border-b border-slate-200 px-5 py-3 flex flex-wrap items-center justify-start gap-3 shrink-0">
         <div className="flex items-center gap-1.5 font-mono text-slate-600 text-xs"><span>Total:</span><strong className="text-slate-900 bg-slate-100 px-2 py-0.5 rounded">{activeReview.findings.length}</strong></div>
         <div className="flex items-center gap-1.5 font-mono text-emerald-700 text-xs"><span>Accepted:</span><strong className="bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">{acceptedCount}</strong></div>
         <div className="flex items-center gap-1.5 font-mono text-rose-700 text-xs"><span>Rejected:</span><strong className="bg-rose-50 px-2 py-0.5 rounded border border-rose-200">{rejectedCount}</strong></div>
@@ -1585,12 +1585,12 @@ if (
       {/* 2. Side-by-Side Review Panels: Left Document vs Right Findings */}
       <div
         ref={workspaceRef}
-        className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden"
+        className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden"
       >
         {/* LEFT PANEL: Document Workspace (user-resizable width) */}
         <div
           style={{ width: window.innerWidth >= 1024 ? `calc(${documentPanePercent}% - 4px)` : '100%' }}
-          className="w-full lg:w-auto min-w-0 min-h-[42vh] lg:min-h-[calc(100dvh-170px)] lg:max-h-[calc(100dvh-170px)] lg:sticky lg:top-0 lg:self-start border-b lg:border-b-0 lg:border-r border-slate-200 flex flex-col bg-white overflow-hidden"
+          className="w-full lg:w-auto min-w-0 min-h-[42vh] lg:min-h-0 lg:max-h-full lg:self-stretch border-b lg:border-b-0 lg:border-r border-slate-200 flex flex-col bg-white overflow-hidden"
         >
           {/* Document Top Bar */}
           <div className="px-6 py-2 bg-slate-50/75 border-b border-slate-200 flex items-center justify-between text-xs">
@@ -1753,12 +1753,12 @@ if (
           className="w-full lg:w-auto min-w-0 min-h-[55vh] lg:min-h-0 flex flex-col bg-slate-50/50 overflow-hidden"
         >
           {/* Findings Filter Bar */}
-          <div className="px-4 py-2 bg-white border-b border-slate-200 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2 text-xs">
+          <div className="px-4 py-3 bg-white border-b border-slate-200 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 text-xs">
             <div className="flex items-center gap-1.5 font-semibold text-slate-800 shrink-0">
               <Filter className="w-3.5 h-3.5 text-[#2457D6]" />
               <span>Evidence Filter:</span>
             </div>
-            <div className="flex flex-wrap items-center gap-1">
+            <div className="flex flex-wrap items-center gap-2">
               {[
                 { id: 'all', label: 'All' },
                 { id: 'exact_violation', label: 'Exact Rules' },
@@ -1770,7 +1770,7 @@ if (
                 <button
                   key={f.id}
                   onClick={() => setFilterCategory(f.id)}
-                  className={`px-2 py-0.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                  className={`px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
                     filterCategory === f.id
                       ? 'bg-[#2457D6] text-white shadow-xs font-semibold'
                       : 'bg-slate-100 text-slate-600 hover:text-slate-900'
@@ -1790,7 +1790,7 @@ if (
             {!workflowPanelCollapsed && <>
             {workflowError && <p role="alert" className="rounded-md bg-rose-50 p-2 text-[10px] text-rose-700">{workflowError}</p>}
             {workflowStages.length > 0 && <div className="space-y-2">{workflowStages.map(stage => (
-              <div key={stage.id} className="rounded-lg border border-slate-200 p-2.5">
+              <div key={stage.id} className={`rounded-lg border border-l-4 p-3 shadow-xs ${stage.status === 'approved' ? 'border-emerald-200 border-l-emerald-500 bg-emerald-50/30' : stage.status === 'rejected' ? 'border-rose-200 border-l-rose-500 bg-rose-50/30' : stage.status === 'in_review' ? 'border-blue-200 border-l-blue-500 bg-blue-50/30' : 'border-amber-200 border-l-amber-400 bg-amber-50/20'}`}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="text-[11px] font-semibold text-slate-800">{stage.order}. {stage.name}</div>
                   <span className={"rounded-full px-2 py-0.5 text-[9px] font-semibold " + (stage.status === 'approved' ? 'bg-emerald-50 text-emerald-700' : stage.status === 'rejected' ? 'bg-rose-50 text-rose-700' : stage.status === 'in_review' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700')}>{stage.status.replace(/_/g, ' ')}</span>
