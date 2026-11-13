@@ -107,6 +107,33 @@ class FinalReviewWorkflowIntegrationTests(unittest.TestCase):
         finally:
             self.delete_cleanup(review_id)
 
+    def test_reject_completes_review_even_when_findings_or_suggestions_remain_pending(self):
+        review_id, finding_id = self.make_review(suggestion=True)
+        try:
+            response = self.client.post(
+                f"/api/reviews/{review_id}/decisions",
+                json={
+                    "completeDecision": "rejected",
+                    "decisionNotes": "The submitted document is rejected.",
+                    "reviewer": "Evelyn Voss",
+                },
+            )
+            self.assertEqual(response.status_code, 200, response.text)
+            document = response.json()
+            self.assertEqual(document["status"], "completed")
+            self.assertEqual(document["decisionStatus"], "rejected")
+            # Rejecting the document does not falsely resolve its findings or
+            # silently accept/reject a correction suggestion.
+            self.assertEqual(document["summary"]["unresolvedFindings"], 1)
+            finding = next(item for item in document["findings"] if item["id"] == finding_id)
+            self.assertEqual(finding["suggestion"]["status"], "pending")
+
+            history = self.client.get(f"/api/reviews/{review_id}/history")
+            self.assertEqual(history.status_code, 200, history.text)
+            self.assertTrue(any(item["action"] == "complete" for item in history.json()))
+        finally:
+            self.delete_cleanup(review_id)
+
     def test_approve_as_is_does_not_bypass_pending_correction_on_evidence_gap(self):
         review_id, finding_id = self.make_review(suggestion=True, evidence_gap=True)
         try:
