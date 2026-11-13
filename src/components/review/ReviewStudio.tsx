@@ -52,6 +52,7 @@ interface ReviewStudioProps {
   onNavigateToLedger?: () => void;
   onNavigateToPending?: () => void;
   onNavigateHome?: () => void;
+  onNavigateToEvidenceIngestion?: () => void;
 }
 
 type AnalysisTone = 'success' | 'warning' | 'error' | 'neutral';
@@ -268,6 +269,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   onNavigateToLedger,
   onNavigateToPending,
   onNavigateHome,
+  onNavigateToEvidenceIngestion,
 }) => {
   const { currentUser } = useDemoProfile();
 
@@ -2290,6 +2292,11 @@ const occurrencePreview = (start: number) => {
                               Open original evidence document
                             </a>
                           )}
+                          {finding.evidenceStatus && finding.evidenceStatus !== 'supported' && !isCompleted && onNavigateToEvidenceIngestion && (
+                            <button type="button" onClick={onNavigateToEvidenceIngestion} className="mt-2 inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[10px] font-semibold text-amber-900 hover:bg-amber-100">
+                              Add or verify supporting evidence
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -2303,6 +2310,11 @@ const occurrencePreview = (start: number) => {
                           <div className="mt-0.5 text-[10px] text-slate-500">
                             Finding-level review record
                           </div>
+                          {finding.suggestion?.status === 'pending' && (
+                            <p className="mt-2 max-w-xl text-[10px] leading-4 text-amber-800">
+                              This records whether you agree the finding is valid. It does not apply its pending correction. Use Accept Change or Edit above to resolve the suggested revision, or dismiss the finding if it is a false positive.
+                            </p>
+                          )}
                         </div>
                         <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${findingDecisionStyle}`}>
                           {findingDecisionLabel}
