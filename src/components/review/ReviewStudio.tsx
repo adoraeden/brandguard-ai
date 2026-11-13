@@ -482,8 +482,11 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
       );
       onDecisionUpdated(updated);
       setIsEditingReturnedDraft(false);
-      setWorkflowNote('Draft revision saved. Resubmit it to the assigned reviewer.');
-      setWorkflowModalOpen(true);
+      setWorkflowModalOpen(false);
+      setRerunFeedback({
+        kind: 'success',
+        message: 'Draft revision saved. Re-run analysis to refresh its findings, then open Manage stages to resubmit it to the reviewer.',
+      });
     } catch (error: any) {
       setReturnedDraftError(error?.message || 'Could not save the returned draft revision.');
     } finally {
@@ -1880,8 +1883,8 @@ if (
                       </div>}
                       {!isCompleted && stage.status === 'returned' && stage.createdBy.trim().toLowerCase() === currentUser.name.trim().toLowerCase() && <div className="mt-3 space-y-2 rounded-lg border border-amber-200 bg-amber-50/70 p-3">
                         <p className="text-[11px] font-semibold text-amber-900">Returned to you for changes.</p>
-                        <p className="text-[11px] leading-5 text-amber-800">Read the reviewer&apos;s return note, edit the existing draft, save the revision, then send it back to {stage.assignedReviewer}.</p>
-                        <button type="button" onClick={() => { setReturnedDraftText(activeReview.currentContent); setReturnedDraftError(null); setIsEditingReturnedDraft(true); setWorkflowModalOpen(false); }} className="rounded border border-amber-300 bg-white px-3 py-2 text-[11px] font-semibold text-amber-900 hover:bg-amber-100">Edit returned draft</button>
+                        <p className="text-[11px] leading-5 text-amber-800">Read the reviewer&apos;s return note, edit and save the existing draft, re-run analysis, then resubmit it to {stage.assignedReviewer}.</p>
+                        <button type="button" onClick={() => { setReturnedDraftText(activeReview.currentContent); setReturnedDraftError(null); setShowOriginalDiff(false); setIsEditingReturnedDraft(true); setWorkflowModalOpen(false); }} className="rounded border border-amber-300 bg-white px-3 py-2 text-[11px] font-semibold text-amber-900 hover:bg-amber-100">Edit returned draft</button>
                         <input value={workflowNote} onChange={event => setWorkflowNote(event.target.value)} placeholder="Optional resubmission note" className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
                         <button type="button" disabled={workflowBusy} onClick={() => void handleWorkflowDecision(stage, 'resubmitted')} className="rounded bg-blue-700 px-3 py-2 text-[11px] font-semibold text-white disabled:opacity-50">Resubmit to {stage.assignedReviewer}</button>
                       </div>}
