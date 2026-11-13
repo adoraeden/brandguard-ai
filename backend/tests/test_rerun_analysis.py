@@ -188,6 +188,51 @@ class RerunAnalysisTests(unittest.TestCase):
         self.assertEqual(row.current_content, ABSOLUTE_CLAIM_DRAFT)
         self.assertEqual(len(session.audit_entries), 1)
 
+    def test_rerun_refreshes_evidence_metadata_for_an_existing_finding(self):
+        row = make_row()
+        existing = DBReviewFinding(
+            id="existing-evidence-finding", review_id=row.id, position=0,
+            title="Existing partial evidence", category="unsupported_claim",
+            severity="medium", exact_text="100% protection against every cyber threat",
+            start_index=0, end_index=40, explanation="Existing explanation",
+            source_rule_or_term="Evidence check", source_reference="Old source",
+            detection_method="gemini_contextual", confidence="medium",
+            evidence_record_type="fact", evidence_record_id="old-fact",
+            evidence_quote="Old incomplete quote", evidence_status="partially_supported",
+            source_document_id="old-document", source_page_number=1,
+            source_section_label="Old section", source_excerpt="Old excerpt",
+            analysis_run_id="run-old", lifecycle_status="active",
+        )
+        row.findings = [existing]
+        row.summary = {"totalFindings": 1, "unresolvedFindings": 1}
+
+        refreshed = make_finding(row.id)
+        refreshed.evidenceRecordType = "fact"
+        refreshed.evidenceRecordId = "new-approved-fact"
+        refreshed.evidenceQuote = "New complete approved evidence quote"
+        refreshed.evidenceStatus = "supported"
+        refreshed.sourceDocumentId = "new-document"
+        refreshed.sourcePageNumber = 4
+        refreshed.sourceSectionLabel = "Verified SLA"
+        refreshed.sourceExcerpt = "New complete approved evidence quote"
+
+        with patch.object(reviews, "enrich_finding_evidence", return_value=None):
+            updated, _session, _deterministic, gemini = self.call_rerun(
+                row, GeminiAnalysisResult([refreshed], "completed"))
+
+        self.assertEqual(gemini.call_count, 1)
+        self.assertEqual(len(updated.findings), 1)
+        finding = updated.findings[0]
+        self.assertEqual(finding.id, "existing-evidence-finding")
+        self.assertEqual(finding.evidenceStatus, "supported")
+        self.assertEqual(finding.evidenceRecordId, "new-approved-fact")
+        self.assertEqual(finding.evidenceQuote, "New complete approved evidence quote")
+        self.assertEqual(finding.sourceDocumentId, "new-document")
+        self.assertEqual(finding.sourcePageNumber, 4)
+        self.assertEqual(finding.sourceSectionLabel, "Verified SLA")
+        self.assertEqual(finding.sourceExcerpt, "New complete approved evidence quote")
+        self.assertEqual(finding.analysisRunId, updated.lastAnalysisRunId)
+
     def test_both_analysis_methods_failed_are_recorded_separately(self):
         row = make_row()
 
