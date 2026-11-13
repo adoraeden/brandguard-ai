@@ -131,6 +131,32 @@ def count_unresolved_findings(findings) -> int:
     return sum(1 for finding in findings if is_finding_unresolved(finding))
 
 
+def is_evidence_gap_finding(finding) -> bool:
+    """Match Review Studio findings that explicitly have no approved source."""
+    source_rule_or_term = getattr(finding, "source_rule_or_term", None) or getattr(
+        finding, "sourceRuleOrTerm", None
+    )
+    if source_rule_or_term == "Insufficient Evidence":
+        return True
+
+    category = getattr(finding, "category", None)
+    evidence_record_type = getattr(finding, "evidence_record_type", None) or getattr(
+        finding, "evidenceRecordType", None
+    )
+    evidence_record_id = getattr(finding, "evidence_record_id", None) or getattr(
+        finding, "evidenceRecordId", None
+    )
+    source_reference = getattr(finding, "source_reference", None) or getattr(
+        finding, "sourceReference", None
+    ) or ""
+    return (
+        category == "unsupported_claim"
+        and not evidence_record_type
+        and not evidence_record_id
+        and "no directly relevant approved source" in source_reference.casefold()
+    )
+
+
 def active_findings(findings):
     return [
         finding
@@ -1081,6 +1107,49 @@ def record_decision(
                 created_at=now,
             )
         )
+
+    if payload.completeDecision == "approved_as_is":
+        # Explicit as-is sign-off may acknowledge a claim without direct approved
+        # evidence. Keep the evidence status unsupported; pending corrections
+        # remain blocking and are never auto-approved here.
+        for finding in active_findings(row.findings):
+            if not is_finding_unresolved(finding) or not is_evidence_gap_finding(finding):
+                continue
+            if finding.suggestion and finding.suggestion.status == "pending":
+                continue
+
+            previous_finding_state = {
+                "lifecycleStatus": finding.lifecycle_status,
+                "findingDecision": finding.finding_decision,
+                "findingDecisionNote": finding.finding_decision_note,
+            }
+            finding.lifecycle_status = "resolved"
+            finding.finding_decision = "accepted"
+            finding.finding_decision_reviewer = actor
+            finding.finding_decision_at = now.isoformat() + "Z"
+            finding.finding_decision_note = (
+                "Approved as-is by " + actor +
+                ". No directly relevant approved source was available; this evidence gap "
+                "remains visible and the claim is not treated as verified evidence."
+            )
+            db.add(
+                DBDecisionAudit(
+                    id=f"aud-{uuid4().hex}",
+                    review_id=review_id,
+                    finding_id=finding.id,
+                    action="evidence_gap_approved_as_is",
+                    reviewer=actor,
+                    previous_value=previous_finding_state,
+                    new_value={
+                        "lifecycleStatus": finding.lifecycle_status,
+                        "findingDecision": finding.finding_decision,
+                        "findingDecisionNote": finding.finding_decision_note,
+                        "evidenceStatus": finding.evidence_status,
+                        "evidenceRecordId": finding.evidence_record_id,
+                    },
+                    created_at=now,
+                )
+            )
 
     unresolved = count_unresolved_findings(row.findings)
 
