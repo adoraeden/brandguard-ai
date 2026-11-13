@@ -242,6 +242,15 @@ export const api = {
     return res.json();
   },
 
+  async updateReturnedReviewContent(id: string, content: string, reviewer: string): Promise<ReviewDocument> {
+    const res = await apiFetch('/api/reviews/' + id + '/content', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content, reviewer }),
+    });
+    if (!res.ok) throw new Error(await apiError(res, 'Failed to save returned draft revision'));
+    return res.json();
+  },
+
   async getReviewWorkflow(id: string): Promise<ReviewWorkflowStage[]> {
     const res = await apiFetch('/api/reviews/' + id + '/workflow');
     if (!res.ok) throw new Error(await apiError(res, 'Failed to fetch review workflow'));
