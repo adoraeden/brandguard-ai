@@ -15,7 +15,8 @@ import {
   ShieldCheck,
   AlertTriangle,
   History,
-  ArrowRight
+  ArrowRight,
+  Trash2
 } from 'lucide-react';
 import { ReviewDocument, DecisionStatus } from '../../types';
 import { useDemoProfile } from '../../context/DemoProfileContext';
@@ -23,11 +24,13 @@ import { useDemoProfile } from '../../context/DemoProfileContext';
 interface DecisionArchiveViewProps {
   reviews: ReviewDocument[];
   onOpenReview: (review: ReviewDocument) => void;
+  onDeleteReview: (review: ReviewDocument) => void;
 }
 
 export const DecisionArchiveView: React.FC<DecisionArchiveViewProps> = ({
   reviews,
   onOpenReview,
+  onDeleteReview,
 }) => {
   const { isAdmin } = useDemoProfile();
   const [searchQuery, setSearchQuery] = useState('');
@@ -256,7 +259,9 @@ export const DecisionArchiveView: React.FC<DecisionArchiveViewProps> = ({
                               <ChevronRight className="w-3 h-3" />
                             </button>
                           )}
-                          {isAdmin && <button type="button" disabled title="Permanent deletion is disabled in public demo mode" aria-label="Permanent deletion disabled in demo mode" className="px-2.5 py-1 text-xs border border-slate-200 bg-slate-50 text-slate-400 rounded font-medium cursor-not-allowed">Delete disabled in demo</button>}
+                          <button type="button" onClick={() => onDeleteReview(r)} title="Delete review permanently" aria-label={`Delete review ${r.title}`} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs border border-rose-200 bg-white hover:bg-rose-50 text-rose-700 rounded font-medium transition-colors cursor-pointer">
+                            <Trash2 className="h-3 w-3" /> Delete
+                          </button>
                         </div>
                       </td>
                     </tr>
