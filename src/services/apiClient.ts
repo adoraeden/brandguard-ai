@@ -256,7 +256,7 @@ export const api = {
     return res.json();
   },
 
-  async decideReviewWorkflowStage(id: string, stageId: string, payload: { decision: 'approved' | 'returned' | 'rejected'; note?: string; reviewer?: string }): Promise<ReviewWorkflowStage[]> {
+  async decideReviewWorkflowStage(id: string, stageId: string, payload: { decision: 'approved' | 'returned' | 'rejected' | 'resubmitted'; note?: string; reviewer?: string }): Promise<ReviewWorkflowStage[]> {
     const res = await apiFetch('/api/reviews/' + id + '/workflow/stages/' + stageId + '/decision', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
     });
