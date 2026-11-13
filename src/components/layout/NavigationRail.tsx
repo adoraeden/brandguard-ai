@@ -111,10 +111,10 @@ export const NavigationRail: React.FC<NavigationRailProps> = ({
       <label className="hidden items-center gap-2 border-t border-slate-100 bg-slate-50/70 px-4 py-4 md:flex">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-blue-100 bg-blue-50 text-xs font-bold text-blue-700">{currentUser.avatarInitials}</span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-semibold text-slate-800">{currentUser.name}</span>
+          <span className="block whitespace-nowrap text-[13px] font-semibold text-slate-800">{currentUser.name}</span>
           <span className="mt-0.5 block text-xs capitalize text-slate-500">{currentUser.title} · {currentUser.role}</span>
         </span>
-        <select aria-label="Switch demo profile" value={currentUser.id} onChange={event => selectDemoProfile(event.target.value)} className="max-w-[104px] rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-600">
+        <select aria-label="Switch demo profile" value={currentUser.id} onChange={event => selectDemoProfile(event.target.value)} className="max-w-[72px] rounded-lg border border-slate-200 bg-white px-1.5 py-1.5 text-[11px] font-medium text-slate-600">
           {DEMO_USERS.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
         </select>
       </label>
