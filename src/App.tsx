@@ -398,6 +398,7 @@ function AppContent() {
               onNavigateToLedger={() => handleSelectTab('decision_archive')}
               onNavigateToPending={() => handleSelectTab('pending_reviews')}
               onNavigateHome={() => handleSelectTab('overview')}
+              onNavigateToEvidenceIngestion={() => handleSelectTab('evidence_ingestion')}
             />
           )}
 
