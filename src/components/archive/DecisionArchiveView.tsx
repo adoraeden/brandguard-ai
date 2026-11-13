@@ -164,7 +164,7 @@ export const DecisionArchiveView: React.FC<DecisionArchiveViewProps> = ({
 
       {/* Clean Audit Table with Exact Columns */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto workspace-scrollbar">
           <table className="app-table min-w-[960px] w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/75 text-[11px] font-semibold text-slate-600 uppercase tracking-wider">
