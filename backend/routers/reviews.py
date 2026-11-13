@@ -66,6 +66,17 @@ def get_review(review_id: str, db: Session = Depends(get_db)):
     return review_model(row)
 
 
+@router.delete("/{review_id}")
+def delete_review(review_id: str, db: Session = Depends(get_db)):
+    """Permanently delete one review and its dependent findings, suggestions, stages and audit history."""
+    row = db.get(DBReviewDocument, review_id)
+    if not row:
+        raise HTTPException(404, "Review document not found")
+    db.delete(row)
+    db.commit()
+    return {"success": True, "deletedReviewId": review_id}
+
+
 @router.get("/{review_id}/history")
 def get_review_history(review_id: str, db: Session = Depends(get_db)):
     row = db.get(DBReviewDocument, review_id)
