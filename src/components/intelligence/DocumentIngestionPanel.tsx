@@ -176,11 +176,6 @@ export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ 
 
   const handleUpload = async () => {
     if (!selectedFile) return;
-    const isDemoSample = DEMO_EVIDENCE_DOCUMENTS.some(sample => sample.filename === selectedFile.name);
-    if (isDemoSample && documents.some(documentItem => documentItem.filename === selectedFile.name)) {
-      setError('This Round 3 sample document is already in the shared workspace. Review its existing extracted passages below instead of uploading it again.');
-      return;
-    }
     if (selectedFile.size === 0) {
       setError('The selected file is empty. Choose a non-empty PDF, DOCX or TXT file.');
       return;
