@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   LayoutDashboard, Clock, FileSearch, BookOpen, ClipboardList,
-  BarChart3, Building2, ShieldCheck
+  BarChart3, Building2, ShieldCheck, Users
 } from 'lucide-react';
 import { DEMO_USERS, useDemoProfile } from '../../context/DemoProfileContext';
 
@@ -17,6 +17,8 @@ export type NavTab =
 interface NavigationRailProps {
   currentTab: NavTab;
   onSelectTab: (tab: NavTab) => void;
+  onProfileChange: (userId: string) => void;
+  onSwitchDemo: () => void;
   unresolvedCount?: number;
   pendingReviewsCount?: number;
 }
@@ -24,10 +26,12 @@ interface NavigationRailProps {
 export const NavigationRail: React.FC<NavigationRailProps> = ({
   currentTab,
   onSelectTab,
+  onProfileChange,
+  onSwitchDemo,
   unresolvedCount = 0,
   pendingReviewsCount = 0,
 }) => {
-  const { currentUser, selectDemoProfile } = useDemoProfile();
+  const { currentUser } = useDemoProfile();
 
   const primaryNav = [
     { id: 'overview' as NavTab, label: 'Command Centre', icon: LayoutDashboard },
@@ -53,19 +57,15 @@ export const NavigationRail: React.FC<NavigationRailProps> = ({
         aria-current={active ? 'page' : undefined}
         aria-label={item.label}
         title={item.label}
-        className={`group relative flex w-full min-h-11 items-center gap-3 rounded-xl px-3.5 py-2.5 text-left text-sm transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
-          active
-            ? 'bg-blue-50 text-blue-700 font-semibold shadow-sm'
-            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950 font-medium'
-        }`}
+        className={`group relative flex w-full min-h-11 items-center gap-3 rounded-xl px-3.5 py-2.5 text-left text-sm transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${active
+          ? 'bg-blue-50 text-blue-700 font-semibold shadow-sm'
+          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950 font-medium'}`}
       >
         {active && <span className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-blue-600" />}
         <Icon className={`h-[18px] w-[18px] shrink-0 ${active ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
         <span className="min-w-0 flex-1 truncate">{item.label}</span>
         {typeof badge === 'number' && badge > 0 && (
-          <span className={`min-w-6 rounded-full px-2 py-0.5 text-center text-[11px] font-semibold tabular-nums ${
-            item.id === 'pending_reviews' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-700'
-          }`}>{badge}</span>
+          <span className={`min-w-6 rounded-full px-2 py-0.5 text-center text-[11px] font-semibold tabular-nums ${item.id === 'pending_reviews' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-700'}`}>{badge}</span>
         )}
       </button>
     );
@@ -108,23 +108,31 @@ export const NavigationRail: React.FC<NavigationRailProps> = ({
         </nav>
       </div>
 
-      <label className="hidden min-h-[84px] shrink-0 items-center gap-2 border-t border-slate-100 bg-slate-50/70 px-3 py-3 md:flex">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-blue-100 bg-blue-50 text-xs font-bold text-blue-700">{currentUser.avatarInitials}</span>
-        <span className="min-w-0 flex-1">
-          <span className="block whitespace-normal break-words text-[13px] font-semibold leading-tight text-slate-800">{currentUser.name}</span>
-          <span className="mt-0.5 block text-xs capitalize text-slate-500">{currentUser.title} · {currentUser.role}</span>
-        </span>
-        <select aria-label="Switch demo profile" value={currentUser.id} onChange={event => selectDemoProfile(event.target.value)} className="w-[96px] shrink-0 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] font-medium text-slate-600">
-          {DEMO_USERS.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
-        </select>
-      </label>
+      <div className="hidden shrink-0 border-t border-slate-100 bg-slate-50/70 px-3 py-3 md:block">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-blue-100 bg-blue-50 text-xs font-bold text-blue-700">{currentUser.avatarInitials}</span>
+          <span className="min-w-0 flex-1">
+            <span className="block whitespace-normal break-words text-[13px] font-semibold leading-tight text-slate-800">{currentUser.name}</span>
+            <span className="mt-0.5 block text-[11px] leading-4 text-slate-500">{currentUser.title}</span>
+          </span>
+        </div>
+        <div className="mt-3 flex gap-2">
+          <select aria-label="Switch demo profile" value={currentUser.id} onChange={event => onProfileChange(event.target.value)} className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2 py-2 text-[11px] font-medium text-slate-600">
+            {DEMO_USERS.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
+          </select>
+          <button type="button" onClick={onSwitchDemo} title="Return to demo role selection" aria-label="Return to demo role selection" className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-[11px] font-semibold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700">
+            <Users className="h-3.5 w-3.5" /> Switch
+          </button>
+        </div>
+        <div className="mt-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Demo identity · {currentUser.role}</div>
+      </div>
 
-      <label className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white md:hidden">
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white md:hidden">
         <span className="sr-only">Switch demo profile</span>
-        <select aria-label="Switch demo profile" value={currentUser.id} onChange={event => selectDemoProfile(event.target.value)} className="h-full w-full rounded-xl bg-transparent text-center text-[10px] font-semibold text-blue-700">
+        <select aria-label="Switch demo profile" value={currentUser.id} onChange={event => onProfileChange(event.target.value)} className="h-full w-full rounded-xl bg-transparent text-center text-[10px] font-semibold text-blue-700">
           {DEMO_USERS.map(user => <option key={user.id} value={user.id}>{user.avatarInitials}</option>)}
         </select>
-      </label>
+      </div>
     </aside>
   );
 };
