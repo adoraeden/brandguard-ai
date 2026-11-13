@@ -19,7 +19,6 @@ import {
   Trash2
 } from 'lucide-react';
 import { ReviewDocument, DecisionStatus } from '../../types';
-import { useDemoProfile } from '../../context/DemoProfileContext';
 
 interface DecisionArchiveViewProps {
   reviews: ReviewDocument[];
@@ -32,7 +31,6 @@ export const DecisionArchiveView: React.FC<DecisionArchiveViewProps> = ({
   onOpenReview,
   onDeleteReview,
 }) => {
-  const { isAdmin } = useDemoProfile();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterDecision, setFilterDecision] = useState<string>('all');
   const [inspectReview, setInspectReview] = useState<ReviewDocument | null>(null);
