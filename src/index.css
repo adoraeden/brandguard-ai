@@ -99,16 +99,18 @@
 
 /* Custom scrollbars for clean full-height workspaces */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 10px;
+  height: 12px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: #eef2f7;
+  border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #CBD5E1;
+  background: #94A3B8;
+  border: 2px solid #eef2f7;
   border-radius: 9999px;
 }
 
@@ -211,3 +213,9 @@ main textarea {
     padding: 1rem;
   }
 }
+
+
+.workspace-scrollbar { scrollbar-width: auto; scrollbar-color: #94a3b8 #eef2f7; }
+.workspace-scrollbar::-webkit-scrollbar { height: 12px; width: 10px; }
+.workspace-scrollbar::-webkit-scrollbar-thumb { background: #94a3b8; border: 2px solid #eef2f7; border-radius: 9999px; }
+.workspace-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }
