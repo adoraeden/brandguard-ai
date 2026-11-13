@@ -1361,17 +1361,33 @@ def decide_review_workflow_stage(review_id: str, stage_id: str, payload: ReviewW
     stage = next((item for item in stages if item.id == stage_id), None)
     if not stage:
         raise HTTPException(404, "Workflow stage not found")
-    actor = (payload.reviewer or stage.assigned_reviewer).strip()
-    if actor.casefold() != stage.assigned_reviewer.casefold():
-        raise HTTPException(403, "Only the assigned reviewer can decide this stage")
+    actor = (payload.reviewer or "").strip()
     now = datetime.utcnow()
-    previous = apply_workflow_stage_decision(stages, stage, payload.decision, payload.note, now)
+
+    if payload.decision == "resubmitted":
+        if stage.status != "returned":
+            raise HTTPException(409, "Only a returned stage can be resubmitted")
+        if not actor or actor.casefold() != stage.created_by.casefold():
+            raise HTTPException(403, "Only the stage creator can resubmit returned work")
+        previous = {"status": stage.status, "decisionNote": stage.decision_note}
+        stage.status = "in_review"
+        if payload.note:
+            stage.decision_note = payload.note
+        stage.updated_at = now
+        stage.completed_at = None
+    else:
+        actor = actor or stage.assigned_reviewer
+        if actor.casefold() != stage.assigned_reviewer.casefold():
+            raise HTTPException(403, "Only the assigned reviewer can decide this stage")
+        previous = apply_workflow_stage_decision(stages, stage, payload.decision, payload.note, now)
+
     db.add(DBDecisionAudit(
         id=f"aud-{uuid4().hex}", review_id=review_id,
         action="workflow_stage_" + payload.decision, reviewer=actor,
         previous_value=previous,
         new_value={"stageId": stage.id, "stageName": stage.name,
                    "assignedReviewer": stage.assigned_reviewer,
+                   "createdBy": stage.created_by,
                    "status": stage.status, "note": stage.decision_note},
         created_at=now,
     ))
