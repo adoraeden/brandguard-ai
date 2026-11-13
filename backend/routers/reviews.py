@@ -33,6 +33,7 @@ from models import (
     ReviewWorkflowStageCreateRequest,
     ReviewWorkflowStageDecisionRequest,
     ReviewWorkflowStageModel,
+    ReviewContentUpdateRequest,
 )
 from rule_engine import run_python_deterministic_checks
 from storage import (
@@ -1329,6 +1330,52 @@ def next_workflow_stage_status(stages):
     if all(item.status == "approved" for item in stages):
         return "in_review"
     return "pending"
+
+
+@router.put("/{review_id}/content", response_model=ReviewDocumentModel)
+def update_returned_review_content(
+    review_id: str,
+    payload: ReviewContentUpdateRequest,
+    db: Session = Depends(get_db),
+):
+    review = db.query(DBReviewDocument).filter(DBReviewDocument.id == review_id).with_for_update().first()
+    if not review:
+        raise HTTPException(404, "Review document not found")
+    if review.status in ("completed", "archived"):
+        raise HTTPException(409, "Completed reviews are read-only")
+
+    actor = payload.reviewer.strip()
+    if not payload.content.strip():
+        raise HTTPException(422, "Revised content cannot be empty")
+
+    returned_stage = (
+        db.query(DBReviewStage)
+        .filter_by(review_id=review_id, status="returned", created_by=actor)
+        .order_by(DBReviewStage.stage_order.desc())
+        .first()
+    )
+    if not returned_stage:
+        raise HTTPException(403, "Only the creator of a returned workflow stage can revise this draft")
+
+    previous_content = review.current_content
+    review.current_content = payload.content
+    review.updated_at = datetime.utcnow()
+    db.add(DBDecisionAudit(
+        id=f"aud-{uuid4().hex}",
+        review_id=review_id,
+        action="content_revision",
+        reviewer=actor,
+        previous_value={"currentContent": previous_content},
+        new_value={"currentContent": payload.content, "returnedStageId": returned_stage.id},
+        created_at=review.updated_at,
+    ))
+    try:
+        db.commit()
+        db.refresh(review)
+        return review_model(review)
+    except Exception:
+        db.rollback()
+        raise
 
 
 @router.get("/{review_id}/workflow", response_model=list[ReviewWorkflowStageModel])
