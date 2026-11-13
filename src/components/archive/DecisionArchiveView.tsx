@@ -15,21 +15,18 @@ import {
   ShieldCheck,
   AlertTriangle,
   History,
-  ArrowRight,
-  Trash2
+  ArrowRight
 } from 'lucide-react';
 import { ReviewDocument, DecisionStatus } from '../../types';
 
 interface DecisionArchiveViewProps {
   reviews: ReviewDocument[];
   onOpenReview: (review: ReviewDocument) => void;
-  onDeleteReview: (review: ReviewDocument) => void;
 }
 
 export const DecisionArchiveView: React.FC<DecisionArchiveViewProps> = ({
   reviews,
   onOpenReview,
-  onDeleteReview,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterDecision, setFilterDecision] = useState<string>('all');
@@ -257,9 +254,6 @@ export const DecisionArchiveView: React.FC<DecisionArchiveViewProps> = ({
                               <ChevronRight className="w-3 h-3" />
                             </button>
                           )}
-                          <button type="button" onClick={() => onDeleteReview(r)} title="Delete review permanently" aria-label={`Delete review ${r.title}`} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs border border-rose-200 bg-white hover:bg-rose-50 text-rose-700 rounded font-medium transition-colors cursor-pointer">
-                            <Trash2 className="h-3 w-3" /> Delete
-                          </button>
                         </div>
                       </td>
                     </tr>
