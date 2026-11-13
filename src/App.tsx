@@ -66,6 +66,30 @@ function AppContent() {
     });
   }, [reviews, reviewWorkflows, currentUser]);
 
+  const assignedWorkflowTask = useMemo(() => {
+    const identity = currentUser.name.trim().toLowerCase();
+    const candidates = [...visibleReviews].sort((left, right) =>
+      new Date(right.updatedAt || right.createdAt).getTime() - new Date(left.updatedAt || left.createdAt).getTime()
+    );
+    for (const review of candidates) {
+      const stages = reviewWorkflows[review.id] || [];
+      const stage = stages.find(item => {
+        const assignedReviewer = item.assignedReviewer.trim().toLowerCase() === identity;
+        const stageCreator = item.createdBy.trim().toLowerCase() === identity;
+        return (assignedReviewer && item.status === 'in_review') ||
+          (stageCreator && item.status === 'returned');
+      });
+      if (stage) {
+        return {
+          review,
+          stage,
+          action: stage.status === 'returned' ? 'resubmit' as const : 'review' as const,
+        };
+      }
+    }
+    return null;
+  }, [visibleReviews, reviewWorkflows, currentUser]);
+
   const visibleOverviewData = useMemo(() => {
     const sorted = [...visibleReviews].sort((a, b) =>
       new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime()
@@ -341,6 +365,8 @@ function AppContent() {
                 currentUser={currentUser}
                 sample={featuredSample}
                 onOpenSample={handleOpenSampleDraft}
+                assignedTask={assignedWorkflowTask}
+                onOpenAssignedReview={reviewId => { void handleSelectReview(reviewId); }}
               />
               <OverviewView
                 overviewData={visibleOverviewData}
