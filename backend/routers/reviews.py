@@ -828,6 +828,8 @@ def rerun_review_analysis(
                 existing.analysis_run_id = run_id
                 continue
 
+            if key in known_active:
+                continue
             known_active.add(key)
 
             finding_id = f"finding-{uuid4().hex}"
