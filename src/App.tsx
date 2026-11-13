@@ -59,9 +59,11 @@ function AppContent() {
     const identity = currentUser.name.trim().toLowerCase();
     return reviews.filter(review => {
       const createdByOrAssignedReviewer = (review.reviewer || '').toLowerCase().includes(identity);
-      const assignedToStage = (reviewWorkflows[review.id] || []).some(stage =>
-        stage.assignedReviewer.trim().toLowerCase() === identity
-      );
+      const assignedToStage = (reviewWorkflows[review.id] || []).some(stage => {
+        const assignedReviewer = stage.assignedReviewer.trim().toLowerCase() === identity;
+        const returnedToCreator = stage.status === 'returned' && stage.createdBy.trim().toLowerCase() === identity;
+        return assignedReviewer || returnedToCreator;
+      });
       return createdByOrAssignedReviewer || assignedToStage;
     });
   }, [reviews, reviewWorkflows, currentUser]);
