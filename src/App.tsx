@@ -199,7 +199,7 @@ function AppContent() {
       />
 
       {/* Main Content Area: the whole workspace scrolls; only the navigation rail stays fixed */}
-      <div className="flex-1 min-w-0 min-h-0 overflow-y-auto bg-[#F8FAFC]">
+      <div className={`flex-1 min-w-0 min-h-0 ${currentTab === 'review_studio' ? 'overflow-hidden' : 'overflow-y-auto'} bg-[#F8FAFC]`}>
         <TopHeader
           currentTab={currentTab}
           onNewReviewClick={handleStartNewReview}
@@ -207,7 +207,7 @@ function AppContent() {
           isRefreshing={isLoading}
           activeFindingsCount={activeReview?.summary?.unresolvedFindings}
         />
-        <main className="min-h-[calc(100dvh-76px)] bg-[#F8FAFC]">
+        <main className={`${currentTab === 'review_studio' ? 'h-[calc(100dvh-76px)] min-h-0 overflow-hidden' : 'min-h-[calc(100dvh-76px)]'} bg-[#F8FAFC]`}>
           {currentTab === 'overview' && (
             <OverviewView
               overviewData={overviewData}
