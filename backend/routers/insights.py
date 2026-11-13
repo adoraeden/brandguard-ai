@@ -75,7 +75,8 @@ def get_governance_insights(db: Session = Depends(get_db)):
     for item in list(monthly.values())[-6:]:
         trends.append({
             "month": item["month"],
-            "rate": round(item["unresolved"] * 100 / item["findings"])
+            # Clamp defensively so malformed legacy counters can never render above 100%.
+            "rate": min(100, max(0, round(item["unresolved"] * 100 / item["findings"])))
                     if item["findings"] else 0,
             "reviews": item["reviews"],
             "totalFindings": item["findings"],
