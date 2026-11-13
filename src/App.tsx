@@ -168,6 +168,20 @@ function AppContent() {
     loadAllData();
   };
 
+  const handleDeleteReview = async (review: ReviewDocument) => {
+    const confirmed = window.confirm(
+      `Permanently delete "${review.title}"? This also deletes its findings, suggestions, workflow stages and audit history. This cannot be undone.`
+    );
+    if (!confirmed) return;
+    try {
+      await api.deleteReview(review.id);
+      if (activeReview?.id === review.id) handleSetActiveReview(null);
+      await loadAllData();
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Could not delete this review. Please try again.');
+    }
+  };
+
   const pendingReviewsList = reviews.filter(r => ['pending', 'partially_approved'].includes(r.decisionStatus));
   const pendingReviewsCount = pendingReviewsList.length;
 
@@ -211,6 +225,7 @@ function AppContent() {
                 handleSelectReview(r.id);
               }}
               onStartNewReview={handleStartNewReview}
+              onDeleteReview={handleDeleteReview}
             />
           )}
 
@@ -248,6 +263,7 @@ function AppContent() {
               onOpenReview={(r) => {
                 handleSelectReview(r.id);
               }}
+              onDeleteReview={handleDeleteReview}
             />
           )}
 
