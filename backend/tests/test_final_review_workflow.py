@@ -134,8 +134,36 @@ class FinalReviewWorkflowIntegrationTests(unittest.TestCase):
         finally:
             self.delete_cleanup(review_id)
 
-    def test_approve_as_is_does_not_bypass_pending_correction_on_evidence_gap(self):
+    def test_approve_as_is_dismisses_unverified_suggestion_on_evidence_gap(self):
         review_id, finding_id = self.make_review(suggestion=True, evidence_gap=True)
+        try:
+            response = self.client.post(
+                f"/api/reviews/{review_id}/decisions",
+                json={"completeDecision": "approved_as_is", "reviewer": "Evelyn Voss"},
+            )
+            self.assertEqual(response.status_code, 200, response.text)
+            document = response.json()
+            self.assertEqual(document["status"], "completed")
+            self.assertEqual(document["decisionStatus"], "approved_as_is")
+            self.assertEqual(document["summary"]["unresolvedFindings"], 0)
+            finding = next(item for item in document["findings"] if item["id"] == finding_id)
+            self.assertEqual(finding["lifecycleStatus"], "resolved")
+            self.assertEqual(finding["findingDecision"], "accepted")
+            self.assertEqual(finding["evidenceStatus"], "unsupported")
+            self.assertIsNone(finding["evidenceRecordId"])
+            self.assertEqual(finding["suggestion"]["status"], "rejected")
+            self.assertIn("was dismissed", finding["findingDecisionNote"])
+
+            history = self.client.get(f"/api/reviews/{review_id}/history")
+            self.assertEqual(history.status_code, 200, history.text)
+            gap_audit = next(item for item in history.json() if item["action"] == "evidence_gap_approved_as_is")
+            self.assertEqual(gap_audit["newValue"]["suggestionStatus"], "rejected")
+            self.assertTrue(any(item["action"] == "complete" for item in history.json()))
+        finally:
+            self.delete_cleanup(review_id)
+
+    def test_approve_as_is_still_waits_for_pending_correction_on_supported_finding(self):
+        review_id, finding_id = self.make_review(suggestion=True, evidence_gap=False)
         try:
             response = self.client.post(
                 f"/api/reviews/{review_id}/decisions",
