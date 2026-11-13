@@ -1003,6 +1003,16 @@ def record_decision(
             "A completed decision must be approved or rejected",
         )
 
+    if payload.completeDecision in ("approved_as_is", "approved_with_changes"):
+        incomplete_stages = [
+            stage for stage in row.workflow_stages if stage.status != "approved"
+        ]
+        if incomplete_stages:
+            raise HTTPException(
+                409,
+                "All collaborative review stages must be approved before the document can receive final approval",
+            )
+
     now = datetime.utcnow()
 
     before = {
