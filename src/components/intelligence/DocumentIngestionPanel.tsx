@@ -347,7 +347,7 @@ export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ 
 
           <div>
             <div className="mb-2 flex items-center justify-between gap-2">
-              <div><h3 className="text-sm font-bold text-slate-900">Try a sample document</h3><p className="mt-0.5 text-xs text-slate-500">Select a sample to load it, then click Upload & Extract.</p></div>
+              <div><h3 className="text-sm font-bold text-slate-900">Try a sample document</h3><p className="mt-0.5 text-xs text-slate-500">Select a Round 3 sample to load it, then click Upload & Extract. Each sample can be uploaded once per shared workspace.</p></div>
               <span className="text-[11px] text-slate-400">3 ready-to-use samples</span>
             </div>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
