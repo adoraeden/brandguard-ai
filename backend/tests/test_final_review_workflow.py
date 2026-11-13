@@ -140,6 +140,38 @@ class FinalReviewWorkflowIntegrationTests(unittest.TestCase):
         finally:
             self.delete_cleanup(review_id)
 
+    def test_only_stage_creator_can_save_a_returned_draft_revision(self):
+        review_id, _ = self.make_review()
+        stage_id = f"stage-{uuid4().hex}"
+        with SessionLocal() as db:
+            db.add(DBReviewStage(
+                id=stage_id, review_id=review_id, stage_order=1,
+                name="Brand & Messaging Review", assigned_reviewer="Marcus Chen",
+                status="returned", decision_note="Please correct the unsupported uptime claim.",
+                created_by="Evelyn Voss",
+            ))
+            db.commit()
+        try:
+            denied = self.client.put(
+                f"/api/reviews/{review_id}/content",
+                json={"content": "Unauthorized revision", "reviewer": "Marcus Chen"},
+            )
+            self.assertEqual(denied.status_code, 403, denied.text)
+
+            revised_text = "AuraCloud Workspace provides a 99.95% verified uptime SLA."
+            saved = self.client.put(
+                f"/api/reviews/{review_id}/content",
+                json={"content": revised_text, "reviewer": "Evelyn Voss"},
+            )
+            self.assertEqual(saved.status_code, 200, saved.text)
+            self.assertEqual(saved.json()["currentContent"], revised_text)
+
+            history = self.client.get(f"/api/reviews/{review_id}/history")
+            self.assertEqual(history.status_code, 200, history.text)
+            self.assertTrue(any(item["action"] == "content_revision" for item in history.json()))
+        finally:
+            self.delete_cleanup(review_id)
+
     def test_only_pending_reviews_can_be_permanently_deleted(self):
         pending_id, _ = self.make_review(status="in_review", decision="pending", suggestion=True)
         with SessionLocal() as db:
