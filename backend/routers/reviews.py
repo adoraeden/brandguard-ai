@@ -1210,9 +1210,12 @@ def record_decision(
         )
 
     elif payload.completeDecision:
-        if unresolved > 0:
-            # A reviewer checkpoint records the requested action without
-            # closing the review. Unresolved findings remain explicitly pending.
+        # Rejection is a terminal document-level decision. It must not be
+        # converted into a pending checkpoint just because suggestions remain
+        # unresolved; those finding/suggestion states remain in the audit trail.
+        if unresolved > 0 and payload.completeDecision != "rejected":
+            # Approval checkpoints remain pending while required findings or
+            # correction suggestions are unresolved.
             row.decision_status = "pending"
             row.status = "in_review"
             row.decision_notes = payload.decisionNotes or row.decision_notes
