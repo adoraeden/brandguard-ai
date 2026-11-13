@@ -83,10 +83,21 @@ class EvidenceTraceabilityTests(unittest.TestCase):
         self.assertEqual(item.sourceExcerpt, quote)
 
 
-    def test_terminology_finding_resolves_approved_policy_entry_without_claiming_fact_support(self):
-        item = finding("exact_violation", "terminology", "term-1")
+    def test_exact_deterministic_terminology_violation_is_fully_supported_by_approved_rule(self):
+        item = finding("exact_violation", "terminology", "term-1", "AuraCloud App")
+        item.detectionMethod = "deterministic_rule"
         term = SimpleNamespace(id="term-1", term="AuraCloud App", approvedReplacement="AuraCloud Workspace")
         enrich_finding_evidence([item], [], [], terminology=[term])
+        self.assertEqual(item.evidenceStatus, "supported")
+
+    def test_contextual_policy_reference_remains_partially_supporting(self):
+        item = finding("contextual_inconsistency", "guideline", "guide-1", "Avoid absolute security guarantees.")
+        item.detectionMethod = "gemini_contextual"
+        guideline = SimpleNamespace(
+            id="guide-1", sourceDocumentId=None, sourcePageNumber=None,
+            sourceSectionLabel=None, sourceExcerpt=None,
+        )
+        enrich_finding_evidence([item], [guideline], [])
         self.assertEqual(item.evidenceStatus, "partially_supported")
 
 
