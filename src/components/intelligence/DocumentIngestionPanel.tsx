@@ -33,7 +33,7 @@ type DemoEvidenceDocument = {
 const DEMO_EVIDENCE_DOCUMENTS: DemoEvidenceDocument[] = [
   {
     id: 'brand-voice',
-    filename: 'AuraCloud_Brand_Voice_Guide.pdf',
+    filename: 'AuraCloud_Brand_Voice_Guide_Round3.pdf',
     title: 'Brand Voice Guide',
     description: 'Tone, terminology and approved messaging rules',
     paragraphs: [
@@ -48,7 +48,7 @@ const DEMO_EVIDENCE_DOCUMENTS: DemoEvidenceDocument[] = [
   },
   {
     id: 'product-facts',
-    filename: 'AuraCloud_Product_Factsheet.pdf',
+    filename: 'AuraCloud_Product_Factsheet_Round3.pdf',
     title: 'Product Factsheet',
     description: 'Product capabilities and measurable claims',
     paragraphs: [
@@ -65,7 +65,7 @@ const DEMO_EVIDENCE_DOCUMENTS: DemoEvidenceDocument[] = [
   },
   {
     id: 'claims-policy',
-    filename: 'AuraCloud_Claims_Compliance_Policy.pdf',
+    filename: 'AuraCloud_Claims_Compliance_Policy_Round3.pdf',
     title: 'Claims & Compliance Policy',
     description: 'Evidence requirements and restricted claims',
     paragraphs: [
