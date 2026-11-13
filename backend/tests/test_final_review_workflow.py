@@ -66,6 +66,8 @@ class FinalReviewWorkflowIntegrationTests(unittest.TestCase):
                 self.assertEqual(finding["findingDecision"], value)
                 self.assertEqual(finding["suggestion"]["status"], "pending")
                 self.assertEqual(finding["findingDecisionReviewer"], "Marcus Chen")
+                expected_unresolved = 0 if value == "dismissed" else 1
+                self.assertEqual(response.json()["summary"]["unresolvedFindings"], expected_unresolved)
             self.assertEqual(self.client.get(f"/api/reviews/{review_id}").json()["findings"][0]["findingDecision"], "verification_required")
             self.assertEqual(self.client.post(f"/api/reviews/unknown/findings/{finding_id}/decision",json={"decision": "accepted"}).status_code, 404)
         finally:
