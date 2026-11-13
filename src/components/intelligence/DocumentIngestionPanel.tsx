@@ -176,6 +176,11 @@ export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ 
 
   const handleUpload = async () => {
     if (!selectedFile) return;
+    const isDemoSample = DEMO_EVIDENCE_DOCUMENTS.some(sample => sample.filename === selectedFile.name);
+    if (isDemoSample && documents.some(documentItem => documentItem.filename === selectedFile.name)) {
+      setError('This Round 3 sample document is already in the shared workspace. Review its existing extracted passages below instead of uploading it again.');
+      return;
+    }
     if (selectedFile.size === 0) {
       setError('The selected file is empty. Choose a non-empty PDF, DOCX or TXT file.');
       return;
@@ -346,25 +351,29 @@ export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ 
               <span className="text-[11px] text-slate-400">3 ready-to-use samples</span>
             </div>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              {DEMO_EVIDENCE_DOCUMENTS.map(sample => (
-                <button
-                  key={sample.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedFile(buildDemoPdfFile(sample));
-                    setError('');
-                    setNotice(sample.title + ' PDF is ready. Click Upload & Extract to process it.');
-                  }}
-                  className="flex min-h-[88px] min-w-0 items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:border-blue-300 hover:bg-blue-50/50"
-                >
-                  <div className="rounded-lg bg-blue-50 p-2"><FileText className="h-4 w-4 shrink-0 text-[#2457D6]" /></div>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-xs font-semibold text-slate-800">{sample.title}</span>
-                    <span className="mt-1 block text-[11px] leading-snug text-slate-500">{sample.description}</span>
-                  </span>
-                  <span className="shrink-0 text-[10px] font-semibold text-[#2457D6]">Use PDF</span>
-                </button>
-              ))}
+              {DEMO_EVIDENCE_DOCUMENTS.map(sample => {
+                const alreadyUploaded = documents.some(documentItem => documentItem.filename === sample.filename);
+                return (
+                  <button
+                    key={sample.id}
+                    type="button"
+                    disabled={alreadyUploaded}
+                    onClick={() => {
+                      setSelectedFile(buildDemoPdfFile(sample));
+                      setError('');
+                      setNotice(sample.title + ' PDF is ready. Click Upload & Extract to process it.');
+                    }}
+                    className={`flex min-h-[88px] min-w-0 items-start gap-3 rounded-xl border p-4 text-left transition-colors ${alreadyUploaded ? 'cursor-not-allowed border-emerald-200 bg-emerald-50/50 opacity-80' : 'border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/50'}`}
+                  >
+                    <div className={`rounded-lg p-2 ${alreadyUploaded ? 'bg-emerald-100' : 'bg-blue-50'}`}><FileText className={`h-4 w-4 shrink-0 ${alreadyUploaded ? 'text-emerald-700' : 'text-[#2457D6]'}`} /></div>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-xs font-semibold text-slate-800">{sample.title}</span>
+                      <span className="mt-1 block text-[11px] leading-snug text-slate-500">{sample.description}</span>
+                    </span>
+                    <span className={`shrink-0 text-[10px] font-semibold ${alreadyUploaded ? 'text-emerald-700' : 'text-[#2457D6]'}`}>{alreadyUploaded ? 'Uploaded' : 'Use PDF'}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
