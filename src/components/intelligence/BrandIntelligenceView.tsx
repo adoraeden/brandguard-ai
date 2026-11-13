@@ -650,7 +650,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
             </span>
           </div>
 
-          <div className="flex-1 min-h-0 min-w-0 overflow-auto">
+          <div className="flex-1 min-h-0 min-w-0 overflow-auto workspace-scrollbar">
             {/* ALL KNOWLEDGE CONSOLIDATED TABLE */}
             {selectedCategory === 'all' && (
               <table className="app-table min-w-[1000px] w-full text-left text-xs border-collapse">
