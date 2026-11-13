@@ -127,11 +127,16 @@ export const NavigationRail: React.FC<NavigationRailProps> = ({
         <div className="mt-2 text-[10px] font-medium uppercase tracking-wide text-slate-400">Demo identity · {currentUser.role}</div>
       </div>
 
-      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white md:hidden">
-        <span className="sr-only">Switch demo profile</span>
-        <select aria-label="Switch demo profile" value={currentUser.id} onChange={event => onProfileChange(event.target.value)} className="h-full w-full rounded-xl bg-transparent text-center text-[10px] font-semibold text-blue-700">
-          {DEMO_USERS.map(user => <option key={user.id} value={user.id}>{user.avatarInitials}</option>)}
-        </select>
+      <div className="flex shrink-0 items-center gap-1 md:hidden">
+        <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white">
+          <span className="sr-only">Switch demo profile</span>
+          <select aria-label="Switch demo profile" value={currentUser.id} onChange={event => onProfileChange(event.target.value)} className="h-full w-full rounded-xl bg-transparent text-center text-[10px] font-semibold text-blue-700">
+            {DEMO_USERS.map(user => <option key={user.id} value={user.id}>{user.avatarInitials}</option>)}
+          </select>
+        </div>
+        <button type="button" onClick={onSwitchDemo} aria-label="Return to demo role selection" title="Switch demo" className="flex h-11 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600">
+          <Users className="h-4 w-4" />
+        </button>
       </div>
     </aside>
   );
