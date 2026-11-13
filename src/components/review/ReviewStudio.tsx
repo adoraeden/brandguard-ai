@@ -42,7 +42,7 @@ import {
 } from '../../types';
 import { SAMPLE_DOCUMENTS } from '../../data/mockData';
 import { api } from '../../services/apiClient';
-import { useDemoProfile } from '../../context/DemoProfileContext';
+import { DEMO_USERS, useDemoProfile } from '../../context/DemoProfileContext';
 
 interface ReviewStudioProps {
   activeReview: ReviewDocument | null;
@@ -1810,11 +1810,19 @@ if (
               </div>
             ))}</div>}
             <form onSubmit={handleAddWorkflowStage} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2">
-              <input value={workflowStageName} onChange={event => setWorkflowStageName(event.target.value)} placeholder="Stage name (e.g. Legal review)" className="min-w-0 rounded border border-slate-200 px-2 py-1.5 text-[10px]" />
-              <input value={workflowAssignee} onChange={event => setWorkflowAssignee(event.target.value)} placeholder="Assign reviewer name" className="min-w-0 rounded border border-slate-200 px-2 py-1.5 text-[10px]" />
-              <button type="submit" disabled={workflowBusy || !workflowStageName.trim() || !workflowAssignee.trim() || isCompleted} className="rounded bg-[#2457D6] px-3 py-1.5 text-[10px] font-semibold text-white disabled:opacity-50">Add stage</button>
+              <select value={workflowStageName} onChange={event => setWorkflowStageName(event.target.value)} aria-label="Choose review stage" className="min-w-0 rounded border border-slate-200 bg-white px-2 py-1.5 text-[10px]">
+                <option value="">Choose a stage…</option>
+                <option value="Brand & Messaging Review">Brand &amp; Messaging Review</option>
+                <option value="Legal & Compliance Review">Legal &amp; Compliance Review</option>
+                <option value="Final Approval">Final Approval</option>
+              </select>
+              <select value={workflowAssignee} onChange={event => setWorkflowAssignee(event.target.value)} aria-label="Assign demo reviewer" className="min-w-0 rounded border border-slate-200 bg-white px-2 py-1.5 text-[10px]">
+                <option value="">Choose a demo reviewer…</option>
+                {DEMO_USERS.map(user => <option key={user.id} value={user.name}>{user.name} · {user.role}</option>)}
+              </select>
+              <button type="submit" disabled={workflowBusy || !workflowStageName || !workflowAssignee || isCompleted} className="rounded bg-[#2457D6] px-3 py-1.5 text-[10px] font-semibold text-white disabled:opacity-50">Add stage</button>
             </form>
-            <p className="text-[9px] text-slate-400">Demo assignments are workflow records, not production authentication or access control.</p>
+            <p className="text-[9px] text-slate-400">Choose a stage and a predefined demo reviewer. Switch the active demo profile in the left sidebar to act as the assigned reviewer during judge walkthroughs.</p>
             </>}
           </div>
 
