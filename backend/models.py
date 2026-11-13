@@ -227,7 +227,7 @@ class ReviewWorkflowStageCreateRequest(BaseModel):
 
 
 class ReviewWorkflowStageDecisionRequest(BaseModel):
-    decision: Literal['approved', 'returned', 'rejected']
+    decision: Literal['approved', 'returned', 'rejected', 'resubmitted']
     note: Optional[str] = Field(default=None, max_length=2000)
     reviewer: Optional[str] = None
 
