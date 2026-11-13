@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { ArrowRight, BarChart3, BookOpen, CheckCircle2, FileSearch, ShieldCheck, Users } from 'lucide-react';
 import { DEMO_USERS } from '../../context/DemoProfileContext';
 import { UserProfile } from '../../types';
@@ -32,7 +32,6 @@ const personaDetails: Record<string, { focus: string; description: string; scena
 };
 
 export const DemoEntryScreen: React.FC<DemoEntryScreenProps> = ({ selectedUser, onSelectUser, onEnter }) => {
-  const [hoveredUser, setHoveredUser] = useState<string | null>(null);
   const selectedDetails = personaDetails[selectedUser.id] || personaDetails['usr-admin-1'];
   const selectedScenario = SAMPLE_DOCUMENTS[selectedDetails.scenarioIndex];
 
@@ -71,8 +70,6 @@ export const DemoEntryScreen: React.FC<DemoEntryScreenProps> = ({ selectedUser, 
                   key={user.id}
                   type="button"
                   onClick={() => onSelectUser(user.id)}
-                  onMouseEnter={() => setHoveredUser(user.id)}
-                  onMouseLeave={() => setHoveredUser(null)}
                   aria-pressed={selected}
                   className={`group flex h-full flex-col rounded-2xl border bg-white p-5 text-left shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${selected ? 'border-blue-500 ring-2 ring-blue-100 shadow-md' : 'border-slate-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md'}`}
                 >
