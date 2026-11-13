@@ -109,16 +109,21 @@ def is_finding_unresolved(finding) -> bool:
     if lifecycle_status == "resolved":
         return False
 
-    suggestion = getattr(finding, "suggestion", None)
-
-    if suggestion:
-        return getattr(suggestion, "status", None) == "pending"
-
     decision = getattr(finding, "finding_decision", None)
     if decision is None:
         decision = getattr(finding, "findingDecision", None)
 
-    return decision not in ("accepted", "dismissed")
+    # An explicit dismissal closes a false-positive finding even when a
+    # correction suggestion is attached. Accepting the finding itself does
+    # not apply that suggestion, so the correction remains independently open.
+    if decision == "dismissed":
+        return False
+
+    suggestion = getattr(finding, "suggestion", None)
+    if suggestion:
+        return getattr(suggestion, "status", None) == "pending"
+
+    return decision != "accepted"
 
 
 def count_unresolved_findings(findings) -> int:
@@ -786,15 +791,12 @@ def rerun_review_analysis(
                 resolved_count += 1
 
         # Only active findings prevent a new occurrence from being recorded.
-        known_active = {
-            _finding_key(
-                item.detection_method,
-                item.category,
-                item.exact_text,
-            )
+        active_findings_by_key = {
+            _finding_key(item.detection_method, item.category, item.exact_text): item
             for item in row.findings
             if (item.lifecycle_status or "active") == "active"
         }
+        known_active = set(active_findings_by_key)
 
         added_count = 0
 
@@ -805,7 +807,25 @@ def rerun_review_analysis(
                 finding.exactText,
             )
 
-            if not key[2] or key in known_active:
+            if not key[2]:
+                continue
+
+            existing = active_findings_by_key.get(key)
+            if existing is not None:
+                # The same finding can gain stronger provenance after new
+                # evidence is approved. Refresh its evidence fields rather
+                # than skipping it and leaving stale "partially supported"
+                # metadata on the review.
+                existing.evidence_record_type = finding.evidenceRecordType
+                existing.evidence_record_id = finding.evidenceRecordId
+                existing.evidence_quote = finding.evidenceQuote
+                existing.evidence_status = finding.evidenceStatus
+                existing.source_document_id = finding.sourceDocumentId
+                existing.source_page_number = finding.sourcePageNumber
+                existing.source_section_label = finding.sourceSectionLabel
+                existing.source_excerpt = finding.sourceExcerpt
+                existing.source_reference = finding.sourceReference
+                existing.analysis_run_id = run_id
                 continue
 
             known_active.add(key)
