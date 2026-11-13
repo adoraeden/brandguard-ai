@@ -320,56 +320,58 @@ python -m unittest discover -s tests -v
 
 ## 11. Screenshots
 
-The final Round 3 gallery is planned as **10 screenshots across 7 application areas**. Capture the live, updated application at a consistent desktop browser size and save each image in `docs/screenshots/` using the exact filename below. Use separate screenshots of the actual application screens; do not combine multiple views into a collage or use generated mockups.
+The following gallery shows the current Round 3 application screens. All images are stored in `docs/screenshots/` in the source repository.
 
-### Command Centre — 2 screenshots
+### Command Centre
 
-| Screenshot | Capture focus |
-|---|---|
-| `command-centre-overview.png` | The Command Centre overview: governance metrics, recent activity, and the main dashboard layout. |
-| `command-centre-guided-journey.png` | The persona-specific guided journey banner, suggested starting scenario, and assigned reviewer task/action where visible. |
+The Command Centre gives the selected demo persona an overview of governance activity and a suggested next step.
 
-### Pending Reviews — 1 screenshot
+![Command Centre overview](docs/screenshots/command-centre-overview.png)
 
-| Screenshot | Capture focus |
-|---|---|
-| `pending-reviews.png` | The pending queue, reviewer assignment, review status, and unresolved finding counts. |
+![Command Centre guided journey](docs/screenshots/command-centre-guided-journey.png)
 
-### Review Studio — 1 screenshot
+### Pending Reviews
 
-| Screenshot | Capture focus |
-|---|---|
-| `review-studio.png` | A representative review showing findings, evidence status/source details, correction actions, and final review controls. |
+The pending queue shows reviews awaiting human evaluation, reviewer assignments, review status, and unresolved finding counts.
 
-### Evidence Ingestion — 2 screenshots
+![Pending Reviews](docs/screenshots/pending-reviews.png)
 
-| Screenshot | Capture focus |
-|---|---|
-| `evidence-ingestion-upload.png` | The document upload area, supported PDF/DOCX/TXT formats, and the uploaded source/document list. |
-| `evidence-ingestion-candidates.png` | Extracted candidate facts and guidelines with source filename and page/section provenance, awaiting human confirmation. |
+### Review Studio
 
-### Brand Intelligence — 1 screenshot
+The Review Studio is where reviewers inspect findings and evidence, act on correction suggestions, and record review decisions.
 
-| Screenshot | Capture focus |
-|---|---|
-| `brand-intelligence.png` | The approved brand knowledge workspace showing guidelines, terminology, facts, and knowledge sources. |
+![Review Studio](docs/screenshots/review-studio.png)
 
-### Decision Ledger / Decision Archive — 1 screenshot
+### Evidence Ingestion
 
-| Screenshot | Capture focus |
-|---|---|
-| `decision-ledger.png` | The completed review record, human decision, reviewer sign-off, findings, and audit history. |
+Evidence Ingestion accepts PDF, DOCX, and TXT source material. The extraction workflow identifies candidate facts and guidelines while retaining source provenance for human confirmation.
 
-### Governance Insights — 2 screenshots
+![Evidence Ingestion — upload and source list](docs/screenshots/evidence-ingestion-upload.png)
 
-| Screenshot | Capture focus |
-|---|---|
-| `governance-insights-overview.png` | The governance overview, review/completion metrics, evidence quality, and finding-decision accountability. |
-| `governance-insights-trends.png` | The detailed trend and breakdown area: recurring terms, finding categories/severity, evidence/reference mismatches, and policy clarification recommendations. |
+![Evidence Ingestion — extracted evidence candidates](docs/screenshots/evidence-ingestion-candidates.png)
 
-**Gallery checklist:** Command Centre (2) · Pending Reviews (1) · Review Studio (1) · Evidence Ingestion (2) · Brand Intelligence (1) · Decision Ledger (1) · Governance Insights (2) = **10 screenshots**.
+### Brand Intelligence
 
-Once the images have been captured, embed them beneath their matching headings with relative Markdown paths such as `![Command Centre overview](docs/screenshots/command-centre-overview.png)`. The existing six images in the repository are the earlier screenshot set; replace or refresh them only after capturing the final Round 3 screens.
+Brand Intelligence is the workspace for approved guidelines, terminology, facts, and knowledge sources used during content evaluation.
+
+![Brand Intelligence](docs/screenshots/brand-intelligence.png)
+
+### Decision Ledger / Decision Archive
+
+The Decision Ledger preserves completed review outcomes, reviewer sign-off, findings, and audit history.
+
+![Decision Ledger](docs/screenshots/decision-ledger.png)
+
+### Governance Insights
+
+Governance Insights summarises review activity, evidence quality, recorded finding decisions, recurring terms, finding categories, and guideline clarification opportunities.
+
+![Governance Insights — overview](docs/screenshots/governance-insights-overview.png)
+
+![Governance Insights — trends and recurring issues](docs/screenshots/governance-insights-trends.png)
+
+**Gallery:** 10 screenshots across 7 application areas — Command Centre (2), Pending Reviews (1), Review Studio (1), Evidence Ingestion (2), Brand Intelligence (1), Decision Ledger (1), and Governance Insights (2).
+
 
 ## 12. Setup and installation
 
