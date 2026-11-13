@@ -42,7 +42,7 @@ export const DemoJourneyBanner: React.FC<DemoJourneyBannerProps> = ({ currentUse
           <div className="mt-1 truncate text-sm font-bold text-slate-900">{assignedTask.review.title}</div>
           <p className="mt-1 text-xs text-slate-600">
             {assignedTask.stage.name} · {assignedTask.action === 'resubmit'
-              ? 'Update the draft in Review Studio, then resubmit it to the assigned reviewer.'
+              ? 'Edit and save the returned draft, re-run analysis, then resubmit it to the assigned reviewer.'
               : 'Review the existing findings and evidence, then approve, return for changes or reject this stage.'}
           </p>
         </div>
