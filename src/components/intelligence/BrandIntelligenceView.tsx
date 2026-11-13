@@ -502,7 +502,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
   const currentCategoryInfo = categories.find(c => c.id === selectedCategory) || categories[0];
 
   return (
-    <div className="page-content flex min-h-full w-full flex-col bg-[#F8FAFC]">
+    <div className="page-content !m-0 !w-full !max-w-none !p-0 flex min-h-full flex-col bg-[#F8FAFC]">
       {/* Purpose Banner & Knowledge Toolbar (Requirement 5) */}
       <div className="bg-white border-b border-slate-200 px-4 py-2 flex flex-wrap items-center justify-end gap-4 shadow-2xs">
 
