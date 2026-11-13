@@ -68,13 +68,11 @@ def get_review(review_id: str, db: Session = Depends(get_db)):
 
 @router.delete("/{review_id}")
 def delete_review(review_id: str, db: Session = Depends(get_db)):
-    """Permanently delete one review and its dependent findings, suggestions, stages and audit history."""
+    """Protect the public demo's review and audit history from permanent deletion."""
     row = db.get(DBReviewDocument, review_id)
     if not row:
         raise HTTPException(404, "Review document not found")
-    db.delete(row)
-    db.commit()
-    return {"success": True, "deletedReviewId": review_id}
+    raise HTTPException(403, "Review deletion is disabled in public demo mode")
 
 
 @router.get("/{review_id}/history")
