@@ -92,24 +92,41 @@ class FinalReviewWorkflowIntegrationTests(unittest.TestCase):
             finally:
                 self.delete_cleanup(review_id)
 
-    def test_review_delete_is_rejected_in_demo_mode_and_preserves_data(self):
-        for status, decision in (("in_review", "pending"), ("completed", "approved_as_is"),
-                                 ("completed", "approved_with_changes"), ("completed", "rejected")):
-            review_id, _finding_id = self.make_review(status=status, decision=decision, suggestion=True)
-            with SessionLocal() as db:
-                db.add(DBDecisionAudit(id=f"audit-{uuid4().hex}", review_id=review_id,
-                    action="test", reviewer="tester", previous_value={}, new_value={}))
-                db.commit()
-            rejected = self.client.delete(f"/api/reviews/{review_id}")
-            self.assertEqual(rejected.status_code, 403)
-            self.assertIn("disabled in public demo mode", rejected.json()["detail"])
-            self.assertEqual(self.client.get(f"/api/reviews/{review_id}").status_code, 200)
-            with SessionLocal() as db:
-                self.assertEqual(db.query(DBReviewFinding).filter_by(review_id=review_id).count(), 1)
-                self.assertEqual(db.query(DBDecisionAudit).filter_by(review_id=review_id).count(), 1)
-                self.assertEqual(db.query(DBReviewSuggestion).join(DBReviewFinding).filter(
-                    DBReviewFinding.review_id == review_id).count(), 1)
-            self.delete_cleanup(review_id)
+    def test_only_pending_reviews_can_be_permanently_deleted(self):
+        pending_id, _ = self.make_review(status="in_review", decision="pending", suggestion=True)
+        with SessionLocal() as db:
+            db.add(DBDecisionAudit(id=f"audit-{uuid4().hex}", review_id=pending_id,
+                action="test", reviewer="tester", previous_value={}, new_value={}))
+            db.commit()
+
+        deleted = self.client.delete(f"/api/reviews/{pending_id}")
+        self.assertEqual(deleted.status_code, 200, deleted.text)
+        self.assertEqual(self.client.get(f"/api/reviews/{pending_id}").status_code, 404)
+        with SessionLocal() as db:
+            self.assertEqual(db.query(DBReviewFinding).filter_by(review_id=pending_id).count(), 0)
+            self.assertEqual(db.query(DBDecisionAudit).filter_by(review_id=pending_id).count(), 0)
+            self.assertEqual(db.query(DBReviewSuggestion).join(DBReviewFinding).filter(
+                DBReviewFinding.review_id == pending_id).count(), 0)
+
+        partially_approved_id, _ = self.make_review(status="in_review", decision="partially_approved")
+        try:
+            deleted_partial = self.client.delete(f"/api/reviews/{partially_approved_id}")
+            self.assertEqual(deleted_partial.status_code, 200, deleted_partial.text)
+            self.assertEqual(self.client.get(f"/api/reviews/{partially_approved_id}").status_code, 404)
+        finally:
+            self.delete_cleanup(partially_approved_id)
+
+        for status, decision in (("completed", "approved_as_is"),
+                                 ("completed", "approved_with_changes"),
+                                 ("completed", "rejected")):
+            review_id, _ = self.make_review(status=status, decision=decision, suggestion=True)
+            try:
+                blocked = self.client.delete(f"/api/reviews/{review_id}")
+                self.assertEqual(blocked.status_code, 403, blocked.text)
+                self.assertIn("Only pending reviews", blocked.json()["detail"])
+                self.assertEqual(self.client.get(f"/api/reviews/{review_id}").status_code, 200)
+            finally:
+                self.delete_cleanup(review_id)
 
     def test_suggestion_decision_is_persisted_and_audit_attributed(self):
         review_id, finding_id = self.make_review(suggestion=True)
