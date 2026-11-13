@@ -6,7 +6,7 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 
 from database import (DBDecisionAudit, DBReviewDocument, DBReviewFinding,
-                      DBReviewSuggestion, SessionLocal)
+                      DBReviewSuggestion, DBReviewStage, SessionLocal)
 from main import app
 
 
@@ -91,6 +91,52 @@ class FinalReviewWorkflowIntegrationTests(unittest.TestCase):
                 self.assertEqual(response.json()["summary"]["unresolvedFindings"], expected_unresolved)
             finally:
                 self.delete_cleanup(review_id)
+
+    def test_returned_workflow_stage_can_be_resubmitted_by_stage_creator(self):
+        review_id, _ = self.make_review()
+        stage_id = f"stage-{uuid4().hex}"
+        with SessionLocal() as db:
+            db.add(DBReviewStage(
+                id=stage_id, review_id=review_id, stage_order=1,
+                name="Brand & Messaging Review", assigned_reviewer="Marcus Chen",
+                status="in_review", created_by="Evelyn Voss",
+            ))
+            db.commit()
+        try:
+            returned = self.client.post(
+                f"/api/reviews/{review_id}/workflow/stages/{stage_id}/decision",
+                json={"decision": "returned", "note": "Please substantiate the uptime claim.", "reviewer": "Marcus Chen"},
+            )
+            self.assertEqual(returned.status_code, 200, returned.text)
+            self.assertEqual(returned.json()[0]["status"], "returned")
+
+            wrong_actor = self.client.post(
+                f"/api/reviews/{review_id}/workflow/stages/{stage_id}/decision",
+                json={"decision": "resubmitted", "reviewer": "Devon Price"},
+            )
+            self.assertEqual(wrong_actor.status_code, 403, wrong_actor.text)
+
+            resubmitted = self.client.post(
+                f"/api/reviews/{review_id}/workflow/stages/{stage_id}/decision",
+                json={"decision": "resubmitted", "note": "Updated the draft with the approved SLA source.", "reviewer": "Evelyn Voss"},
+            )
+            self.assertEqual(resubmitted.status_code, 200, resubmitted.text)
+            self.assertEqual(resubmitted.json()[0]["status"], "in_review")
+
+            approved = self.client.post(
+                f"/api/reviews/{review_id}/workflow/stages/{stage_id}/decision",
+                json={"decision": "approved", "reviewer": "Marcus Chen"},
+            )
+            self.assertEqual(approved.status_code, 200, approved.text)
+            self.assertEqual(approved.json()[0]["status"], "approved")
+
+            with SessionLocal() as db:
+                actions = [row.action for row in db.query(DBDecisionAudit).filter_by(review_id=review_id).all()]
+            self.assertIn("workflow_stage_returned", actions)
+            self.assertIn("workflow_stage_resubmitted", actions)
+            self.assertIn("workflow_stage_approved", actions)
+        finally:
+            self.delete_cleanup(review_id)
 
     def test_only_pending_reviews_can_be_permanently_deleted(self):
         pending_id, _ = self.make_review(status="in_review", decision="pending", suggestion=True)
