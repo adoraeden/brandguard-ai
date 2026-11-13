@@ -9,7 +9,8 @@ import {
   CheckCircle2, 
   ChevronRight,
   Filter,
-  ShieldAlert
+  ShieldAlert,
+  Trash2
 } from 'lucide-react';
 import { ReviewDocument } from '../../types';
 
@@ -17,12 +18,14 @@ interface PendingReviewsViewProps {
   reviews: ReviewDocument[];
   onOpenReview: (review: ReviewDocument) => void;
   onStartNewReview: () => void;
+  onDeleteReview: (review: ReviewDocument) => void;
 }
 
 export const PendingReviewsView: React.FC<PendingReviewsViewProps> = ({
   reviews,
   onOpenReview,
   onStartNewReview,
+  onDeleteReview,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [contentFilter, setContentFilter] = useState('all');
@@ -142,9 +145,14 @@ export const PendingReviewsView: React.FC<PendingReviewsViewProps> = ({
                 <div><span className="block text-slate-400">Last updated</span><span className="mt-1 block font-medium text-slate-700">{(review.updatedAt || review.createdAt || '').split('T')[0] || '—'}</span></div>
                 <div><span className="block text-slate-400">Unresolved findings</span><span className={`mt-1 inline-flex rounded-full px-2 py-1 font-semibold ${unresolved > 0 ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'}`}>{unresolved} open</span></div>
               </div>
-              <button type="button" onClick={() => onOpenReview(review)} className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700">
-                Continue review <ArrowRight className="h-4 w-4" />
-              </button>
+              <div className="mt-4 flex gap-2">
+                <button type="button" onClick={() => onOpenReview(review)} className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700">
+                  Continue review <ArrowRight className="h-4 w-4" />
+                </button>
+                <button type="button" onClick={() => onDeleteReview(review)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white px-3 py-2.5 text-sm font-semibold text-rose-700 transition hover:bg-rose-50" aria-label={`Delete review ${review.title}`} title="Delete review">
+                  <Trash2 className="h-4 w-4" /><span className="hidden sm:inline">Delete</span>
+                </button>
+              </div>
             </article>
           );
         })}

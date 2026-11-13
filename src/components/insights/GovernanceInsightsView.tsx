@@ -79,6 +79,43 @@ export const GovernanceInsightsView: React.FC<GovernanceInsightsViewProps> = ({
         {[["Reviews", stats.total], ["Completed", stats.completed], ["Completion rate", `${stats.completionRate}%`], ["Awaiting decision", stats.pending], ["Unresolved findings", stats.unresolvedFindings]].map(([label, value]) => <div key={label} className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm"><div className="text-xs text-slate-500">{label}</div><div className="mt-1 text-2xl font-bold text-slate-900">{value}</div></div>)}
       </div>}
 
+      {/* Evidence quality and decision accountability */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div><h2 className="text-sm font-bold text-slate-900">Evidence quality</h2><p className="mt-1 text-xs text-slate-500">How thoroughly recorded findings are linked to evidence.</p></div>
+            <div className="shrink-0 text-right"><div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Assessment coverage</div><span className="text-lg font-bold text-[#2457D6]">{insights.evidenceCoverage?.assessmentRate ?? 0}%</span></div>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-[#2457D6]" style={{ width: `${insights.evidenceCoverage?.assessmentRate ?? 0}%` }} /></div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[
+              ["Supported", insights.evidenceCoverage?.supported ?? 0, "text-emerald-700"],
+              ["Partial", insights.evidenceCoverage?.partiallySupported ?? 0, "text-amber-700"],
+              ["Unsupported", insights.evidenceCoverage?.unsupported ?? 0, "text-rose-700"],
+              ["Conflicting", insights.evidenceCoverage?.conflicting ?? 0, "text-rose-800"],
+            ].map(([label, count, color]) => <div key={label} className="rounded-lg bg-slate-50 p-3"><div className="text-[11px] text-slate-500">{label}</div><div className={`mt-1 text-xl font-bold ${color}`}>{count}</div></div>)}
+          </div>
+          <p className="text-[11px] text-slate-400">{insights.evidenceCoverage?.assessed ?? 0} of {insights.evidenceCoverage?.totalFindings ?? 0} findings have an evidence assessment. Assessment coverage is not the same as proof of a claim.</p>
+        </section>
+        <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm space-y-4">
+          <div><h2 className="text-sm font-bold text-slate-900">Finding decision accountability</h2><p className="mt-1 text-xs text-slate-500">Human review outcomes recorded against individual findings.</p></div>
+          <div className="space-y-3">
+            {(insights.findingDecisionBreakdown || []).map(item => {
+              const total = Math.max(1, insights.evidenceCoverage?.totalFindings ?? stats?.totalFindings ?? 0);
+              const labels: Record<string, string> = { accepted: "Accepted", dismissed: "Dismissed", verification_required: "Verification required", pending: "No decision recorded" };
+              const width = Math.min(100, item.count * 100 / total);
+              return <div key={item.decision}><div className="mb-1 flex justify-between text-xs"><span className="font-medium text-slate-700">{labels[item.decision] || item.decision}</span><span className="font-mono font-semibold text-slate-900">{item.count}</span></div><div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-[#0D9488]" style={{ width: `${width}%` }} /></div></div>;
+            })}
+            {!insights.findingDecisionBreakdown?.length && <p className="text-sm text-slate-500">No finding-level decisions have been recorded yet.</p>}
+          </div>
+        </section>
+      </div>
+
+      <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
+        <div className="mb-4 flex items-center justify-between gap-3"><div><h2 className="text-sm font-bold text-slate-900">Unresolved finding trend</h2><p className="mt-1 text-xs text-slate-500">Share of findings still unresolved in each review month.</p></div><span className="text-[11px] text-slate-400">Last 6 months with activity</span></div>
+        {(insights.unresolvedTrends || []).length ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">{insights.unresolvedTrends!.map(item => <div key={item.month} className="rounded-xl bg-slate-50 p-3"><div className="text-[11px] font-medium text-slate-500">{item.month}</div><div className="mt-1 text-xl font-bold text-slate-900">{item.rate}%</div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-amber-500" style={{ width: `${item.rate}%` }} /></div><div className="mt-2 text-[10px] text-slate-400">{item.unresolvedFindings ?? 0} / {item.totalFindings ?? 0} unresolved</div></div>)}</div> : <p className="py-4 text-sm text-slate-500">Trend data will appear once reviews contain findings.</p>}
+      </section>
+
       {/* Main Insights Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* 1. Most Frequently Flagged Rules */}
@@ -187,7 +224,7 @@ export const GovernanceInsightsView: React.FC<GovernanceInsightsViewProps> = ({
           Targeted revisions recommended based on recurring ambiguities identified during marketing reviews:
         </p>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+        <div className="grid grid-cols-1 gap-3 pt-1 md:grid-cols-2 lg:grid-cols-4">
           {clarificationRecommendations.map((rec, i) => (
             <div key={i} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-2">
               <div className="w-6 h-6 rounded-md bg-[#2457D6] text-white font-mono font-bold text-xs flex items-center justify-center">

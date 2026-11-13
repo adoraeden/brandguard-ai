@@ -72,8 +72,8 @@ export const NavigationRail: React.FC<NavigationRailProps> = ({
   };
 
   return (
-    <aside className="z-30 flex h-16 w-full shrink-0 flex-row items-center justify-between border-t border-slate-200 bg-white px-2 shadow-[0_-4px_16px_rgba(15,23,42,0.04)] md:h-screen md:w-[252px] md:flex-col md:items-stretch md:border-r md:border-t-0 md:px-0 md:shadow-[4px_0_24px_rgba(15,23,42,0.025)]">
-      <div className="flex min-w-0 flex-1 items-center md:block md:flex-none">
+    <aside className="z-30 flex h-16 w-full shrink-0 flex-row items-center justify-between border-t border-slate-200 bg-white px-2 shadow-[0_-4px_16px_rgba(15,23,42,0.04)] md:h-screen md:w-[252px] md:flex-col md:items-stretch md:border-r md:border-t-0 md:px-0 md:shadow-[4px_0_24px_rgba(15,23,42,0.025)] md:overflow-hidden">
+      <div className="flex min-w-0 flex-1 items-center md:flex md:min-h-0 md:flex-1 md:flex-col md:items-stretch">
         <div className="hidden border-b border-slate-100 px-6 pb-5 pt-6 md:block">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md shadow-blue-600/20">
@@ -93,7 +93,7 @@ export const NavigationRail: React.FC<NavigationRailProps> = ({
           </div>
         </div>
 
-        <nav aria-label="Main navigation" className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-1 py-1 md:block md:space-y-7 md:px-4 md:py-6">
+        <nav aria-label="Main navigation" className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-1 py-1 md:block md:min-h-0 md:space-y-7 md:overflow-y-auto md:overscroll-contain md:px-4 md:py-6">
           <section className="flex min-w-0 items-center gap-1 md:block md:space-y-1.5">
             <div className="hidden px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 md:block">Workspace</div>
             {primaryNav.map(renderItem)}
@@ -108,13 +108,13 @@ export const NavigationRail: React.FC<NavigationRailProps> = ({
         </nav>
       </div>
 
-      <label className="hidden items-center gap-2 border-t border-slate-100 bg-slate-50/70 px-4 py-4 md:flex">
+      <label className="hidden min-h-[84px] shrink-0 items-center gap-2 border-t border-slate-100 bg-slate-50/70 px-3 py-3 md:flex">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-blue-100 bg-blue-50 text-xs font-bold text-blue-700">{currentUser.avatarInitials}</span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-semibold text-slate-800">{currentUser.name}</span>
+          <span className="block whitespace-normal break-words text-[13px] font-semibold leading-tight text-slate-800">{currentUser.name}</span>
           <span className="mt-0.5 block text-xs capitalize text-slate-500">{currentUser.title} · {currentUser.role}</span>
         </span>
-        <select aria-label="Switch demo profile" value={currentUser.id} onChange={event => selectDemoProfile(event.target.value)} className="max-w-[104px] rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-600">
+        <select aria-label="Switch demo profile" value={currentUser.id} onChange={event => selectDemoProfile(event.target.value)} className="w-[96px] shrink-0 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] font-medium text-slate-600">
           {DEMO_USERS.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
         </select>
       </label>

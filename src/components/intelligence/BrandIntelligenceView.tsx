@@ -502,7 +502,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
   const currentCategoryInfo = categories.find(c => c.id === selectedCategory) || categories[0];
 
   return (
-    <div className="page-content flex min-h-full w-full flex-col bg-[#F8FAFC]">
+    <div className="page-content !m-0 !w-full !max-w-none !p-0 flex h-full min-h-0 flex-col bg-[#F8FAFC]">
       {/* Purpose Banner & Knowledge Toolbar (Requirement 5) */}
       <div className="bg-white border-b border-slate-200 px-4 py-2 flex flex-wrap items-center justify-end gap-4 shadow-2xs">
 
@@ -568,7 +568,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
       </div>
 
       {/* Main 3-Column Structured Layout */}
-      <div className="flex min-h-[calc(100dvh-140px)]">
+      <div className="flex flex-1 min-h-0">
         {/* 1. LEFT PANEL: Compact Vertical Category Navigation with Explanations */}
         <div className="w-60 bg-white border-r border-slate-200 p-3 flex flex-col justify-between shrink-0">
           <div className="space-y-3">
@@ -650,7 +650,7 @@ export const BrandIntelligenceView: React.FC<BrandIntelligenceViewProps> = ({
             </span>
           </div>
 
-          <div className="flex-1 min-h-0 min-w-0 overflow-auto">
+          <div className="flex-1 min-h-0 min-w-0 overflow-auto workspace-scrollbar">
             {/* ALL KNOWLEDGE CONSOLIDATED TABLE */}
             {selectedCategory === 'all' && (
               <table className="app-table min-w-[1000px] w-full text-left text-xs border-collapse">

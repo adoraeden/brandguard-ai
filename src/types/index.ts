@@ -193,11 +193,17 @@ export interface GovernanceInsights {
   topViolatedTerms: { term: string; count: number; category: string }[];
   findingsByCategory: { category: string; count: number; percentage: number }[];
   severityDistribution: { severity: FindingSeverity; count: number }[];
-  unresolvedTrends: { month: string; rate: number }[];
+  unresolvedTrends: { month: string; rate: number; reviews?: number; totalFindings?: number; unresolvedFindings?: number }[];
   clarificationRecommendations: string[];
   reviewStatistics?: { total: number; completed: number; pending: number; completionRate: number; totalFindings: number; unresolvedFindings: number };
   repeatedTerminology?: { term: string; count: number; category: string }[];
   referenceMismatches?: { type: 'guideline' | 'factsheet'; source: string; count: number }[];
+  evidenceCoverage?: {
+    totalFindings: number; assessed: number; notAssessed: number;
+    supported: number; partiallySupported: number; unsupported: number; conflicting: number;
+    assessmentRate: number; supportRate: number;
+  };
+  findingDecisionBreakdown?: { decision: 'accepted' | 'dismissed' | 'verification_required' | 'pending'; count: number }[];
 }
 
 export interface EvidenceCandidate {

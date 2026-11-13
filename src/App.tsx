@@ -168,6 +168,24 @@ function AppContent() {
     loadAllData();
   };
 
+  const handleDeleteReview = async (review: ReviewDocument) => {
+    if (!['pending', 'partially_approved'].includes(review.decisionStatus)) {
+      window.alert('Only pending reviews can be permanently deleted from Pending Reviews.');
+      return;
+    }
+    const confirmed = window.confirm(
+      `Permanently delete "${review.title}"? This also deletes its findings, suggestions, workflow stages and audit history. This cannot be undone.`
+    );
+    if (!confirmed) return;
+    try {
+      await api.deleteReview(review.id);
+      if (activeReview?.id === review.id) handleSetActiveReview(null);
+      await loadAllData();
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Could not delete this review. Please try again.');
+    }
+  };
+
   const pendingReviewsList = reviews.filter(r => ['pending', 'partially_approved'].includes(r.decisionStatus));
   const pendingReviewsCount = pendingReviewsList.length;
 
@@ -185,7 +203,7 @@ function AppContent() {
       />
 
       {/* Main Content Area: the whole workspace scrolls; only the navigation rail stays fixed */}
-      <div className="flex-1 min-w-0 min-h-0 overflow-y-auto bg-[#F8FAFC]">
+      <div className={`flex-1 min-w-0 min-h-0 ${['review_studio', 'brand_intelligence', 'decision_archive'].includes(currentTab) ? 'overflow-hidden' : 'overflow-y-auto'} bg-[#F8FAFC]`}>
         <TopHeader
           currentTab={currentTab}
           onNewReviewClick={handleStartNewReview}
@@ -193,7 +211,7 @@ function AppContent() {
           isRefreshing={isLoading}
           activeFindingsCount={activeReview?.summary?.unresolvedFindings}
         />
-        <main className="min-h-[calc(100dvh-76px)] bg-[#F8FAFC]">
+        <main className={`${['review_studio', 'brand_intelligence', 'decision_archive'].includes(currentTab) ? 'h-[calc(100dvh-76px)] min-h-0 overflow-hidden' : 'min-h-[calc(100dvh-76px)]'} bg-[#F8FAFC]`}>
           {currentTab === 'overview' && (
             <OverviewView
               overviewData={overviewData}
@@ -211,6 +229,7 @@ function AppContent() {
                 handleSelectReview(r.id);
               }}
               onStartNewReview={handleStartNewReview}
+              onDeleteReview={handleDeleteReview}
             />
           )}
 

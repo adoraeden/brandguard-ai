@@ -42,7 +42,7 @@ import {
 } from '../../types';
 import { SAMPLE_DOCUMENTS } from '../../data/mockData';
 import { api } from '../../services/apiClient';
-import { useDemoProfile } from '../../context/DemoProfileContext';
+import { DEMO_USERS, useDemoProfile } from '../../context/DemoProfileContext';
 
 interface ReviewStudioProps {
   activeReview: ReviewDocument | null;
@@ -314,7 +314,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   const [customEditText, setCustomEditText] = useState('');
   const [selectedOccurrences, setSelectedOccurrences] = useState<Record<string, number>>({});
 
-  const [workflowPanelCollapsed, setWorkflowPanelCollapsed] = useState(true);
+  const [workflowModalOpen, setWorkflowModalOpen] = useState(false);
   const [workflowStages, setWorkflowStages] = useState<ReviewWorkflowStage[]>([]);
   const [workflowStageName, setWorkflowStageName] = useState('');
   const [workflowAssignee, setWorkflowAssignee] = useState('');
@@ -1412,9 +1412,9 @@ if (
   const analysisTone = getHighestAnalysisTone(deterministicStatus.tone, aiStatus.tone);
 
   return (
-    <div className="min-h-full flex flex-col">
+    <div className="h-full min-h-0 flex flex-col overflow-hidden">
       {/* Review summary counters; section title is provided by the shared application header. */}
-      <div className="bg-white border-b border-slate-200 px-5 py-3 flex flex-wrap items-center justify-end gap-3 shrink-0">
+      <div className="bg-white border-b border-slate-200 px-5 py-3 flex flex-wrap items-center justify-start gap-3 shrink-0">
         <div className="flex items-center gap-1.5 font-mono text-slate-600 text-xs"><span>Total:</span><strong className="text-slate-900 bg-slate-100 px-2 py-0.5 rounded">{activeReview.findings.length}</strong></div>
         <div className="flex items-center gap-1.5 font-mono text-emerald-700 text-xs"><span>Accepted:</span><strong className="bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">{acceptedCount}</strong></div>
         <div className="flex items-center gap-1.5 font-mono text-rose-700 text-xs"><span>Rejected:</span><strong className="bg-rose-50 px-2 py-0.5 rounded border border-rose-200">{rejectedCount}</strong></div>
@@ -1585,12 +1585,12 @@ if (
       {/* 2. Side-by-Side Review Panels: Left Document vs Right Findings */}
       <div
         ref={workspaceRef}
-        className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden"
+        className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden"
       >
         {/* LEFT PANEL: Document Workspace (user-resizable width) */}
         <div
           style={{ width: window.innerWidth >= 1024 ? `calc(${documentPanePercent}% - 4px)` : '100%' }}
-          className="w-full lg:w-auto min-w-0 min-h-[42vh] lg:min-h-[calc(100dvh-170px)] lg:max-h-[calc(100dvh-170px)] lg:sticky lg:top-0 lg:self-start border-b lg:border-b-0 lg:border-r border-slate-200 flex flex-col bg-white overflow-hidden"
+          className="w-full lg:w-auto min-w-0 min-h-[42vh] lg:min-h-0 lg:max-h-full lg:self-stretch border-b lg:border-b-0 lg:border-r border-slate-200 flex flex-col bg-white overflow-hidden"
         >
           {/* Document Top Bar */}
           <div className="px-6 py-2 bg-slate-50/75 border-b border-slate-200 flex items-center justify-between text-xs">
@@ -1753,70 +1753,75 @@ if (
           className="w-full lg:w-auto min-w-0 min-h-[55vh] lg:min-h-0 flex flex-col bg-slate-50/50 overflow-hidden"
         >
           {/* Findings Filter Bar */}
-          <div className="px-4 py-2 bg-white border-b border-slate-200 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2 text-xs">
-            <div className="flex items-center gap-1.5 font-semibold text-slate-800 shrink-0">
-              <Filter className="w-3.5 h-3.5 text-[#2457D6]" />
-              <span>Evidence Filter:</span>
-            </div>
-            <div className="flex flex-wrap items-center gap-1">
+          <div className="flex items-center gap-2 border-b border-slate-200 bg-white px-3 py-2 text-[10px]">
+            <span className="shrink-0 font-semibold text-slate-600">Filter</span>
+            <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto workspace-scrollbar pb-0.5">
               {[
                 { id: 'all', label: 'All' },
-                { id: 'exact_violation', label: 'Exact Rules' },
+                { id: 'exact_violation', label: 'Exact rules' },
                 { id: 'direct_contradiction', label: 'Contradictions' },
                 { id: 'contextual_inconsistency', label: 'Context' },
                 { id: 'unsupported_claim', label: 'Claims' },
                 { id: 'potential_issue', label: 'Issues' },
               ].map(f => (
-                <button
-                  key={f.id}
-                  onClick={() => setFilterCategory(f.id)}
-                  className={`px-2 py-0.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
-                    filterCategory === f.id
-                      ? 'bg-[#2457D6] text-white shadow-xs font-semibold'
-                      : 'bg-slate-100 text-slate-600 hover:text-slate-900'
-                  }`}
-                >
+                <button key={f.id} type="button" onClick={() => setFilterCategory(f.id)}
+                  className={`shrink-0 rounded-md px-2 py-1 text-[10px] font-semibold transition-colors ${filterCategory === f.id ? 'bg-[#2457D6] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
                   {f.label}
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="border-b border-slate-200 bg-white px-4 py-3 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div><h3 className="text-sm font-bold text-slate-900">Collaborative review stages</h3><p className="text-xs text-slate-500">Assign sequential reviewers and record hand-offs.</p></div>
-              <div className="flex items-center gap-3"><a href={api.getReviewWorkflowExportUrl(activeReview.id)} className="text-xs font-semibold text-[#2457D6] underline" target="_blank" rel="noreferrer">Export workflow CSV</a><button type="button" onClick={() => setWorkflowPanelCollapsed(value => !value)} aria-expanded={!workflowPanelCollapsed} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">{workflowPanelCollapsed ? "Show stages" : "Hide stages"}</button></div>
+          <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-3 py-2">
+            <div className="min-w-0">
+              <h3 className="text-sm font-extrabold text-slate-900">Collaborative review stages</h3>
+              <p className="text-[10px] text-slate-500">Manage reviewer hand-offs and export the workflow.</p>
             </div>
-            {!workflowPanelCollapsed && <>
-            {workflowError && <p role="alert" className="rounded-md bg-rose-50 p-2 text-[10px] text-rose-700">{workflowError}</p>}
-            {workflowStages.length > 0 && <div className="space-y-2">{workflowStages.map(stage => (
-              <div key={stage.id} className="rounded-lg border border-slate-200 p-2.5">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="text-[11px] font-semibold text-slate-800">{stage.order}. {stage.name}</div>
-                  <span className={"rounded-full px-2 py-0.5 text-[9px] font-semibold " + (stage.status === 'approved' ? 'bg-emerald-50 text-emerald-700' : stage.status === 'rejected' ? 'bg-rose-50 text-rose-700' : stage.status === 'in_review' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700')}>{stage.status.replace(/_/g, ' ')}</span>
-                </div>
-                <p className="mt-1 text-[10px] text-slate-500">Assigned to {stage.assignedReviewer}</p>
-                {stage.decisionNote && <p className="mt-1 text-[10px] text-slate-600">Note: {stage.decisionNote}</p>}
-                {stage.assignedReviewer.toLowerCase() === currentUser.name.toLowerCase() && (stage.status === 'in_review' || stage.status === 'returned') && (
-                  <div className="mt-2 space-y-2">
-                    <input value={workflowNote} onChange={event => setWorkflowNote(event.target.value)} placeholder="Decision note (optional)" className="w-full rounded border border-slate-200 px-2 py-1.5 text-[10px]" />
-                    <div className="flex flex-wrap gap-1.5">
-                      <button type="button" disabled={workflowBusy} onClick={() => void handleWorkflowDecision(stage, 'approved')} className="rounded bg-emerald-700 px-2 py-1 text-[10px] font-semibold text-white disabled:opacity-50">Approve stage &amp; hand off</button>
-                      <button type="button" disabled={workflowBusy} onClick={() => void handleWorkflowDecision(stage, 'returned')} className="rounded border border-amber-300 px-2 py-1 text-[10px] font-semibold text-amber-800 disabled:opacity-50">Return for changes</button>
-                      <button type="button" disabled={workflowBusy} onClick={() => void handleWorkflowDecision(stage, 'rejected')} className="rounded border border-rose-200 px-2 py-1 text-[10px] font-semibold text-rose-700 disabled:opacity-50">Reject stage</button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}</div>}
-            <form onSubmit={handleAddWorkflowStage} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2">
-              <input value={workflowStageName} onChange={event => setWorkflowStageName(event.target.value)} placeholder="Stage name (e.g. Legal review)" className="min-w-0 rounded border border-slate-200 px-2 py-1.5 text-[10px]" />
-              <input value={workflowAssignee} onChange={event => setWorkflowAssignee(event.target.value)} placeholder="Assign reviewer name" className="min-w-0 rounded border border-slate-200 px-2 py-1.5 text-[10px]" />
-              <button type="submit" disabled={workflowBusy || !workflowStageName.trim() || !workflowAssignee.trim() || isCompleted} className="rounded bg-[#2457D6] px-3 py-1.5 text-[10px] font-semibold text-white disabled:opacity-50">Add stage</button>
-            </form>
-            <p className="text-[9px] text-slate-400">Demo assignments are workflow records, not production authentication or access control.</p>
-            </>}
+            <button type="button" onClick={() => setWorkflowModalOpen(true)} className="shrink-0 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-800 shadow-sm hover:bg-blue-100">
+              Manage stages · {workflowStages.length}
+            </button>
           </div>
+          {workflowModalOpen && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/45 p-3 sm:p-6" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setWorkflowModalOpen(false); }}>
+              <section role="dialog" aria-modal="true" aria-labelledby="workflow-dialog-title" className="flex max-h-[90dvh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                <header className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
+                  <div><h2 id="workflow-dialog-title" className="text-base font-extrabold text-slate-950">Collaborative review stages</h2><p className="mt-1 text-xs text-slate-500">Assign sequential reviewers, record decisions, and export the workflow.</p></div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <a href={api.getReviewWorkflowExportUrl(activeReview.id)} className="rounded-lg border border-blue-200 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50" target="_blank" rel="noreferrer">Export CSV</a>
+                    <button type="button" onClick={() => setWorkflowModalOpen(false)} aria-label="Close collaborative review stages" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">Close</button>
+                  </div>
+                </header>
+                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 sm:p-5">
+                  {workflowError && <p role="alert" className="rounded-md bg-rose-50 p-2 text-xs text-rose-700">{workflowError}</p>}
+                  {workflowStages.length ? <div className="space-y-2">{workflowStages.map(stage => (
+                    <div key={stage.id} className={`rounded-lg border border-l-4 p-3 shadow-xs ${stage.status === 'approved' ? 'border-emerald-200 border-l-emerald-500 bg-emerald-50/30' : stage.status === 'rejected' ? 'border-rose-200 border-l-rose-500 bg-rose-50/30' : stage.status === 'in_review' ? 'border-blue-200 border-l-blue-500 bg-blue-50/30' : 'border-amber-200 border-l-amber-400 bg-amber-50/20'}`}>
+                      <div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-xs text-slate-800">{stage.order}. {stage.name}</strong><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-700">{stage.status.replace(/_/g, ' ')}</span></div>
+                      <p className="mt-1 text-[11px] text-slate-500">Assigned to {stage.assignedReviewer}</p>
+                      {stage.decisionNote && <p className="mt-1 text-[11px] text-slate-600">Note: {stage.decisionNote}</p>}
+                      {!isCompleted && stage.assignedReviewer.toLowerCase() === currentUser.name.toLowerCase() && (stage.status === 'in_review' || stage.status === 'returned') && <div className="mt-2 space-y-2">
+                        <input value={workflowNote} onChange={event => setWorkflowNote(event.target.value)} placeholder="Decision note (optional)" className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs" />
+                        <div className="flex flex-wrap gap-2">
+                          <button type="button" disabled={workflowBusy} onClick={() => void handleWorkflowDecision(stage, 'approved')} className="rounded bg-emerald-700 px-3 py-2 text-[11px] font-semibold text-white disabled:opacity-50">Approve &amp; hand off</button>
+                          <button type="button" disabled={workflowBusy} onClick={() => void handleWorkflowDecision(stage, 'returned')} className="rounded border border-amber-300 px-3 py-2 text-[11px] font-semibold text-amber-800 disabled:opacity-50">Return for changes</button>
+                          <button type="button" disabled={workflowBusy} onClick={() => void handleWorkflowDecision(stage, 'rejected')} className="rounded border border-rose-200 px-3 py-2 text-[11px] font-semibold text-rose-700 disabled:opacity-50">Reject stage</button>
+                        </div>
+                      </div>}
+                    </div>
+                  ))}</div> : <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-xs text-slate-500">No review stages have been assigned yet.</div>}
+                  {isCompleted ? <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3"><p className="text-xs font-semibold text-amber-900">This review is signed off and read-only.</p><p className="mt-1 text-[11px] text-amber-800">Workflow stages can only be added while a review is pending.</p></div> : <form onSubmit={handleAddWorkflowStage} className="grid grid-cols-1 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[1fr_1fr_auto]">
+                    <select required value={workflowStageName} onChange={event => setWorkflowStageName(event.target.value)} aria-label="Choose review stage" className="min-w-0 rounded border border-slate-200 bg-white px-2 py-2 text-xs">
+                      <option value="">Choose a stage…</option><option value="Brand & Messaging Review">Brand &amp; Messaging Review</option><option value="Legal & Compliance Review">Legal &amp; Compliance Review</option><option value="Final Approval">Final Approval</option>
+                    </select>
+                    <select required value={workflowAssignee} onChange={event => setWorkflowAssignee(event.target.value)} aria-label="Assign demo reviewer" className="min-w-0 rounded border border-slate-200 bg-white px-2 py-2 text-xs">
+                      <option value="">Choose a demo reviewer…</option>{DEMO_USERS.map(user => <option key={user.id} value={user.name}>{user.name} · {user.role}</option>)}
+                    </select>
+                    <button type="submit" disabled={workflowBusy || !workflowStageName || !workflowAssignee} className="rounded bg-[#2457D6] px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{workflowBusy ? 'Adding…' : 'Add stage'}</button>
+                  </form>}
+                  <p className="text-[10px] text-slate-400">Switch the active demo profile in the sidebar to act as the assigned reviewer.</p>
+                </div>
+              </section>
+            </div>
+          )}
 
           {/* Findings List (Independent Scroll) */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3.5">

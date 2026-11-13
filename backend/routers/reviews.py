@@ -66,6 +66,20 @@ def get_review(review_id: str, db: Session = Depends(get_db)):
     return review_model(row)
 
 
+@router.delete("/{review_id}")
+def delete_review(review_id: str, db: Session = Depends(get_db)):
+    """Permanently delete a pending review and its dependent records."""
+    row = db.get(DBReviewDocument, review_id)
+    if not row:
+        raise HTTPException(404, "Review document not found")
+    if row.decision_status not in ("pending", "partially_approved"):
+        raise HTTPException(403, "Only pending reviews can be permanently deleted from Pending Reviews")
+
+    db.delete(row)
+    db.commit()
+    return {"message": "Pending review and its associated records were permanently deleted"}
+
+
 @router.get("/{review_id}/history")
 def get_review_history(review_id: str, db: Session = Depends(get_db)):
     row = db.get(DBReviewDocument, review_id)
@@ -1388,11 +1402,3 @@ def export_review_workflow(review_id: str, db: Session = Depends(get_db)):
     return StreamingResponse(iter([output.getvalue()]), media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="review-{review_id}-workflow.csv"'})
 
-
-@router.delete("/{review_id}")
-def delete_review(review_id: str):
-    # DEMO MODE is public; never expose a destructive operation against shared data.
-    raise HTTPException(
-        403,
-        "Permanent review deletion is disabled in public demo mode",
-    )

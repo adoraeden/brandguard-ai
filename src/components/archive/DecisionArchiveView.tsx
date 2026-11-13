@@ -18,7 +18,6 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { ReviewDocument, DecisionStatus } from '../../types';
-import { useDemoProfile } from '../../context/DemoProfileContext';
 
 interface DecisionArchiveViewProps {
   reviews: ReviewDocument[];
@@ -29,7 +28,6 @@ export const DecisionArchiveView: React.FC<DecisionArchiveViewProps> = ({
   reviews,
   onOpenReview,
 }) => {
-  const { isAdmin } = useDemoProfile();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterDecision, setFilterDecision] = useState<string>('all');
   const [inspectReview, setInspectReview] = useState<ReviewDocument | null>(null);
@@ -93,7 +91,7 @@ export const DecisionArchiveView: React.FC<DecisionArchiveViewProps> = ({
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-6">
+    <div className="h-full min-h-0 p-6 max-w-7xl mx-auto flex flex-col gap-5">
       {/* Title & Concise Summary */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -165,8 +163,8 @@ export const DecisionArchiveView: React.FC<DecisionArchiveViewProps> = ({
       </div>
 
       {/* Clean Audit Table with Exact Columns */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
-        <div className="overflow-x-auto">
+      <div className="flex-1 min-h-0 min-w-0 bg-white rounded-xl border border-slate-200 overflow-auto workspace-scrollbar shadow-xs">
+        <div className="min-w-full">
           <table className="app-table min-w-[960px] w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/75 text-[11px] font-semibold text-slate-600 uppercase tracking-wider">
@@ -256,7 +254,6 @@ export const DecisionArchiveView: React.FC<DecisionArchiveViewProps> = ({
                               <ChevronRight className="w-3 h-3" />
                             </button>
                           )}
-                          {isAdmin && <button type="button" disabled title="Permanent deletion is disabled in public demo mode" aria-label="Permanent deletion disabled in demo mode" className="px-2.5 py-1 text-xs border border-slate-200 bg-slate-50 text-slate-400 rounded font-medium cursor-not-allowed">Delete disabled in demo</button>}
                         </div>
                       </td>
                     </tr>

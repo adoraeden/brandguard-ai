@@ -236,6 +236,12 @@ export const api = {
     return res.json();
   },
 
+  async deleteReview(id: string): Promise<{ success: boolean; deletedReviewId: string }> {
+    const res = await apiFetch(`/api/reviews/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(await apiError(res, 'Failed to delete review'));
+    return res.json();
+  },
+
   async getReviewWorkflow(id: string): Promise<ReviewWorkflowStage[]> {
     const res = await apiFetch('/api/reviews/' + id + '/workflow');
     if (!res.ok) throw new Error(await apiError(res, 'Failed to fetch review workflow'));
