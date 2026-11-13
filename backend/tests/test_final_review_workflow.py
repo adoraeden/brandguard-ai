@@ -172,6 +172,46 @@ class FinalReviewWorkflowIntegrationTests(unittest.TestCase):
         finally:
             self.delete_cleanup(review_id)
 
+    def test_final_approval_waits_for_every_collaborative_stage(self):
+        review_id, finding_id = self.make_review(suggestion=False)
+        stage_id = f"stage-{uuid4().hex}"
+        with SessionLocal() as db:
+            db.add(DBReviewStage(
+                id=stage_id, review_id=review_id, stage_order=1,
+                name="Brand & Messaging Review", assigned_reviewer="Marcus Chen",
+                status="in_review", created_by="Evelyn Voss",
+            ))
+            db.commit()
+        try:
+            finding_decision = self.client.post(
+                f"/api/reviews/{review_id}/findings/{finding_id}/decision",
+                json={"decision": "accepted", "reviewer": "Evelyn Voss"},
+            )
+            self.assertEqual(finding_decision.status_code, 200, finding_decision.text)
+
+            blocked = self.client.post(
+                f"/api/reviews/{review_id}/decisions",
+                json={"completeDecision": "approved_as_is", "reviewer": "Evelyn Voss"},
+            )
+            self.assertEqual(blocked.status_code, 409, blocked.text)
+            self.assertIn("collaborative review stages", blocked.text)
+
+            stage_approved = self.client.post(
+                f"/api/reviews/{review_id}/workflow/stages/{stage_id}/decision",
+                json={"decision": "approved", "reviewer": "Marcus Chen"},
+            )
+            self.assertEqual(stage_approved.status_code, 200, stage_approved.text)
+            self.assertEqual(stage_approved.json()[0]["status"], "approved")
+
+            final = self.client.post(
+                f"/api/reviews/{review_id}/decisions",
+                json={"completeDecision": "approved_as_is", "reviewer": "Evelyn Voss"},
+            )
+            self.assertEqual(final.status_code, 200, final.text)
+            self.assertEqual(final.json()["decisionStatus"], "approved_as_is")
+        finally:
+            self.delete_cleanup(review_id)
+
     def test_only_pending_reviews_can_be_permanently_deleted(self):
         pending_id, _ = self.make_review(status="in_review", decision="pending", suggestion=True)
         with SessionLocal() as db:
