@@ -1797,7 +1797,7 @@ if (
                 </div>
                 <p className="mt-1 text-[10px] text-slate-500">Assigned to {stage.assignedReviewer}</p>
                 {stage.decisionNote && <p className="mt-1 text-[10px] text-slate-600">Note: {stage.decisionNote}</p>}
-                {stage.assignedReviewer.toLowerCase() === currentUser.name.toLowerCase() && (stage.status === 'in_review' || stage.status === 'returned') && (
+                {!isCompleted && stage.assignedReviewer.toLowerCase() === currentUser.name.toLowerCase() && (stage.status === 'in_review' || stage.status === 'returned') && (
                   <div className="mt-2 space-y-2">
                     <input value={workflowNote} onChange={event => setWorkflowNote(event.target.value)} placeholder="Decision note (optional)" className="w-full rounded border border-slate-200 px-2 py-1.5 text-[10px]" />
                     <div className="flex flex-wrap gap-1.5">
@@ -1809,20 +1809,32 @@ if (
                 )}
               </div>
             ))}</div>}
-            <form onSubmit={handleAddWorkflowStage} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2">
-              <select value={workflowStageName} onChange={event => setWorkflowStageName(event.target.value)} aria-label="Choose review stage" className="min-w-0 rounded border border-slate-200 bg-white px-2 py-1.5 text-[10px]">
-                <option value="">Choose a stage…</option>
-                <option value="Brand & Messaging Review">Brand &amp; Messaging Review</option>
-                <option value="Legal & Compliance Review">Legal &amp; Compliance Review</option>
-                <option value="Final Approval">Final Approval</option>
-              </select>
-              <select value={workflowAssignee} onChange={event => setWorkflowAssignee(event.target.value)} aria-label="Assign demo reviewer" className="min-w-0 rounded border border-slate-200 bg-white px-2 py-1.5 text-[10px]">
-                <option value="">Choose a demo reviewer…</option>
-                {DEMO_USERS.map(user => <option key={user.id} value={user.name}>{user.name} · {user.role}</option>)}
-              </select>
-              <button type="submit" disabled={workflowBusy || !workflowStageName || !workflowAssignee || isCompleted} className="rounded bg-[#2457D6] px-3 py-1.5 text-[10px] font-semibold text-white disabled:opacity-50">Add stage</button>
-            </form>
-            <p className="text-[9px] text-slate-400">Choose a stage and a predefined demo reviewer. Switch the active demo profile in the left sidebar to act as the assigned reviewer during judge walkthroughs.</p>
+            {isCompleted ? (
+              <div role="status" className="flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-[11px] font-semibold text-amber-900">This review is signed off and read-only.</p>
+                  <p className="mt-0.5 text-[10px] text-amber-800">Workflow stages can only be added while a review is still pending. Open a pending review or create a new review to start a collaborative hand-off.</p>
+                </div>
+                {onNavigateToPending && <button type="button" onClick={onNavigateToPending} className="shrink-0 rounded-md border border-amber-300 bg-white px-3 py-2 text-[10px] font-semibold text-amber-900 hover:bg-amber-100">Open pending reviews</button>}
+              </div>
+            ) : (
+              <>
+                <form onSubmit={handleAddWorkflowStage} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2">
+                  <select required value={workflowStageName} onChange={event => setWorkflowStageName(event.target.value)} aria-label="Choose review stage" className="min-w-0 rounded border border-slate-200 bg-white px-2 py-1.5 text-[10px]">
+                    <option value="">Choose a stage…</option>
+                    <option value="Brand & Messaging Review">Brand &amp; Messaging Review</option>
+                    <option value="Legal & Compliance Review">Legal &amp; Compliance Review</option>
+                    <option value="Final Approval">Final Approval</option>
+                  </select>
+                  <select required value={workflowAssignee} onChange={event => setWorkflowAssignee(event.target.value)} aria-label="Assign demo reviewer" className="min-w-0 rounded border border-slate-200 bg-white px-2 py-1.5 text-[10px]">
+                    <option value="">Choose a demo reviewer…</option>
+                    {DEMO_USERS.map(user => <option key={user.id} value={user.name}>{user.name} · {user.role}</option>)}
+                  </select>
+                  <button type="submit" disabled={workflowBusy || !workflowStageName || !workflowAssignee} className="rounded bg-[#2457D6] px-3 py-1.5 text-[10px] font-semibold text-white disabled:opacity-50">{workflowBusy ? 'Adding…' : 'Add stage'}</button>
+                </form>
+                <p className="text-[9px] text-slate-400">Choose a stage and a predefined demo reviewer. Switch the active demo profile in the left sidebar to act as the assigned reviewer during judge walkthroughs.</p>
+              </>
+            )}
             </>}
           </div>
 
