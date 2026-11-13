@@ -622,12 +622,18 @@ def enrich_finding_evidence(findings, guidelines, facts, sources=None, db=None, 
             finding.evidenceStatus = "conflicting"
         elif finding.category == "unsupported_claim" and not record_id:
             finding.evidenceStatus = "unsupported"
-        elif record_type == "terminology" and record is not None:
-            # A terminology match is traceable to an approved policy entry, but it is
-            # not factual evidence for a product or performance claim.
-            finding.evidenceStatus = "partially_supported"
         elif record is not None and finding.evidenceQuote:
-            if record_type in ("guideline", "terminology") or finding.category in (
+            # An exact deterministic match against an approved guideline or
+            # terminology entry is fully supported as a policy violation.
+            # Those same policy sources remain partial evidence for contextual
+            # or factual claims that require independent proof.
+            if (
+                finding.category == "exact_violation"
+                and getattr(finding, "detectionMethod", None) == "deterministic_rule"
+                and record_type in ("guideline", "terminology")
+            ):
+                finding.evidenceStatus = "supported"
+            elif record_type in ("guideline", "terminology") or finding.category in (
                 "contextual_inconsistency", "potential_issue"
             ):
                 finding.evidenceStatus = "partially_supported"
