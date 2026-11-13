@@ -6,7 +6,7 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 
 from database import (DBDecisionAudit, DBReviewDocument, DBReviewFinding,
-                      DBReviewSuggestion, SessionLocal)
+                      DBReviewSuggestion, DBReviewStage, SessionLocal)
 from main import app
 
 
@@ -36,7 +36,7 @@ class FinalReviewWorkflowIntegrationTests(unittest.TestCase):
         deleted = self.client.delete(f"/api/guidelines/{entry_id}")
         self.assertEqual(deleted.status_code, 200, deleted.text)
 
-    def make_review(self, status="in_review", decision="pending", suggestion=False):
+    def make_review(self, status="in_review", decision="pending", suggestion=False, evidence_gap=False):
         review_id = f"workflow-test-{uuid4().hex}"
         finding_id = f"finding-{uuid4().hex}"
         review = DBReviewDocument(id=review_id, title="Workflow integration test",
@@ -45,8 +45,11 @@ class FinalReviewWorkflowIntegrationTests(unittest.TestCase):
             summary={"totalFindings": 1, "unresolvedFindings": 1}, findings=[], audit_history=[])
         finding = DBReviewFinding(id=finding_id, review_id=review_id, position=0, title="test finding",
             category="unsupported_claim", severity="medium", exact_text="test", start_index=0,
-            end_index=4, explanation="test", source_rule_or_term="test", source_reference="test",
-            detection_method="gemini_contextual", confidence="medium")
+            end_index=4, explanation="test",
+            source_rule_or_term="Insufficient Evidence" if evidence_gap else "test",
+            source_reference=("No directly relevant approved source was found for this claim." if evidence_gap else "test"),
+            detection_method="gemini_contextual", confidence="medium",
+            evidence_status="unsupported" if evidence_gap else None)
         if suggestion:
             finding.suggestion = DBReviewSuggestion(id=f"suggestion-{uuid4().hex}",
                 suggested_text="safe text", rationale="test", author_intent_preserved="test", status="pending")
@@ -66,8 +69,114 @@ class FinalReviewWorkflowIntegrationTests(unittest.TestCase):
                 self.assertEqual(finding["findingDecision"], value)
                 self.assertEqual(finding["suggestion"]["status"], "pending")
                 self.assertEqual(finding["findingDecisionReviewer"], "Marcus Chen")
+                expected_unresolved = 0 if value == "dismissed" else 1
+                self.assertEqual(response.json()["summary"]["unresolvedFindings"], expected_unresolved)
             self.assertEqual(self.client.get(f"/api/reviews/{review_id}").json()["findings"][0]["findingDecision"], "verification_required")
             self.assertEqual(self.client.post(f"/api/reviews/unknown/findings/{finding_id}/decision",json={"decision": "accepted"}).status_code, 404)
+        finally:
+            self.delete_cleanup(review_id)
+
+    def test_approve_as_is_acknowledges_evidence_gaps_without_claiming_support(self):
+        review_id, finding_id = self.make_review(evidence_gap=True)
+        try:
+            response = self.client.post(
+                f"/api/reviews/{review_id}/decisions",
+                json={
+                    "completeDecision": "approved_as_is",
+                    "decisionNotes": "Demo reviewer accepts this claim as-is despite the evidence gap.",
+                    "reviewer": "Evelyn Voss",
+                },
+            )
+            self.assertEqual(response.status_code, 200, response.text)
+            document = response.json()
+            self.assertEqual(document["status"], "completed")
+            self.assertEqual(document["decisionStatus"], "approved_as_is")
+            self.assertEqual(document["summary"]["unresolvedFindings"], 0)
+
+            finding = next(item for item in document["findings"] if item["id"] == finding_id)
+            self.assertEqual(finding["lifecycleStatus"], "resolved")
+            self.assertEqual(finding["findingDecision"], "accepted")
+            self.assertEqual(finding["evidenceStatus"], "unsupported")
+            self.assertIsNone(finding["evidenceRecordId"])
+            self.assertIn("not treated as verified evidence", finding["findingDecisionNote"])
+
+            history = self.client.get(f"/api/reviews/{review_id}/history")
+            self.assertEqual(history.status_code, 200, history.text)
+            self.assertTrue(any(item["action"] == "evidence_gap_approved_as_is" for item in history.json()))
+            self.assertTrue(any(item["action"] == "complete" for item in history.json()))
+        finally:
+            self.delete_cleanup(review_id)
+
+    def test_reject_completes_review_even_when_findings_or_suggestions_remain_pending(self):
+        review_id, finding_id = self.make_review(suggestion=True)
+        try:
+            response = self.client.post(
+                f"/api/reviews/{review_id}/decisions",
+                json={
+                    "completeDecision": "rejected",
+                    "decisionNotes": "The submitted document is rejected.",
+                    "reviewer": "Evelyn Voss",
+                },
+            )
+            self.assertEqual(response.status_code, 200, response.text)
+            document = response.json()
+            self.assertEqual(document["status"], "completed")
+            self.assertEqual(document["decisionStatus"], "rejected")
+            # Rejecting the document does not falsely resolve its findings or
+            # silently accept/reject a correction suggestion.
+            self.assertEqual(document["summary"]["unresolvedFindings"], 1)
+            finding = next(item for item in document["findings"] if item["id"] == finding_id)
+            self.assertEqual(finding["suggestion"]["status"], "pending")
+
+            history = self.client.get(f"/api/reviews/{review_id}/history")
+            self.assertEqual(history.status_code, 200, history.text)
+            self.assertTrue(any(item["action"] == "complete" for item in history.json()))
+        finally:
+            self.delete_cleanup(review_id)
+
+    def test_approve_as_is_dismisses_unverified_suggestion_on_evidence_gap(self):
+        review_id, finding_id = self.make_review(suggestion=True, evidence_gap=True)
+        try:
+            response = self.client.post(
+                f"/api/reviews/{review_id}/decisions",
+                json={"completeDecision": "approved_as_is", "reviewer": "Evelyn Voss"},
+            )
+            self.assertEqual(response.status_code, 200, response.text)
+            document = response.json()
+            self.assertEqual(document["status"], "completed")
+            self.assertEqual(document["decisionStatus"], "approved_as_is")
+            self.assertEqual(document["summary"]["unresolvedFindings"], 0)
+            finding = next(item for item in document["findings"] if item["id"] == finding_id)
+            self.assertEqual(finding["lifecycleStatus"], "resolved")
+            self.assertEqual(finding["findingDecision"], "accepted")
+            self.assertEqual(finding["evidenceStatus"], "unsupported")
+            self.assertIsNone(finding["evidenceRecordId"])
+            self.assertEqual(finding["suggestion"]["status"], "rejected")
+            self.assertIn("was dismissed", finding["findingDecisionNote"])
+
+            history = self.client.get(f"/api/reviews/{review_id}/history")
+            self.assertEqual(history.status_code, 200, history.text)
+            gap_audit = next(item for item in history.json() if item["action"] == "evidence_gap_approved_as_is")
+            self.assertEqual(gap_audit["newValue"]["suggestionStatus"], "rejected")
+            self.assertTrue(any(item["action"] == "complete" for item in history.json()))
+        finally:
+            self.delete_cleanup(review_id)
+
+    def test_approve_as_is_still_waits_for_pending_correction_on_supported_finding(self):
+        review_id, finding_id = self.make_review(suggestion=True, evidence_gap=False)
+        try:
+            response = self.client.post(
+                f"/api/reviews/{review_id}/decisions",
+                json={"completeDecision": "approved_as_is", "reviewer": "Evelyn Voss"},
+            )
+            self.assertEqual(response.status_code, 200, response.text)
+            document = response.json()
+            self.assertEqual(document["status"], "in_review")
+            self.assertEqual(document["decisionStatus"], "pending")
+            self.assertEqual(document["summary"]["unresolvedFindings"], 1)
+            finding = next(item for item in document["findings"] if item["id"] == finding_id)
+            self.assertEqual(finding["lifecycleStatus"], "active")
+            self.assertEqual(finding["suggestion"]["status"], "pending")
         finally:
             self.delete_cleanup(review_id)
 
@@ -91,6 +200,124 @@ class FinalReviewWorkflowIntegrationTests(unittest.TestCase):
                 self.assertEqual(response.json()["summary"]["unresolvedFindings"], expected_unresolved)
             finally:
                 self.delete_cleanup(review_id)
+
+    def test_returned_workflow_stage_can_be_resubmitted_by_stage_creator(self):
+        review_id, _ = self.make_review()
+        stage_id = f"stage-{uuid4().hex}"
+        with SessionLocal() as db:
+            db.add(DBReviewStage(
+                id=stage_id, review_id=review_id, stage_order=1,
+                name="Brand & Messaging Review", assigned_reviewer="Marcus Chen",
+                status="in_review", created_by="Evelyn Voss",
+            ))
+            db.commit()
+        try:
+            returned = self.client.post(
+                f"/api/reviews/{review_id}/workflow/stages/{stage_id}/decision",
+                json={"decision": "returned", "note": "Please substantiate the uptime claim.", "reviewer": "Marcus Chen"},
+            )
+            self.assertEqual(returned.status_code, 200, returned.text)
+            self.assertEqual(returned.json()[0]["status"], "returned")
+
+            wrong_actor = self.client.post(
+                f"/api/reviews/{review_id}/workflow/stages/{stage_id}/decision",
+                json={"decision": "resubmitted", "reviewer": "Devon Price"},
+            )
+            self.assertEqual(wrong_actor.status_code, 403, wrong_actor.text)
+
+            resubmitted = self.client.post(
+                f"/api/reviews/{review_id}/workflow/stages/{stage_id}/decision",
+                json={"decision": "resubmitted", "note": "Updated the draft with the approved SLA source.", "reviewer": "Evelyn Voss"},
+            )
+            self.assertEqual(resubmitted.status_code, 200, resubmitted.text)
+            self.assertEqual(resubmitted.json()[0]["status"], "in_review")
+
+            approved = self.client.post(
+                f"/api/reviews/{review_id}/workflow/stages/{stage_id}/decision",
+                json={"decision": "approved", "reviewer": "Marcus Chen"},
+            )
+            self.assertEqual(approved.status_code, 200, approved.text)
+            self.assertEqual(approved.json()[0]["status"], "approved")
+
+            with SessionLocal() as db:
+                actions = [row.action for row in db.query(DBDecisionAudit).filter_by(review_id=review_id).all()]
+            self.assertIn("workflow_stage_returned", actions)
+            self.assertIn("workflow_stage_resubmitted", actions)
+            self.assertIn("workflow_stage_approved", actions)
+        finally:
+            self.delete_cleanup(review_id)
+
+    def test_only_stage_creator_can_save_a_returned_draft_revision(self):
+        review_id, _ = self.make_review()
+        stage_id = f"stage-{uuid4().hex}"
+        with SessionLocal() as db:
+            db.add(DBReviewStage(
+                id=stage_id, review_id=review_id, stage_order=1,
+                name="Brand & Messaging Review", assigned_reviewer="Marcus Chen",
+                status="returned", decision_note="Please correct the unsupported uptime claim.",
+                created_by="Evelyn Voss",
+            ))
+            db.commit()
+        try:
+            denied = self.client.put(
+                f"/api/reviews/{review_id}/content",
+                json={"content": "Unauthorized revision", "reviewer": "Marcus Chen"},
+            )
+            self.assertEqual(denied.status_code, 403, denied.text)
+
+            revised_text = "AuraCloud Workspace provides a 99.95% verified uptime SLA."
+            saved = self.client.put(
+                f"/api/reviews/{review_id}/content",
+                json={"content": revised_text, "reviewer": "Evelyn Voss"},
+            )
+            self.assertEqual(saved.status_code, 200, saved.text)
+            self.assertEqual(saved.json()["currentContent"], revised_text)
+
+            history = self.client.get(f"/api/reviews/{review_id}/history")
+            self.assertEqual(history.status_code, 200, history.text)
+            self.assertTrue(any(item["action"] == "content_revision" for item in history.json()))
+        finally:
+            self.delete_cleanup(review_id)
+
+    def test_final_approval_waits_for_every_collaborative_stage(self):
+        review_id, finding_id = self.make_review(suggestion=False)
+        stage_id = f"stage-{uuid4().hex}"
+        with SessionLocal() as db:
+            db.add(DBReviewStage(
+                id=stage_id, review_id=review_id, stage_order=1,
+                name="Brand & Messaging Review", assigned_reviewer="Marcus Chen",
+                status="in_review", created_by="Evelyn Voss",
+            ))
+            db.commit()
+        try:
+            finding_decision = self.client.post(
+                f"/api/reviews/{review_id}/findings/{finding_id}/decision",
+                json={"decision": "accepted", "reviewer": "Evelyn Voss"},
+            )
+            self.assertEqual(finding_decision.status_code, 200, finding_decision.text)
+
+            blocked = self.client.post(
+                f"/api/reviews/{review_id}/decisions",
+                json={"completeDecision": "approved_as_is", "reviewer": "Evelyn Voss"},
+            )
+            self.assertEqual(blocked.status_code, 409, blocked.text)
+            self.assertIn("collaborative review stages", blocked.text)
+
+            stage_approved = self.client.post(
+                f"/api/reviews/{review_id}/workflow/stages/{stage_id}/decision",
+                json={"decision": "approved", "reviewer": "Marcus Chen"},
+            )
+            self.assertEqual(stage_approved.status_code, 200, stage_approved.text)
+            self.assertEqual(stage_approved.json()[0]["status"], "approved")
+
+            final = self.client.post(
+                f"/api/reviews/{review_id}/decisions",
+                json={"completeDecision": "approved_as_is", "reviewer": "Evelyn Voss"},
+            )
+            self.assertEqual(final.status_code, 200, final.text)
+            self.assertEqual(final.json()["decisionStatus"], "approved_as_is")
+        finally:
+            self.delete_cleanup(review_id)
 
     def test_only_pending_reviews_can_be_permanently_deleted(self):
         pending_id, _ = self.make_review(status="in_review", decision="pending", suggestion=True)

@@ -33,6 +33,7 @@ from models import (
     ReviewWorkflowStageCreateRequest,
     ReviewWorkflowStageDecisionRequest,
     ReviewWorkflowStageModel,
+    ReviewContentUpdateRequest,
 )
 from rule_engine import run_python_deterministic_checks
 from storage import (
@@ -109,20 +110,51 @@ def is_finding_unresolved(finding) -> bool:
     if lifecycle_status == "resolved":
         return False
 
-    suggestion = getattr(finding, "suggestion", None)
-
-    if suggestion:
-        return getattr(suggestion, "status", None) == "pending"
-
     decision = getattr(finding, "finding_decision", None)
     if decision is None:
         decision = getattr(finding, "findingDecision", None)
 
-    return decision not in ("accepted", "dismissed")
+    # An explicit dismissal closes a false-positive finding even when a
+    # correction suggestion is attached. Accepting the finding itself does
+    # not apply that suggestion, so the correction remains independently open.
+    if decision == "dismissed":
+        return False
+
+    suggestion = getattr(finding, "suggestion", None)
+    if suggestion:
+        return getattr(suggestion, "status", None) == "pending"
+
+    return decision != "accepted"
 
 
 def count_unresolved_findings(findings) -> int:
     return sum(1 for finding in findings if is_finding_unresolved(finding))
+
+
+def is_evidence_gap_finding(finding) -> bool:
+    """Match Review Studio findings that explicitly have no approved source."""
+    source_rule_or_term = getattr(finding, "source_rule_or_term", None) or getattr(
+        finding, "sourceRuleOrTerm", None
+    )
+    if source_rule_or_term == "Insufficient Evidence":
+        return True
+
+    category = getattr(finding, "category", None)
+    evidence_record_type = getattr(finding, "evidence_record_type", None) or getattr(
+        finding, "evidenceRecordType", None
+    )
+    evidence_record_id = getattr(finding, "evidence_record_id", None) or getattr(
+        finding, "evidenceRecordId", None
+    )
+    source_reference = getattr(finding, "source_reference", None) or getattr(
+        finding, "sourceReference", None
+    ) or ""
+    return (
+        category == "unsupported_claim"
+        and not evidence_record_type
+        and not evidence_record_id
+        and "no directly relevant approved source" in source_reference.casefold()
+    )
 
 
 def active_findings(findings):
@@ -617,12 +649,18 @@ def enrich_finding_evidence(findings, guidelines, facts, sources=None, db=None, 
             finding.evidenceStatus = "conflicting"
         elif finding.category == "unsupported_claim" and not record_id:
             finding.evidenceStatus = "unsupported"
-        elif record_type == "terminology" and record is not None:
-            # A terminology match is traceable to an approved policy entry, but it is
-            # not factual evidence for a product or performance claim.
-            finding.evidenceStatus = "partially_supported"
         elif record is not None and finding.evidenceQuote:
-            if record_type in ("guideline", "terminology") or finding.category in (
+            # An exact deterministic match against an approved guideline or
+            # terminology entry is fully supported as a policy violation.
+            # Those same policy sources remain partial evidence for contextual
+            # or factual claims that require independent proof.
+            if (
+                finding.category == "exact_violation"
+                and getattr(finding, "detectionMethod", None) == "deterministic_rule"
+                and record_type in ("guideline", "terminology")
+            ):
+                finding.evidenceStatus = "supported"
+            elif record_type in ("guideline", "terminology") or finding.category in (
                 "contextual_inconsistency", "potential_issue"
             ):
                 finding.evidenceStatus = "partially_supported"
@@ -786,15 +824,12 @@ def rerun_review_analysis(
                 resolved_count += 1
 
         # Only active findings prevent a new occurrence from being recorded.
-        known_active = {
-            _finding_key(
-                item.detection_method,
-                item.category,
-                item.exact_text,
-            )
+        active_findings_by_key = {
+            _finding_key(item.detection_method, item.category, item.exact_text): item
             for item in row.findings
             if (item.lifecycle_status or "active") == "active"
         }
+        known_active = set(active_findings_by_key)
 
         added_count = 0
 
@@ -805,9 +840,29 @@ def rerun_review_analysis(
                 finding.exactText,
             )
 
-            if not key[2] or key in known_active:
+            if not key[2]:
                 continue
 
+            existing = active_findings_by_key.get(key)
+            if existing is not None:
+                # The same finding can gain stronger provenance after new
+                # evidence is approved. Refresh its evidence fields rather
+                # than skipping it and leaving stale "partially supported"
+                # metadata on the review.
+                existing.evidence_record_type = finding.evidenceRecordType
+                existing.evidence_record_id = finding.evidenceRecordId
+                existing.evidence_quote = finding.evidenceQuote
+                existing.evidence_status = finding.evidenceStatus
+                existing.source_document_id = finding.sourceDocumentId
+                existing.source_page_number = finding.sourcePageNumber
+                existing.source_section_label = finding.sourceSectionLabel
+                existing.source_excerpt = finding.sourceExcerpt
+                existing.source_reference = finding.sourceReference
+                existing.analysis_run_id = run_id
+                continue
+
+            if key in known_active:
+                continue
             known_active.add(key)
 
             finding_id = f"finding-{uuid4().hex}"
@@ -974,6 +1029,16 @@ def record_decision(
             "A completed decision must be approved or rejected",
         )
 
+    if payload.completeDecision in ("approved_as_is", "approved_with_changes"):
+        incomplete_stages = [
+            stage for stage in row.workflow_stages if stage.status != "approved"
+        ]
+        if incomplete_stages:
+            raise HTTPException(
+                409,
+                "All collaborative review stages must be approved before the document can receive final approval",
+            )
+
     now = datetime.utcnow()
 
     before = {
@@ -1043,6 +1108,57 @@ def record_decision(
             )
         )
 
+    if payload.completeDecision == "approved_as_is":
+        # Explicit as-is sign-off may acknowledge a claim without direct approved
+        # evidence. Keep the evidence status unsupported; pending corrections
+        # remain blocking and are never auto-approved here.
+        for finding in active_findings(row.findings):
+            if not is_finding_unresolved(finding) or not is_evidence_gap_finding(finding):
+                continue
+            previous_finding_state = {
+                "lifecycleStatus": finding.lifecycle_status,
+                "findingDecision": finding.finding_decision,
+                "findingDecisionNote": finding.finding_decision_note,
+                "suggestionStatus": finding.suggestion.status if finding.suggestion else None,
+            }
+            # A suggestion attached to an evidence-gap finding is not a
+            # grounded correction. Explicit Approve As-Is closes the gap and
+            # dismisses that unapplied suggestion; ordinary pending corrections
+            # on non-gap findings still block final approval below.
+            if finding.suggestion and finding.suggestion.status == "pending":
+                finding.suggestion.status = "rejected"
+
+            finding.lifecycle_status = "resolved"
+            finding.finding_decision = "accepted"
+            finding.finding_decision_reviewer = actor
+            finding.finding_decision_at = now.isoformat() + "Z"
+            finding.finding_decision_note = (
+                "Approved as-is by " + actor +
+                ". No directly relevant approved source was available; this evidence gap "
+                "remains visible and the claim is not treated as verified evidence. "
+                "Any unapplied correction suggestion without approved supporting evidence "
+                "was dismissed and was not applied."
+            )
+            db.add(
+                DBDecisionAudit(
+                    id=f"aud-{uuid4().hex}",
+                    review_id=review_id,
+                    finding_id=finding.id,
+                    action="evidence_gap_approved_as_is",
+                    reviewer=actor,
+                    previous_value=previous_finding_state,
+                    new_value={
+                        "lifecycleStatus": finding.lifecycle_status,
+                        "findingDecision": finding.finding_decision,
+                        "findingDecisionNote": finding.finding_decision_note,
+                        "evidenceStatus": finding.evidence_status,
+                        "evidenceRecordId": finding.evidence_record_id,
+                        "suggestionStatus": finding.suggestion.status if finding.suggestion else None,
+                    },
+                    created_at=now,
+                )
+            )
+
     unresolved = count_unresolved_findings(row.findings)
 
     row.summary = dict(row.summary or {})
@@ -1102,9 +1218,12 @@ def record_decision(
         )
 
     elif payload.completeDecision:
-        if unresolved > 0:
-            # A reviewer checkpoint records the requested action without
-            # closing the review. Unresolved findings remain explicitly pending.
+        # Rejection is a terminal document-level decision. It must not be
+        # converted into a pending checkpoint just because suggestions remain
+        # unresolved; those finding/suggestion states remain in the audit trail.
+        if unresolved > 0 and payload.completeDecision != "rejected":
+            # Approval checkpoints remain pending while required findings or
+            # correction suggestions are unresolved.
             row.decision_status = "pending"
             row.status = "in_review"
             row.decision_notes = payload.decisionNotes or row.decision_notes
@@ -1303,6 +1422,52 @@ def next_workflow_stage_status(stages):
     return "pending"
 
 
+@router.put("/{review_id}/content", response_model=ReviewDocumentModel)
+def update_returned_review_content(
+    review_id: str,
+    payload: ReviewContentUpdateRequest,
+    db: Session = Depends(get_db),
+):
+    review = db.query(DBReviewDocument).filter(DBReviewDocument.id == review_id).with_for_update().first()
+    if not review:
+        raise HTTPException(404, "Review document not found")
+    if review.status in ("completed", "archived"):
+        raise HTTPException(409, "Completed reviews are read-only")
+
+    actor = payload.reviewer.strip()
+    if not payload.content.strip():
+        raise HTTPException(422, "Revised content cannot be empty")
+
+    returned_stage = (
+        db.query(DBReviewStage)
+        .filter_by(review_id=review_id, status="returned", created_by=actor)
+        .order_by(DBReviewStage.stage_order.desc())
+        .first()
+    )
+    if not returned_stage:
+        raise HTTPException(403, "Only the creator of a returned workflow stage can revise this draft")
+
+    previous_content = review.current_content
+    review.current_content = payload.content
+    review.updated_at = datetime.utcnow()
+    db.add(DBDecisionAudit(
+        id=f"aud-{uuid4().hex}",
+        review_id=review_id,
+        action="content_revision",
+        reviewer=actor,
+        previous_value={"currentContent": previous_content},
+        new_value={"currentContent": payload.content, "returnedStageId": returned_stage.id},
+        created_at=review.updated_at,
+    ))
+    try:
+        db.commit()
+        db.refresh(review)
+        return review_model(review)
+    except Exception:
+        db.rollback()
+        raise
+
+
 @router.get("/{review_id}/workflow", response_model=list[ReviewWorkflowStageModel])
 def get_review_workflow(review_id: str, db: Session = Depends(get_db)):
     review = db.get(DBReviewDocument, review_id)
@@ -1361,17 +1526,37 @@ def decide_review_workflow_stage(review_id: str, stage_id: str, payload: ReviewW
     stage = next((item for item in stages if item.id == stage_id), None)
     if not stage:
         raise HTTPException(404, "Workflow stage not found")
-    actor = (payload.reviewer or stage.assigned_reviewer).strip()
-    if actor.casefold() != stage.assigned_reviewer.casefold():
-        raise HTTPException(403, "Only the assigned reviewer can decide this stage")
+    actor = (payload.reviewer or "").strip()
     now = datetime.utcnow()
-    previous = apply_workflow_stage_decision(stages, stage, payload.decision, payload.note, now)
+
+    if payload.decision == "resubmitted":
+        if stage.status != "returned":
+            raise HTTPException(409, "Only a returned stage can be resubmitted")
+        if not actor or actor.casefold() != stage.created_by.casefold():
+            raise HTTPException(403, "Only the stage creator can resubmit returned work")
+        previous = {"status": stage.status, "decisionNote": stage.decision_note}
+        stage.status = "in_review"
+        if payload.note:
+            prior_note = stage.decision_note or ""
+            stage.decision_note = (
+                f"{prior_note}\nResubmission note: {payload.note}"
+                if prior_note else payload.note
+            )
+        stage.updated_at = now
+        stage.completed_at = None
+    else:
+        actor = actor or stage.assigned_reviewer
+        if actor.casefold() != stage.assigned_reviewer.casefold():
+            raise HTTPException(403, "Only the assigned reviewer can decide this stage")
+        previous = apply_workflow_stage_decision(stages, stage, payload.decision, payload.note, now)
+
     db.add(DBDecisionAudit(
         id=f"aud-{uuid4().hex}", review_id=review_id,
         action="workflow_stage_" + payload.decision, reviewer=actor,
         previous_value=previous,
         new_value={"stageId": stage.id, "stageName": stage.name,
                    "assignedReviewer": stage.assigned_reviewer,
+                   "createdBy": stage.created_by,
                    "status": stage.status, "note": stage.decision_note},
         created_at=now,
     ))

@@ -5,7 +5,6 @@ import { api } from '../../services/apiClient';
 import { useDemoProfile } from '../../context/DemoProfileContext';
 
 interface DocumentIngestionPanelProps {
-  isAdmin: boolean;
   onDataChanged: () => void;
   onNavigateToKnowledgeBase?: (recordId: string) => void;
   standalone?: boolean;
@@ -34,44 +33,50 @@ type DemoEvidenceDocument = {
 const DEMO_EVIDENCE_DOCUMENTS: DemoEvidenceDocument[] = [
   {
     id: 'brand-voice',
-    filename: 'AuraCloud_Brand_Voice_Guide.pdf',
+    filename: 'AuraCloud_Brand_Voice_Guide_Round3.pdf',
     title: 'Brand Voice Guide',
     description: 'Tone, terminology and approved messaging rules',
     paragraphs: [
       'AURACLOUD BRAND VOICE GUIDE',
       'VOICE AND TONE',
-      'Customer-facing copy must use a clear, confident, and helpful tone.',
-      'Never describe AuraCloud as risk-free or completely secure.',
-      'Use the approved product names AuraCloud Core, AuraCloud Teams, and AuraCloud Insights.',
-      'Avoid absolute guarantees about uptime, security, or performance.',
+      'Customer-facing copy must use a clear, confident, measured, and helpful tone.',
+      'The flagship product must always be called AuraCloud Workspace. Do not use Aura Cloud App or AuraCloud Suite.',
+      'Describe AI as assisting and augmenting human judgement. Never claim that the platform replaces human workers or makes every decision without human review.',
+      'Avoid absolute guarantees about uptime, security, or performance. Never describe the platform as unhackable, risk-free, or completely secure.',
+      'Use factual product and performance statements only when they match the current approved factsheet.',
     ],
   },
   {
     id: 'product-facts',
-    filename: 'AuraCloud_Product_Factsheet.pdf',
+    filename: 'AuraCloud_Product_Factsheet_Round3.pdf',
     title: 'Product Factsheet',
     description: 'Product capabilities and measurable claims',
     paragraphs: [
       'AURACLOUD PRODUCT FACTSHEET',
       'PRODUCT OVERVIEW',
-      'AuraCloud Core provides encrypted cloud storage for enterprise teams.',
-      'AuraCloud supports multi-factor authentication for administrator accounts.',
-      'AuraCloud maintains 99.9% monthly service availability under its standard service commitment.',
-      'AuraCloud launched its enterprise platform in 2022.',
+      'The flagship enterprise platform is AuraCloud Workspace.',
+      'AuraCloud Workspace provides a 99.95% verified monthly availability Service Level Agreement backed by multi-region failover across three availability zones.',
+      'AuraCloud Technologies completed an independent SOC-2 Type II audit with zero non-conformity findings in August 2026.',
+      'Customer data is encrypted at rest using AES-256 and in transit using TLS 1.3.',
+      'Isolated data tenancy clusters are maintained in Frankfurt (EU-Central-1) and Northern Virginia (US-East-1), supporting GDPR and HIPAA Business Associate Agreement arrangements.',
+      'Median deterministic policy evaluation completes in under 45 milliseconds per 5,000-token batch in benchmark testing.',
+      'Enterprise licensing is provided through custom annual subscriptions. No unlimited lifetime consumer plan is offered.',
     ],
   },
   {
     id: 'claims-policy',
-    filename: 'AuraCloud_Claims_Compliance_Policy.pdf',
+    filename: 'AuraCloud_Claims_Compliance_Policy_Round3.pdf',
     title: 'Claims & Compliance Policy',
     description: 'Evidence requirements and restricted claims',
     paragraphs: [
       'AURACLOUD CLAIMS AND COMPLIANCE POLICY',
       'EVIDENCE REQUIREMENTS',
-      'All marketing performance claims must be supported by an approved factsheet or independent test report.',
-      'Do not claim AuraCloud is certified to ISO 27001 unless a current certificate is available.',
-      'AuraCloud provides annual independent security assessment reports to enterprise customers.',
-      'Never promise that customer data is impossible to access or lose.',
+      'All measurable marketing performance and adoption claims must be supported by a current approved factsheet, contract, or independent test report.',
+      'Do not invent customer counts, Fortune 500 adoption figures, certifications, or performance guarantees.',
+      'Security statements must match the approved SOC-2 Type II audit and AES-256 / TLS 1.3 specifications. Never use claims such as military-grade unhackable security.',
+      'AuraCloud supports GDPR and HIPAA-related workflows through configured controls and agreements. The software does not grant legal immunity or remove statutory obligations.',
+      'Never promise 100% uptime, zero downtime, perfect protection, or that customer data is impossible to access or lose.',
+      'If evidence is missing or incomplete, label the claim as requiring verification rather than presenting it as established fact.',
     ],
   },
 ];
@@ -129,7 +134,7 @@ const buildDemoPdfFile = (sample: DemoEvidenceDocument): File => {
   return new File([encoder.encode(pdf) as unknown as BlobPart], sample.filename, { type: 'application/pdf' });
 };
 
-export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ isAdmin, onDataChanged, onNavigateToKnowledgeBase, standalone = false }) => {
+export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ onDataChanged, onNavigateToKnowledgeBase, standalone = false }) => {
   const { currentUser } = useDemoProfile();
   const [documents, setDocuments] = useState<IngestedDocument[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -143,7 +148,6 @@ export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ 
   const [approvalConfirmation, setApprovalConfirmation] = useState<ApprovalConfirmation | null>(null);
 
   const loadDocuments = useCallback(async () => {
-    if (!isAdmin) return;
     setLoading(true);
     try {
       const rows = await api.getDocuments();
@@ -166,7 +170,7 @@ export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ 
     } finally {
       setLoading(false);
     }
-  }, [isAdmin]);
+  }, []);
 
   useEffect(() => { void loadDocuments(); }, [loadDocuments]);
 
@@ -251,14 +255,6 @@ export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ 
       setBusyCandidate(null);
     }
   };
-
-  if (!isAdmin) {
-    return (
-      <section className="mx-4 mt-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
-        <strong>Document ingestion is restricted to the Admin profile.</strong> Select the admin demo profile to upload documents and confirm extracted evidence.
-      </section>
-    );
-  }
 
   const pendingCount = documents.reduce((sum, item) => sum + item.pendingCandidateCount, 0);
 
@@ -346,29 +342,32 @@ export const DocumentIngestionPanel: React.FC<DocumentIngestionPanelProps> = ({ 
 
           <div>
             <div className="mb-2 flex items-center justify-between gap-2">
-              <div><h3 className="text-sm font-bold text-slate-900">Try a sample document</h3><p className="mt-0.5 text-xs text-slate-500">Select a sample to load it, then click Upload & Extract.</p></div>
+              <div><h3 className="text-sm font-bold text-slate-900">Try a sample document</h3><p className="mt-0.5 text-xs text-slate-500">Select a Round 3 sample to load it, then click Upload & Extract. You can upload the same sample again; each upload creates a separate record.</p></div>
               <span className="text-[11px] text-slate-400">3 ready-to-use samples</span>
             </div>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              {DEMO_EVIDENCE_DOCUMENTS.map(sample => (
-                <button
-                  key={sample.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedFile(buildDemoPdfFile(sample));
-                    setError('');
-                    setNotice(sample.title + ' PDF is ready. Click Upload & Extract to process it.');
-                  }}
-                  className="flex min-h-[88px] min-w-0 items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:border-blue-300 hover:bg-blue-50/50"
-                >
-                  <div className="rounded-lg bg-blue-50 p-2"><FileText className="h-4 w-4 shrink-0 text-[#2457D6]" /></div>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-xs font-semibold text-slate-800">{sample.title}</span>
-                    <span className="mt-1 block text-[11px] leading-snug text-slate-500">{sample.description}</span>
-                  </span>
-                  <span className="shrink-0 text-[10px] font-semibold text-[#2457D6]">Use PDF</span>
-                </button>
-              ))}
+              {DEMO_EVIDENCE_DOCUMENTS.map(sample => {
+                const alreadyUploaded = documents.some(documentItem => documentItem.filename === sample.filename);
+                return (
+                  <button
+                    key={sample.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedFile(buildDemoPdfFile(sample));
+                      setError('');
+                      setNotice(sample.title + ' PDF is ready. Click Upload & Extract to process it.');
+                    }}
+                    className="flex min-h-[88px] min-w-0 items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:border-blue-300 hover:bg-blue-50/50"
+                  >
+                    <div className="rounded-lg bg-blue-50 p-2"><FileText className="h-4 w-4 shrink-0 text-[#2457D6]" /></div>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-xs font-semibold text-slate-800">{sample.title}</span>
+                      <span className="mt-1 block text-[11px] leading-snug text-slate-500">{sample.description}</span>
+                    </span>
+                    <span className={`shrink-0 text-[10px] font-semibold ${alreadyUploaded ? 'text-emerald-700' : 'text-[#2457D6]'}`}>{alreadyUploaded ? 'Upload again' : 'Use PDF'}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 

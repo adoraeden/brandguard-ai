@@ -65,10 +65,6 @@ def upload_document(
     if len(data) > MAX_UPLOAD_BYTES:
         raise HTTPException(413, "Files are limited to 15 MB.")
     digest = sha256(data).hexdigest()
-    duplicate = db.query(DBIngestedDocument).filter(DBIngestedDocument.sha256 == digest).first()
-    if duplicate:
-        raise HTTPException(409, f"This exact file was already uploaded as {duplicate.filename}.")
-
     try:
         pages = extract_document_pages(filename, file.content_type or "", data)
     except ValueError as exc:

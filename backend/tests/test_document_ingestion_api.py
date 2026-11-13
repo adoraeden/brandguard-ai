@@ -3,7 +3,7 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
-from database import DBApprovedFact, DBKnowledgeSource, SessionLocal
+from database import DBApprovedFact, DBIngestedDocument, DBKnowledgeSource, SessionLocal
 from main import app
 
 
@@ -103,12 +103,42 @@ class DocumentIngestionApiTests(unittest.TestCase):
             ).one()
             self.assertEqual(source.status, "archived")
 
-    def test_duplicate_upload_is_rejected(self):
-        content = "The platform maintains a verified 99.95% monthly service availability commitment."
-        _, first = self.upload_text(content, "duplicate-check")
+    def test_same_file_can_be_uploaded_more_than_once(self):
+        filename = f"repeat-upload-{uuid4().hex}.txt"
+        content = b"The platform maintains a verified 99.95% monthly service availability commitment."
+
+        def upload_again():
+            return self.client.post(
+                "/api/documents",
+                data={"uploaded_by": "CI Evidence Reviewer"},
+                files={"file": (filename, content, "text/plain")},
+            )
+
+        first = upload_again()
         self.assertEqual(first.status_code, 201, first.text)
-        _, second = self.upload_text(content, "duplicate-check")
-        self.assertEqual(second.status_code, 409)
+        second = upload_again()
+        self.assertEqual(second.status_code, 201, second.text)
+
+        first_document = first.json()
+        second_document = second.json()
+        self.assertNotEqual(first_document["id"], second_document["id"])
+        self.assertEqual(first_document["filename"], second_document["filename"])
+        self.assertEqual(first_document["sha256"], second_document["sha256"])
+
+        document_ids = [first_document["id"], second_document["id"]]
+        with SessionLocal() as db:
+            rows = db.query(DBIngestedDocument).filter(
+                DBIngestedDocument.id.in_(document_ids)
+            ).all()
+            self.assertEqual(len(rows), 2)
+            for document_id in document_ids:
+                db.query(DBKnowledgeSource).filter_by(
+                    source_url=f"internal://api/documents/{document_id}/download"
+                ).delete(synchronize_session=False)
+                row = db.get(DBIngestedDocument, document_id)
+                if row:
+                    db.delete(row)
+            db.commit()
 
 
 if __name__ == "__main__":

@@ -30,7 +30,7 @@ class DBIngestedDocument(Base):
     filename = Column(String, nullable=False)
     mime_type = Column(String, nullable=False)
     size_bytes = Column(Integer, nullable=False)
-    sha256 = Column(String, nullable=False, unique=True, index=True)
+    sha256 = Column(String, nullable=False, index=True)
     file_data = Column(LargeBinary, nullable=False)
     extraction_status = Column(String, nullable=False)
     extracted_pages = Column(JSONB, nullable=False, default=list)
@@ -243,6 +243,16 @@ def get_db():
 def init_db():
     # create_all only creates missing tables; it does not drop existing data.
     Base.metadata.create_all(bind=engine)
+    # A content hash identifies the file, not the upload event. Keep it indexed
+    # but non-unique so the same source can be ingested again as a fresh record.
+    with engine.begin() as connection:
+        connection.execute(text(
+            "ALTER TABLE ingested_documents DROP CONSTRAINT IF EXISTS ingested_documents_sha256_key"
+        ))
+        connection.execute(text("DROP INDEX IF EXISTS ix_ingested_documents_sha256"))
+        connection.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_ingested_documents_sha256 ON ingested_documents (sha256)"
+        ))
     # Add columns introduced since the original, previously unused schema. These
     # additive migrations preserve all existing rows and are safe to rerun.
     with engine.begin() as connection:

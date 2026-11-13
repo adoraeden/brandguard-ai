@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { NavigationRail, NavTab } from './components/layout/NavigationRail';
 import { TopHeader } from './components/layout/TopHeader';
+import { DemoEntryScreen } from './components/layout/DemoEntryScreen';
+import { DemoJourneyBanner } from './components/overview/DemoJourneyBanner';
 import { OverviewView } from './components/overview/OverviewView';
 import { ReviewStudio } from './components/review/ReviewStudio';
 import { BrandIntelligenceView } from './components/intelligence/BrandIntelligenceView';
@@ -8,22 +10,31 @@ import { EvidenceIngestionView } from './components/intelligence/EvidenceIngesti
 import { DecisionArchiveView } from './components/archive/DecisionArchiveView';
 import { GovernanceInsightsView } from './components/insights/GovernanceInsightsView';
 import { PendingReviewsView } from './components/pending/PendingReviewsView';
-import { DemoProfileProvider } from './context/DemoProfileContext';
+import { DemoProfileProvider, useDemoProfile } from './context/DemoProfileContext';
 import { api } from './services/apiClient';
-import { 
-  BrandGuideline, 
-  TerminologyEntry, 
-  ApprovedFact, 
-  KnowledgeSource, 
-  ReviewDocument, 
-  GovernanceInsights 
+import {
+  BrandGuideline,
+  TerminologyEntry,
+  ApprovedFact,
+  KnowledgeSource,
+  ReviewDocument,
+  ReviewWorkflowStage,
+  GovernanceInsights
 } from './types';
 import { SAMPLE_DOCUMENTS } from './data/mockData';
 
 function AppContent() {
-  // Navigation & Review Persistence (Requirement 3)
+  const {
+    currentUser,
+    hasEnteredDemo,
+    enterDemo,
+    returnToDemoPicker,
+    selectDemoProfile,
+  } = useDemoProfile();
+
+  // Navigation & Review Persistence
   const [currentTab, setCurrentTab] = useState<NavTab>('overview');
-  
+
   // Data State
   const [overviewData, setOverviewData] = useState<any>(null);
   const [guidelines, setGuidelines] = useState<BrandGuideline[]>([]);
@@ -31,6 +42,7 @@ function AppContent() {
   const [facts, setFacts] = useState<ApprovedFact[]>([]);
   const [sources, setSources] = useState<KnowledgeSource[]>([]);
   const [reviews, setReviews] = useState<ReviewDocument[]>([]);
+  const [reviewWorkflows, setReviewWorkflows] = useState<Record<string, ReviewWorkflowStage[]>>({});
   const [insights, setInsights] = useState<GovernanceInsights | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(true);
   const [insightsError, setInsightsError] = useState<string | null>(null);
@@ -39,8 +51,111 @@ function AppContent() {
   const [activeReview, setActiveReview] = useState<ReviewDocument | null>(null);
   const [knowledgeFocusId, setKnowledgeFocusId] = useState<string | null>(null);
   const [draftToLoad, setDraftToLoad] = useState<typeof SAMPLE_DOCUMENTS[0] | null>(null);
-
   const [isLoading, setIsLoading] = useState(false);
+
+  // Reviewers see records assigned to their demo identity; administrators see the full shared workspace.
+  const visibleReviews = useMemo(() => {
+    if (currentUser.role === 'admin') return reviews;
+    const identity = currentUser.name.trim().toLowerCase();
+    return reviews.filter(review => {
+      const createdByOrAssignedReviewer = (review.reviewer || '').toLowerCase().includes(identity);
+      const assignedToStage = (reviewWorkflows[review.id] || []).some(stage => {
+        const assignedReviewer = stage.assignedReviewer.trim().toLowerCase() === identity;
+        const returnedToCreator = stage.status === 'returned' && stage.createdBy.trim().toLowerCase() === identity;
+        return assignedReviewer || returnedToCreator;
+      });
+      return createdByOrAssignedReviewer || assignedToStage;
+    });
+  }, [reviews, reviewWorkflows, currentUser]);
+
+  const assignedWorkflowTask = useMemo(() => {
+    const identity = currentUser.name.trim().toLowerCase();
+    const candidates = [...visibleReviews].sort((left, right) =>
+      new Date(right.updatedAt || right.createdAt).getTime() - new Date(left.updatedAt || left.createdAt).getTime()
+    );
+    for (const review of candidates) {
+      const stages = reviewWorkflows[review.id] || [];
+      const stage = stages.find(item => {
+        const assignedReviewer = item.assignedReviewer.trim().toLowerCase() === identity;
+        const stageCreator = item.createdBy.trim().toLowerCase() === identity;
+        return (assignedReviewer && item.status === 'in_review') ||
+          (stageCreator && item.status === 'returned');
+      });
+      if (stage) {
+        return {
+          review,
+          stage,
+          action: stage.status === 'returned' ? 'resubmit' as const : 'review' as const,
+        };
+      }
+    }
+    return null;
+  }, [visibleReviews, reviewWorkflows, currentUser]);
+
+  const visibleOverviewData = useMemo(() => {
+    const sorted = [...visibleReviews].sort((a, b) =>
+      new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime()
+    );
+    const pending = visibleReviews.filter(review =>
+      ['pending', 'partially_approved'].includes(review.decisionStatus)
+    );
+    const approved = visibleReviews.filter(review =>
+      ['approved_with_changes', 'approved_as_is'].includes(review.decisionStatus)
+    );
+    const rejected = visibleReviews.filter(review => review.decisionStatus === 'rejected');
+    const totalFindings = visibleReviews.reduce((sum, review) => sum + (review.findings?.length || 0), 0);
+    const unresolvedFindings = visibleReviews.reduce((sum, review) => sum + (review.summary?.unresolvedFindings || 0), 0);
+    const severityDistribution = visibleReviews.reduce((counts, review) => {
+      review.findings?.forEach(finding => {
+        if (finding.severity in counts) counts[finding.severity as keyof typeof counts] += 1;
+      });
+      return counts;
+    }, { critical: 0, high: 0, medium: 0, low: 0, informational: 0 });
+
+    return {
+      ...(overviewData || {}),
+      counts: {
+        ...(overviewData?.counts || {}),
+        reviewedDocuments: visibleReviews.length,
+        totalFindings,
+        unresolvedFindings,
+      },
+      reviewStatistics: {
+        total: visibleReviews.length,
+        completed: approved.length + rejected.length,
+        pending: pending.length,
+        approved: approved.length,
+        partiallyApproved: visibleReviews.filter(review => review.decisionStatus === 'partially_approved').length,
+        rejected: rejected.length,
+      },
+      severityDistribution,
+      pendingReviews: pending.map(review => ({
+        id: review.id,
+        title: review.title,
+        contentType: review.contentType,
+        reviewer: review.reviewer,
+        updatedAt: review.updatedAt,
+        unresolvedFindings: review.summary?.unresolvedFindings || 0,
+        decisionStatus: review.decisionStatus,
+      })),
+      recentReviews: sorted.slice(0, 5).map(review => ({
+        ...review,
+        findingsCount: review.findings?.length || 0,
+      })),
+      recentDecisions: sorted.filter(review =>
+        ['approved_with_changes', 'approved_as_is', 'rejected'].includes(review.decisionStatus)
+      ).slice(0, 5),
+    };
+  }, [overviewData, visibleReviews]);
+
+  const featuredSample = useMemo(() => {
+    const scenarioIndexByProfile: Record<string, number> = {
+      'usr-admin-1': 0,
+      'usr-rev-1': 1,
+      'usr-rev-2': 2,
+    };
+    return SAMPLE_DOCUMENTS[scenarioIndexByProfile[currentUser.id] ?? 0];
+  }, [currentUser.id]);
 
   // Sync tab changes to localStorage
   const handleSelectTab = (tab: NavTab) => {
@@ -64,6 +179,26 @@ function AppContent() {
     } catch {
       // Ignore
     }
+  };
+
+  const handleProfileChange = (userId: string) => {
+    selectDemoProfile(userId);
+    handleSetActiveReview(null);
+    setDraftToLoad(null);
+    handleSelectTab('overview');
+    void loadAllData();
+  };
+
+  const handleEntryProfileChange = (userId: string) => {
+    selectDemoProfile(userId);
+    handleSetActiveReview(null);
+    setDraftToLoad(null);
+  };
+
+  const handleSwitchDemo = () => {
+    handleSetActiveReview(null);
+    setDraftToLoad(null);
+    returnToDemoPicker();
   };
 
   // Load all data from API endpoints
@@ -94,24 +229,29 @@ function AppContent() {
       if (rev.status === 'fulfilled') {
         const fetchedReviews = rev.value as ReviewDocument[];
         setReviews(fetchedReviews);
-        
-        // Restore active review from localStorage or previous state
+
+        // Load reviewer assignments so each demo persona can see stages assigned to them.
+        const workflowResults = await Promise.allSettled(
+          fetchedReviews.map(review => api.getReviewWorkflow(review.id))
+        );
+        const nextWorkflows: Record<string, ReviewWorkflowStage[]> = {};
+        workflowResults.forEach((result, index) => {
+          if (result.status === 'fulfilled') {
+            nextWorkflows[fetchedReviews[index].id] = result.value;
+          }
+        });
+        setReviewWorkflows(nextWorkflows);
+
+        // Restore only an explicitly selected review; never open another persona's record by default.
         const savedReviewId = localStorage.getItem('brandguard_active_review_id');
         if (savedReviewId) {
           const match = fetchedReviews.find(r => r.id === savedReviewId);
-          if (match) {
-            setActiveReview(match);
-          } else {
-            setActiveReview(prev => {
-              if (!prev) return fetchedReviews[0] || null;
-              return fetchedReviews.find((r: ReviewDocument) => r.id === prev.id) || prev;
-            });
-          }
+          setActiveReview(match || null);
         } else {
-          setActiveReview(prev => {
-            if (!prev) return fetchedReviews[0] || null;
-            return fetchedReviews.find((r: ReviewDocument) => r.id === prev.id) || prev;
-          });
+          setActiveReview(prev => prev
+            ? fetchedReviews.find(r => r.id === prev.id) || null
+            : null
+          );
         }
       }
     } catch (err) {
@@ -146,7 +286,7 @@ function AppContent() {
       setDraftToLoad(null);
       handleSelectTab('review_studio');
     } catch {
-      const localDoc = reviews.find(r => r.id === reviewId);
+      const localDoc = visibleReviews.find(r => r.id === reviewId);
       if (localDoc) {
         handleSetActiveReview(localDoc);
         setDraftToLoad(null);
@@ -163,7 +303,6 @@ function AppContent() {
 
   const handleDecisionUpdated = (doc: ReviewDocument) => {
     handleSetActiveReview(doc);
-    // Update reviews array locally
     setReviews(prev => prev.map(r => r.id === doc.id ? doc : r));
     loadAllData();
   };
@@ -186,23 +325,33 @@ function AppContent() {
     }
   };
 
-  const pendingReviewsList = reviews.filter(r => ['pending', 'partially_approved'].includes(r.decisionStatus));
+  const pendingReviewsList = visibleReviews.filter(r =>
+    ['pending', 'partially_approved'].includes(r.decisionStatus)
+  );
   const pendingReviewsCount = pendingReviewsList.length;
+  const unresolvedCount = visibleOverviewData.counts?.unresolvedFindings ?? 0;
 
-  const unresolvedCount = overviewData?.counts?.unresolvedFindings ?? 
-    reviews.reduce((sum, r) => sum + (r.summary?.unresolvedFindings || 0), 0);
+  if (!hasEnteredDemo) {
+    return (
+      <DemoEntryScreen
+        selectedUser={currentUser}
+        onSelectUser={handleEntryProfileChange}
+        onEnter={enterDemo}
+      />
+    );
+  }
 
   return (
     <div className="flex flex-col-reverse md:flex-row h-[100dvh] w-screen overflow-hidden bg-[#F8FAFC] text-slate-900 font-sans antialiased">
-      {/* Left Spatial Navigation Rail */}
       <NavigationRail
         currentTab={currentTab}
         onSelectTab={handleSelectTab}
+        onProfileChange={handleProfileChange}
+        onSwitchDemo={handleSwitchDemo}
         unresolvedCount={unresolvedCount}
         pendingReviewsCount={pendingReviewsCount}
       />
 
-      {/* Main Content Area: the whole workspace scrolls; only the navigation rail stays fixed */}
       <div className={`flex-1 min-w-0 min-h-0 ${['review_studio', 'brand_intelligence', 'decision_archive'].includes(currentTab) ? 'overflow-hidden' : 'overflow-y-auto'} bg-[#F8FAFC]`}>
         <TopHeader
           currentTab={currentTab}
@@ -213,21 +362,28 @@ function AppContent() {
         />
         <main className={`${['review_studio', 'brand_intelligence', 'decision_archive'].includes(currentTab) ? 'h-[calc(100dvh-76px)] min-h-0 overflow-hidden' : 'min-h-[calc(100dvh-76px)]'} bg-[#F8FAFC]`}>
           {currentTab === 'overview' && (
-            <OverviewView
-              overviewData={overviewData}
-              onStartReview={handleStartNewReview}
-              onOpenSampleDraft={handleOpenSampleDraft}
-              onSelectReview={handleSelectReview}
-              onNavigateToPending={() => handleSelectTab('pending_reviews')}
-            />
+            <>
+              <DemoJourneyBanner
+                currentUser={currentUser}
+                sample={featuredSample}
+                onOpenSample={handleOpenSampleDraft}
+                assignedTask={assignedWorkflowTask}
+                onOpenAssignedReview={reviewId => { void handleSelectReview(reviewId); }}
+              />
+              <OverviewView
+                overviewData={visibleOverviewData}
+                onStartReview={handleStartNewReview}
+                onOpenSampleDraft={handleOpenSampleDraft}
+                onSelectReview={handleSelectReview}
+                onNavigateToPending={() => handleSelectTab('pending_reviews')}
+              />
+            </>
           )}
 
           {currentTab === 'pending_reviews' && (
             <PendingReviewsView
-              reviews={reviews}
-              onOpenReview={(r) => {
-                handleSelectReview(r.id);
-              }}
+              reviews={visibleReviews}
+              onOpenReview={review => handleSelectReview(review.id)}
               onStartNewReview={handleStartNewReview}
               onDeleteReview={handleDeleteReview}
             />
@@ -242,11 +398,18 @@ function AppContent() {
               onNavigateToLedger={() => handleSelectTab('decision_archive')}
               onNavigateToPending={() => handleSelectTab('pending_reviews')}
               onNavigateHome={() => handleSelectTab('overview')}
+              onNavigateToEvidenceIngestion={() => handleSelectTab('evidence_ingestion')}
             />
           )}
 
           {currentTab === 'evidence_ingestion' && (
-            <EvidenceIngestionView onDataChanged={loadAllData} onNavigateToKnowledgeBase={(recordId) => { setKnowledgeFocusId(recordId); handleSelectTab('brand_intelligence'); }} />
+            <EvidenceIngestionView
+              onDataChanged={loadAllData}
+              onNavigateToKnowledgeBase={recordId => {
+                setKnowledgeFocusId(recordId);
+                handleSelectTab('brand_intelligence');
+              }}
+            />
           )}
 
           {currentTab === 'brand_intelligence' && (
@@ -263,10 +426,8 @@ function AppContent() {
 
           {currentTab === 'decision_archive' && (
             <DecisionArchiveView
-              reviews={reviews}
-              onOpenReview={(r) => {
-                handleSelectReview(r.id);
-              }}
+              reviews={visibleReviews}
+              onOpenReview={review => handleSelectReview(review.id)}
             />
           )}
 
@@ -277,7 +438,8 @@ function AppContent() {
               error={insightsError}
               onRetry={() => {
                 setInsightsLoading(true);
-                api.getInsights().then(value => { setInsights(value); setInsightsError(null); })
+                api.getInsights()
+                  .then(value => { setInsights(value); setInsightsError(null); })
                   .catch(() => setInsightsError('Governance analytics could not be loaded. Check the FastAPI connection and try again.'))
                   .finally(() => setInsightsLoading(false));
               }}
@@ -286,7 +448,6 @@ function AppContent() {
           )}
         </main>
       </div>
-
     </div>
   );
 }

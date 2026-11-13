@@ -22,6 +22,9 @@ export const DEMO_USERS: UserProfile[] = [
 interface DemoProfileContextType {
   currentUser: UserProfile;
   selectDemoProfile: (userId: string) => void;
+  hasEnteredDemo: boolean;
+  enterDemo: () => void;
+  returnToDemoPicker: () => void;
   isAdmin: boolean;
   isReviewer: boolean;
 }
@@ -37,6 +40,13 @@ export const DemoProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
       return DEMO_USERS[0];
     }
   });
+  const [hasEnteredDemo, setHasEnteredDemo] = useState(() => {
+    try {
+      return localStorage.getItem('brandguard_demo_entered') === 'true';
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
     try {
@@ -46,15 +56,36 @@ export const DemoProfileProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   }, [currentUser.id]);
 
+  const enterDemo = () => {
+    setHasEnteredDemo(true);
+    try {
+      localStorage.setItem('brandguard_demo_entered', 'true');
+    } catch {
+      // Storage is optional; the current session can still continue.
+    }
+  };
+
+  const returnToDemoPicker = () => {
+    setHasEnteredDemo(false);
+    try {
+      localStorage.removeItem('brandguard_demo_entered');
+    } catch {
+      // Storage is optional; the current session can still return to the picker.
+    }
+  };
+
   const value = useMemo(() => ({
     currentUser,
     selectDemoProfile: (userId: string) => {
       const selected = DEMO_USERS.find(user => user.id === userId);
       if (selected) setCurrentUser(selected);
     },
+    hasEnteredDemo,
+    enterDemo,
+    returnToDemoPicker,
     isAdmin: currentUser.role === 'admin',
     isReviewer: currentUser.role === 'reviewer',
-  }), [currentUser]);
+  }), [currentUser, hasEnteredDemo]);
 
   return <DemoProfileContext.Provider value={value}>{children}</DemoProfileContext.Provider>;
 };

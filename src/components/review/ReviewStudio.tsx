@@ -52,6 +52,7 @@ interface ReviewStudioProps {
   onNavigateToLedger?: () => void;
   onNavigateToPending?: () => void;
   onNavigateHome?: () => void;
+  onNavigateToEvidenceIngestion?: () => void;
 }
 
 type AnalysisTone = 'success' | 'warning' | 'error' | 'neutral';
@@ -268,6 +269,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   onNavigateToLedger,
   onNavigateToPending,
   onNavigateHome,
+  onNavigateToEvidenceIngestion,
 }) => {
   const { currentUser } = useDemoProfile();
 
@@ -321,6 +323,10 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   const [workflowNote, setWorkflowNote] = useState('');
   const [workflowError, setWorkflowError] = useState<string | null>(null);
   const [workflowBusy, setWorkflowBusy] = useState(false);
+  const [isEditingReturnedDraft, setIsEditingReturnedDraft] = useState(false);
+  const [returnedDraftText, setReturnedDraftText] = useState('');
+  const [savingReturnedDraft, setSavingReturnedDraft] = useState(false);
+  const [returnedDraftError, setReturnedDraftError] = useState<string | null>(null);
 
   // Human Final Decision State
   const [decisionNotes, setDecisionNotes] = useState('');
@@ -410,13 +416,29 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   }, [activeReview?.id]);
 
   useEffect(() => {
+    setReturnedDraftText(activeReview?.currentContent || '');
+    setIsEditingReturnedDraft(false);
+    setReturnedDraftError(null);
+  }, [activeReview?.id, activeReview?.currentContent]);
+
+  useEffect(() => {
     if (!activeReview?.id) { setWorkflowStages([]); return; }
     let cancelled = false;
     api.getReviewWorkflow(activeReview.id)
-      .then(stages => { if (!cancelled) { setWorkflowStages(stages); setWorkflowError(null); } })
+      .then(stages => {
+        if (cancelled) return;
+        setWorkflowStages(stages);
+        setWorkflowError(null);
+        const identity = currentUser.name.trim().toLowerCase();
+        const hasActionForThisPersona = stages.some(stage =>
+          (stage.assignedReviewer.trim().toLowerCase() === identity && stage.status === 'in_review') ||
+          (stage.createdBy.trim().toLowerCase() === identity && stage.status === 'returned')
+        );
+        if (hasActionForThisPersona) setWorkflowModalOpen(true);
+      })
       .catch(error => { if (!cancelled) setWorkflowError(error?.message || 'Could not load the staged review workflow.'); });
     return () => { cancelled = true; };
-  }, [activeReview?.id]);
+  }, [activeReview?.id, currentUser.name]);
 
   const handleAddWorkflowStage = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -433,7 +455,7 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
     } finally { setWorkflowBusy(false); }
   };
 
-  const handleWorkflowDecision = async (stage: ReviewWorkflowStage, decision: 'approved' | 'returned' | 'rejected') => {
+  const handleWorkflowDecision = async (stage: ReviewWorkflowStage, decision: 'approved' | 'returned' | 'rejected' | 'resubmitted') => {
     if (!activeReview) return;
     setWorkflowBusy(true); setWorkflowError(null);
     try {
@@ -444,6 +466,32 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
     } catch (error: any) {
       setWorkflowError(error?.message || 'Could not save the stage decision.');
     } finally { setWorkflowBusy(false); }
+  };
+
+  const handleSaveReturnedDraft = async () => {
+    if (!activeReview) return;
+    if (!returnedDraftText.trim()) {
+      setReturnedDraftError('The revised draft cannot be empty.');
+      return;
+    }
+    setSavingReturnedDraft(true);
+    setReturnedDraftError(null);
+    try {
+      const updated = await api.updateReturnedReviewContent(
+        activeReview.id, returnedDraftText, currentUser.name
+      );
+      onDecisionUpdated(updated);
+      setIsEditingReturnedDraft(false);
+      setWorkflowModalOpen(false);
+      setRerunFeedback({
+        kind: 'success',
+        message: 'Draft revision saved. Re-run analysis to refresh its findings, then open Manage stages to resubmit it to the reviewer.',
+      });
+    } catch (error: any) {
+      setReturnedDraftError(error?.message || 'Could not save the returned draft revision.');
+    } finally {
+      setSavingReturnedDraft(false);
+    }
   };
 
   // Load sample draft when provided, unless an existing review is active.
@@ -554,9 +602,10 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
 
   const handleFinalDecision = async (decision: 'approved_as_is' | 'rejected') => {
     if (!activeReview) return;
-
-    const unresolvedCount = activeReview.summary.unresolvedFindings;
-    const isCheckpoint = unresolvedCount > 0;
+    if (decision === 'approved_as_is' && workflowStages.some(stage => stage.status !== 'approved')) {
+      setValidationError('Approve every collaborative review stage before giving the document final approval.');
+      return;
+    }
 
     setIsCompleting(true);
     setValidationError(null);
@@ -570,15 +619,20 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
       });
       onDecisionUpdated(updated);
 
-      if (isCheckpoint) {
+      if (updated.status !== 'completed') {
         setCompletionRecord(null);
         setViewMode('results');
         setDecisionNotes('');
         setDecisionFeedback(null);
-        setCheckpointRecord({ decision, unresolvedCount, document: updated });
+        setCheckpointRecord({
+          decision,
+          unresolvedCount: updated.summary.unresolvedFindings,
+          document: updated,
+        });
         return;
       }
 
+      setCheckpointRecord(null);
       setCompletionRecord({ verdict: decision, document: updated });
     } catch (err: any) {
       console.error('Failed to complete review:', err);
@@ -1406,6 +1460,7 @@ if (
   const rejectedCount = activeReview.summary.rejectedSuggestions +
     activeReview.findings.filter(f => !f.suggestion && f.findingDecision === 'dismissed').length;
   const pendingCount = unresolvedCount;
+  const hasIncompleteWorkflow = workflowStages.length > 0 && workflowStages.some(stage => stage.status !== 'approved');
   const isCompleted = ['approved_with_changes', 'approved_as_is', 'rejected'].includes(activeReview.decisionStatus);
   const deterministicStatus = getDeterministicStatusView(activeReview);
   const aiStatus = getAiStatusView(activeReview);
@@ -1600,6 +1655,9 @@ if (
               <span className="text-slate-300">·</span>
               <span className="text-slate-500 font-mono text-[11px]">Click pins to jump to findings</span>
             </div>
+            {isEditingReturnedDraft ? (
+              <button type="button" onClick={() => { setIsEditingReturnedDraft(false); setReturnedDraftText(activeReview.currentContent); setReturnedDraftError(null); }} className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">Cancel draft edit</button>
+            ) : (
             <button
               onClick={() => setShowOriginalDiff(!showOriginalDiff)}
               className={`px-2.5 py-1 text-xs rounded-md border font-medium flex items-center gap-1.5 transition-colors cursor-pointer ${
@@ -1611,6 +1669,7 @@ if (
               <SplitSquareVertical className="w-3.5 h-3.5" />
               <span>{showOriginalDiff ? 'Showing Original Submitted' : 'Showing Current Revised Draft'}</span>
             </button>
+            )}
           </div>
 
           {/* Document Text (Independent Scroll) */}
@@ -1624,10 +1683,32 @@ if (
                 </span>
               </div>
 
-              {/* Render document with highlighted findings */}
-              <div className="text-slate-800 text-sm">
-                {renderHighlightedDocument()}
-              </div>
+              {isEditingReturnedDraft ? (
+                <div className="space-y-3">
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
+                    <strong>Returned draft revision.</strong> Make the requested changes below. Saving records a revision in the review audit history; it does not rerun AI analysis automatically.
+                  </div>
+                  <textarea
+                    aria-label="Edit returned review draft"
+                    value={returnedDraftText}
+                    onChange={event => setReturnedDraftText(event.target.value)}
+                    rows={18}
+                    className="min-h-[360px] w-full resize-y rounded-xl border border-slate-300 bg-white p-4 text-sm leading-6 text-slate-800 shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                  />
+                  {returnedDraftError && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">{returnedDraftError}</p>}
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <button type="button" onClick={() => { setIsEditingReturnedDraft(false); setReturnedDraftText(activeReview.currentContent); setReturnedDraftError(null); }} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
+                    <button type="button" onClick={() => void handleSaveReturnedDraft()} disabled={savingReturnedDraft || !returnedDraftText.trim()} className="rounded-lg bg-blue-700 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50">{savingReturnedDraft ? 'Saving revision…' : 'Save draft revision'}</button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Render document with highlighted findings */}
+                  <div className="text-slate-800 text-sm">
+                    {renderHighlightedDocument()}
+                  </div>
+                </>
+              )}
 
               {/* Active revision banner */}
               {activeReview.summary.acceptedSuggestions > 0 && !showOriginalDiff && (
@@ -1644,13 +1725,19 @@ if (
           {/* Human Governance Sign-Off Bar (Requirement 2: Blocks final approval with unresolved findings) */}
           {!isCompleted && (
             <div className="sticky bottom-0 z-20 shrink-0 p-3.5 bg-slate-50 border-t border-slate-200 space-y-2.5 shadow-[0_-4px_12px_rgba(15,23,42,0.06)]">
+              {hasIncompleteWorkflow && (
+                <div className="rounded-lg border border-blue-200 bg-blue-50 p-2.5 text-xs text-blue-900">
+                  <strong>Collaborative stages still in progress:</strong> Final approval is locked until every assigned review stage is approved.
+                </div>
+              )}
+
               {/* Unresolved findings warning banner */}
               {unresolvedCount > 0 && (
                 <div className="p-2.5 bg-amber-50/90 border border-amber-300 rounded-lg text-xs text-amber-900 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
                     <span>
-                      <strong>{unresolvedCount} finding(s) pending:</strong> The remaining findings have not been approved or rejected. This review will stay in the Pending queue until they are addressed.
+                      <strong>{unresolvedCount} finding(s) pending:</strong> Unsupported-source gaps can be acknowledged with Approve As-Is. Pending corrections and other unresolved findings must still be addressed.
                     </span>
                   </div>
                   <button
@@ -1696,8 +1783,8 @@ if (
 
                 <button
                   onClick={() => handleFinalDecision('approved_as_is')}
-                  disabled={isCompleting}
-                  title={unresolvedCount > 0 ? 'Save this checkpoint; the remaining findings will stay pending' : 'Approve As-Is'}
+                  disabled={isCompleting || hasIncompleteWorkflow}
+                  title={hasIncompleteWorkflow ? 'Approve all collaborative stages first' : unresolvedCount > 0 ? 'Approve As-Is acknowledges evidence gaps; pending corrections and other unresolved findings remain blocking' : 'Approve As-Is'}
                   className="px-3 py-1.5 text-white font-medium text-xs rounded-lg flex items-center gap-1 whitespace-nowrap shadow-xs transition-colors bg-slate-800 hover:bg-slate-900 cursor-pointer disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed"
                 >
                   <Check className="w-3.5 h-3.5" />
@@ -1785,7 +1872,7 @@ if (
             <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/45 p-3 sm:p-6" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setWorkflowModalOpen(false); }}>
               <section role="dialog" aria-modal="true" aria-labelledby="workflow-dialog-title" className="flex max-h-[90dvh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
                 <header className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
-                  <div><h2 id="workflow-dialog-title" className="text-base font-extrabold text-slate-950">Collaborative review stages</h2><p className="mt-1 text-xs text-slate-500">Assign sequential reviewers, record decisions, and export the workflow.</p></div>
+                  <div><h2 id="workflow-dialog-title" className="text-base font-extrabold text-slate-950">Collaborative review stages</h2><p className="mt-1 max-w-xl text-xs leading-5 text-slate-500">Assign the first stage to Marcus and the next to Devon. Approve to hand off, return to send the draft back to the stage creator, then resubmit after making changes. Final document approval is recorded separately.</p></div>
                   <div className="flex shrink-0 items-center gap-2">
                     <a href={api.getReviewWorkflowExportUrl(activeReview.id)} className="rounded-lg border border-blue-200 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50" target="_blank" rel="noreferrer">Export CSV</a>
                     <button type="button" onClick={() => setWorkflowModalOpen(false)} aria-label="Close collaborative review stages" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">Close</button>
@@ -1798,16 +1885,36 @@ if (
                       <div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-xs text-slate-800">{stage.order}. {stage.name}</strong><span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-700">{stage.status.replace(/_/g, ' ')}</span></div>
                       <p className="mt-1 text-[11px] text-slate-500">Assigned to {stage.assignedReviewer}</p>
                       {stage.decisionNote && <p className="mt-1 text-[11px] text-slate-600">Note: {stage.decisionNote}</p>}
-                      {!isCompleted && stage.assignedReviewer.toLowerCase() === currentUser.name.toLowerCase() && (stage.status === 'in_review' || stage.status === 'returned') && <div className="mt-2 space-y-2">
-                        <input value={workflowNote} onChange={event => setWorkflowNote(event.target.value)} placeholder="Decision note (optional)" className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs" />
+                      {!isCompleted && stage.assignedReviewer.trim().toLowerCase() === currentUser.name.trim().toLowerCase() && stage.status === 'in_review' && <div className="mt-3 space-y-2 rounded-lg border border-blue-200 bg-blue-50/70 p-3">
+                        <p className="text-[11px] font-semibold text-blue-900">Your turn: review this draft and its findings.</p>
+                        <input value={workflowNote} onChange={event => setWorkflowNote(event.target.value)} placeholder="Add a decision note (recommended)" className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
                         <div className="flex flex-wrap gap-2">
                           <button type="button" disabled={workflowBusy} onClick={() => void handleWorkflowDecision(stage, 'approved')} className="rounded bg-emerald-700 px-3 py-2 text-[11px] font-semibold text-white disabled:opacity-50">Approve &amp; hand off</button>
-                          <button type="button" disabled={workflowBusy} onClick={() => void handleWorkflowDecision(stage, 'returned')} className="rounded border border-amber-300 px-3 py-2 text-[11px] font-semibold text-amber-800 disabled:opacity-50">Return for changes</button>
-                          <button type="button" disabled={workflowBusy} onClick={() => void handleWorkflowDecision(stage, 'rejected')} className="rounded border border-rose-200 px-3 py-2 text-[11px] font-semibold text-rose-700 disabled:opacity-50">Reject stage</button>
+                          <button type="button" disabled={workflowBusy || !workflowNote.trim()} onClick={() => void handleWorkflowDecision(stage, 'returned')} className="rounded border border-amber-300 bg-white px-3 py-2 text-[11px] font-semibold text-amber-800 disabled:opacity-50">Return for changes</button>
+                          <button type="button" disabled={workflowBusy || !workflowNote.trim()} onClick={() => void handleWorkflowDecision(stage, 'rejected')} className="rounded border border-rose-200 bg-white px-3 py-2 text-[11px] font-semibold text-rose-700 disabled:opacity-50">Reject stage</button>
                         </div>
                       </div>}
+                      {!isCompleted && stage.status === 'returned' && stage.createdBy.trim().toLowerCase() === currentUser.name.trim().toLowerCase() && <div className="mt-3 space-y-2 rounded-lg border border-amber-200 bg-amber-50/70 p-3">
+                        <p className="text-[11px] font-semibold text-amber-900">Returned to you for changes.</p>
+                        <p className="text-[11px] leading-5 text-amber-800">Read the reviewer&apos;s return note, edit and save the existing draft, re-run analysis, then resubmit it to {stage.assignedReviewer}.</p>
+                        <button type="button" onClick={() => { setReturnedDraftText(activeReview.currentContent); setReturnedDraftError(null); setShowOriginalDiff(false); setIsEditingReturnedDraft(true); setWorkflowModalOpen(false); }} className="rounded border border-amber-300 bg-white px-3 py-2 text-[11px] font-semibold text-amber-900 hover:bg-amber-100">Edit returned draft</button>
+                        <input value={workflowNote} onChange={event => setWorkflowNote(event.target.value)} placeholder="Optional resubmission note" className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
+                        <button type="button" disabled={workflowBusy} onClick={() => void handleWorkflowDecision(stage, 'resubmitted')} className="rounded bg-blue-700 px-3 py-2 text-[11px] font-semibold text-white disabled:opacity-50">Resubmit to {stage.assignedReviewer}</button>
+                      </div>}
+                      {!isCompleted && stage.status === 'returned' && stage.assignedReviewer.trim().toLowerCase() === currentUser.name.trim().toLowerCase() && <p className="mt-2 rounded-lg bg-slate-50 p-2 text-[11px] text-slate-500">Waiting for {stage.createdBy} to update and resubmit this draft.</p>}
+                      {!isCompleted && stage.status === 'pending' && <p className="mt-2 text-[11px] text-slate-500">Waiting for the previous review stage to be approved.</p>}
                     </div>
-                  ))}</div> : <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-xs text-slate-500">No review stages have been assigned yet.</div>}
+                  ))}</div> : <div className="rounded-xl border border-dashed border-blue-200 bg-blue-50/50 p-5 text-left">
+                    <p className="text-xs font-bold text-slate-800">Start a collaborative hand-off</p>
+                    <ol className="mt-2 list-decimal space-y-1 pl-4 text-[11px] leading-5 text-slate-600">
+                      <li>Add Brand &amp; Messaging Review and assign it to Marcus Chen.</li>
+                      <li>Add Legal &amp; Compliance Review and assign it to Devon Price.</li>
+                      <li>Switch to Marcus. The assigned task will appear on the Command Centre and open this workflow automatically.</li>
+                    </ol>
+                  </div>}
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-[11px] leading-5 text-slate-600">
+                    <strong className="text-slate-800">Important:</strong> approving every workflow stage completes the hand-off sequence, not the document review itself. Any unresolved findings (including partially supported claims) must still be addressed before a final approval can be recorded.
+                  </div>
                   {isCompleted ? <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3"><p className="text-xs font-semibold text-amber-900">This review is signed off and read-only.</p><p className="mt-1 text-[11px] text-amber-800">Workflow stages can only be added while a review is pending.</p></div> : <form onSubmit={handleAddWorkflowStage} className="grid grid-cols-1 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[1fr_1fr_auto]">
                     <select required value={workflowStageName} onChange={event => setWorkflowStageName(event.target.value)} aria-label="Choose review stage" className="min-w-0 rounded border border-slate-200 bg-white px-2 py-2 text-xs">
                       <option value="">Choose a stage…</option><option value="Brand & Messaging Review">Brand &amp; Messaging Review</option><option value="Legal & Compliance Review">Legal &amp; Compliance Review</option><option value="Final Approval">Final Approval</option>
@@ -2245,7 +2352,7 @@ const occurrencePreview = (start: number) => {
 
                       {wording.isEvidenceGap ? (
                         <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs leading-relaxed text-amber-900">
-                          No directly relevant approved source was found for this claim.
+                          No directly relevant approved source was found for this claim. A reviewer may approve the document as-is; this gap will be acknowledged, but the claim will remain marked unsupported.
                         </div>
                       ) : (
                         <div className="mt-2 space-y-1.5">
@@ -2281,6 +2388,11 @@ const occurrencePreview = (start: number) => {
                               Open original evidence document
                             </a>
                           )}
+                          {finding.evidenceStatus && finding.evidenceStatus !== 'supported' && !isCompleted && onNavigateToEvidenceIngestion && (
+                            <button type="button" onClick={onNavigateToEvidenceIngestion} className="mt-2 inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[10px] font-semibold text-amber-900 hover:bg-amber-100">
+                              Add or verify supporting evidence
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -2294,6 +2406,11 @@ const occurrencePreview = (start: number) => {
                           <div className="mt-0.5 text-[10px] text-slate-500">
                             Finding-level review record
                           </div>
+                          {finding.suggestion?.status === 'pending' && (
+                            <p className="mt-2 max-w-xl text-[10px] leading-4 text-amber-800">
+                              This records whether you agree the finding is valid. It does not apply its pending correction. Use Accept Change or Edit above to resolve the suggested revision, or dismiss the finding if it is a false positive.
+                            </p>
+                          )}
                         </div>
                         <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${findingDecisionStyle}`}>
                           {findingDecisionLabel}
