@@ -607,9 +607,6 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
       return;
     }
 
-    const unresolvedCount = activeReview.summary.unresolvedFindings;
-    const isCheckpoint = unresolvedCount > 0;
-
     setIsCompleting(true);
     setValidationError(null);
     setDecisionFeedback(null);
@@ -622,15 +619,20 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
       });
       onDecisionUpdated(updated);
 
-      if (isCheckpoint) {
+      if (updated.status !== 'completed') {
         setCompletionRecord(null);
         setViewMode('results');
         setDecisionNotes('');
         setDecisionFeedback(null);
-        setCheckpointRecord({ decision, unresolvedCount, document: updated });
+        setCheckpointRecord({
+          decision,
+          unresolvedCount: updated.summary.unresolvedFindings,
+          document: updated,
+        });
         return;
       }
 
+      setCheckpointRecord(null);
       setCompletionRecord({ verdict: decision, document: updated });
     } catch (err: any) {
       console.error('Failed to complete review:', err);
@@ -1735,7 +1737,7 @@ if (
                   <div className="flex items-center gap-2">
                     <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
                     <span>
-                      <strong>{unresolvedCount} finding(s) pending:</strong> The remaining findings have not been approved or rejected. This review will stay in the Pending queue until they are addressed.
+                      <strong>{unresolvedCount} finding(s) pending:</strong> Unsupported-source gaps can be acknowledged with Approve As-Is. Pending corrections and other unresolved findings must still be addressed.
                     </span>
                   </div>
                   <button
@@ -1782,7 +1784,7 @@ if (
                 <button
                   onClick={() => handleFinalDecision('approved_as_is')}
                   disabled={isCompleting || hasIncompleteWorkflow}
-                  title={hasIncompleteWorkflow ? 'Approve all collaborative stages first' : unresolvedCount > 0 ? 'Save this checkpoint; the remaining findings will stay pending' : 'Approve As-Is'}
+                  title={hasIncompleteWorkflow ? 'Approve all collaborative stages first' : unresolvedCount > 0 ? 'Approve As-Is acknowledges evidence gaps; pending corrections and other unresolved findings remain blocking' : 'Approve As-Is'}
                   className="px-3 py-1.5 text-white font-medium text-xs rounded-lg flex items-center gap-1 whitespace-nowrap shadow-xs transition-colors bg-slate-800 hover:bg-slate-900 cursor-pointer disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed"
                 >
                   <Check className="w-3.5 h-3.5" />
@@ -2350,7 +2352,7 @@ const occurrencePreview = (start: number) => {
 
                       {wording.isEvidenceGap ? (
                         <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs leading-relaxed text-amber-900">
-                          No directly relevant approved source was found for this claim.
+                          No directly relevant approved source was found for this claim. A reviewer may approve the document as-is; this gap will be acknowledged, but the claim will remain marked unsupported.
                         </div>
                       ) : (
                         <div className="mt-2 space-y-1.5">
