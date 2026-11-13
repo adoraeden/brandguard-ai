@@ -323,6 +323,10 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   const [workflowNote, setWorkflowNote] = useState('');
   const [workflowError, setWorkflowError] = useState<string | null>(null);
   const [workflowBusy, setWorkflowBusy] = useState(false);
+  const [isEditingReturnedDraft, setIsEditingReturnedDraft] = useState(false);
+  const [returnedDraftText, setReturnedDraftText] = useState('');
+  const [savingReturnedDraft, setSavingReturnedDraft] = useState(false);
+  const [returnedDraftError, setReturnedDraftError] = useState<string | null>(null);
 
   // Human Final Decision State
   const [decisionNotes, setDecisionNotes] = useState('');
@@ -412,6 +416,12 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
   }, [activeReview?.id]);
 
   useEffect(() => {
+    setReturnedDraftText(activeReview?.currentContent || '');
+    setIsEditingReturnedDraft(false);
+    setReturnedDraftError(null);
+  }, [activeReview?.id, activeReview?.currentContent]);
+
+  useEffect(() => {
     if (!activeReview?.id) { setWorkflowStages([]); return; }
     let cancelled = false;
     api.getReviewWorkflow(activeReview.id)
@@ -456,6 +466,29 @@ export const ReviewStudio: React.FC<ReviewStudioProps> = ({
     } catch (error: any) {
       setWorkflowError(error?.message || 'Could not save the stage decision.');
     } finally { setWorkflowBusy(false); }
+  };
+
+  const handleSaveReturnedDraft = async () => {
+    if (!activeReview) return;
+    if (!returnedDraftText.trim()) {
+      setReturnedDraftError('The revised draft cannot be empty.');
+      return;
+    }
+    setSavingReturnedDraft(true);
+    setReturnedDraftError(null);
+    try {
+      const updated = await api.updateReturnedReviewContent(
+        activeReview.id, returnedDraftText, currentUser.name
+      );
+      onDecisionUpdated(updated);
+      setIsEditingReturnedDraft(false);
+      setWorkflowNote('Draft revision saved. Resubmit it to the assigned reviewer.');
+      setWorkflowModalOpen(true);
+    } catch (error: any) {
+      setReturnedDraftError(error?.message || 'Could not save the returned draft revision.');
+    } finally {
+      setSavingReturnedDraft(false);
+    }
   };
 
   // Load sample draft when provided, unless an existing review is active.
@@ -1612,6 +1645,9 @@ if (
               <span className="text-slate-300">·</span>
               <span className="text-slate-500 font-mono text-[11px]">Click pins to jump to findings</span>
             </div>
+            {isEditingReturnedDraft ? (
+              <button type="button" onClick={() => { setIsEditingReturnedDraft(false); setReturnedDraftText(activeReview.currentContent); setReturnedDraftError(null); }} className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">Cancel draft edit</button>
+            ) : (
             <button
               onClick={() => setShowOriginalDiff(!showOriginalDiff)}
               className={`px-2.5 py-1 text-xs rounded-md border font-medium flex items-center gap-1.5 transition-colors cursor-pointer ${
@@ -1623,6 +1659,7 @@ if (
               <SplitSquareVertical className="w-3.5 h-3.5" />
               <span>{showOriginalDiff ? 'Showing Original Submitted' : 'Showing Current Revised Draft'}</span>
             </button>
+            )}
           </div>
 
           {/* Document Text (Independent Scroll) */}
@@ -1636,10 +1673,32 @@ if (
                 </span>
               </div>
 
-              {/* Render document with highlighted findings */}
-              <div className="text-slate-800 text-sm">
-                {renderHighlightedDocument()}
-              </div>
+              {isEditingReturnedDraft ? (
+                <div className="space-y-3">
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
+                    <strong>Returned draft revision.</strong> Make the requested changes below. Saving records a revision in the review audit history; it does not rerun AI analysis automatically.
+                  </div>
+                  <textarea
+                    aria-label="Edit returned review draft"
+                    value={returnedDraftText}
+                    onChange={event => setReturnedDraftText(event.target.value)}
+                    rows={18}
+                    className="min-h-[360px] w-full resize-y rounded-xl border border-slate-300 bg-white p-4 text-sm leading-6 text-slate-800 shadow-inner focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                  />
+                  {returnedDraftError && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">{returnedDraftError}</p>}
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <button type="button" onClick={() => { setIsEditingReturnedDraft(false); setReturnedDraftText(activeReview.currentContent); setReturnedDraftError(null); }} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
+                    <button type="button" onClick={() => void handleSaveReturnedDraft()} disabled={savingReturnedDraft || !returnedDraftText.trim()} className="rounded-lg bg-blue-700 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50">{savingReturnedDraft ? 'Saving revision…' : 'Save draft revision'}</button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Render document with highlighted findings */}
+                  <div className="text-slate-800 text-sm">
+                    {renderHighlightedDocument()}
+                  </div>
+                </>
+              )}
 
               {/* Active revision banner */}
               {activeReview.summary.acceptedSuggestions > 0 && !showOriginalDiff && (
@@ -1821,7 +1880,8 @@ if (
                       </div>}
                       {!isCompleted && stage.status === 'returned' && stage.createdBy.trim().toLowerCase() === currentUser.name.trim().toLowerCase() && <div className="mt-3 space-y-2 rounded-lg border border-amber-200 bg-amber-50/70 p-3">
                         <p className="text-[11px] font-semibold text-amber-900">Returned to you for changes.</p>
-                        <p className="text-[11px] leading-5 text-amber-800">Review the return note, update the draft in the main Review Studio editor, then send it back to {stage.assignedReviewer}.</p>
+                        <p className="text-[11px] leading-5 text-amber-800">Read the reviewer&apos;s return note, edit the existing draft, save the revision, then send it back to {stage.assignedReviewer}.</p>
+                        <button type="button" onClick={() => { setReturnedDraftText(activeReview.currentContent); setReturnedDraftError(null); setIsEditingReturnedDraft(true); setWorkflowModalOpen(false); }} className="rounded border border-amber-300 bg-white px-3 py-2 text-[11px] font-semibold text-amber-900 hover:bg-amber-100">Edit returned draft</button>
                         <input value={workflowNote} onChange={event => setWorkflowNote(event.target.value)} placeholder="Optional resubmission note" className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
                         <button type="button" disabled={workflowBusy} onClick={() => void handleWorkflowDecision(stage, 'resubmitted')} className="rounded bg-blue-700 px-3 py-2 text-[11px] font-semibold text-white disabled:opacity-50">Resubmit to {stage.assignedReviewer}</button>
                       </div>}
