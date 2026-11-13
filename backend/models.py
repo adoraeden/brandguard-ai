@@ -226,6 +226,11 @@ class ReviewWorkflowStageCreateRequest(BaseModel):
     reviewer: Optional[str] = None
 
 
+class ReviewContentUpdateRequest(BaseModel):
+    content: str = Field(min_length=1, max_length=200000)
+    reviewer: str = Field(min_length=2, max_length=160)
+
+
 class ReviewWorkflowStageDecisionRequest(BaseModel):
     decision: Literal['approved', 'returned', 'rejected', 'resubmitted']
     note: Optional[str] = Field(default=None, max_length=2000)
