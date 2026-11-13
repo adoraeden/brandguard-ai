@@ -94,7 +94,7 @@ export const DecisionArchiveView: React.FC<DecisionArchiveViewProps> = ({
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-6">
+    <div className="h-full min-h-0 p-6 max-w-7xl mx-auto flex flex-col gap-5">
       {/* Title & Concise Summary */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
