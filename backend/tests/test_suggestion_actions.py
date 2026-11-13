@@ -9,7 +9,7 @@ from routers.reviews import apply_suggestion_action
 
 
 def make_review(content, exact_text, suggested_text="clear, evidence-based wording"):
-    now = datetime.utcnow()
+    now = datetime.now()
     review = DBReviewDocument(
         id="suggestion-action-test",
         title="Suggestion action regression",
@@ -104,7 +104,7 @@ class SuggestionActionTests(unittest.TestCase):
         self.assertIsNone(finding.suggestion.custom_edited_text)
 
     def test_ambiguous_exact_text_requires_explicit_occurrence_selection(self):
-        original = "Guarantees protection. Our page guarantees protection."
+        original = "The claim guarantees protection. Our page guarantees protection."
         review, finding = make_review(original, "guarantees protection")
 
         with self.assertRaises(HTTPException) as error:
@@ -118,7 +118,7 @@ class SuggestionActionTests(unittest.TestCase):
         apply_suggestion_action(review, finding, "accept", occurrence_index=1)
         self.assertEqual(
             review.current_content,
-            "Guarantees protection. Our page clear, evidence-based wording.",
+            "The claim guarantees protection. Our page clear, evidence-based wording.",
         )
 
     def test_edit_requires_nonempty_custom_text_and_does_not_change_draft(self):
